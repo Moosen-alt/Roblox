@@ -47,6 +47,9 @@ local function buildTool(tier: { [string]: any }): Tool
 	tool.Name = tier.Name
 	tool.RequiresHandle = true
 	tool.CanBeDropped = false
+	-- Yaw the handle 90 degrees in the grip so the head's points face
+	-- forward/back (swing direction) instead of spanning across the shoulders.
+	tool.Grip = CFrame.Angles(0, math.rad(90), 0)
 	tool:SetAttribute(TOOL_TAG, true)
 
 	local headColor = tier.Color or Color3.fromRGB(160, 158, 165)

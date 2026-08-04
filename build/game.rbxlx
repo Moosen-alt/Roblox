@@ -4403,6 +4403,9 @@ local function buildTool(tier: { [string]: any }): Tool
 	tool.Name = tier.Name
 	tool.RequiresHandle = true
 	tool.CanBeDropped = false
+	-- Yaw the handle 90 degrees in the grip so the head's points face
+	-- forward/back (swing direction) instead of spanning across the shoulders.
+	tool.Grip = CFrame.Angles(0, math.rad(90), 0)
 	tool:SetAttribute(TOOL_TAG, true)
 
 	local headColor = tier.Color or Color3.fromRGB(160, 158, 165)
@@ -5205,6 +5208,21 @@ return UpgradeService
 
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local StarterGui = game:GetService("StarterGui")
+
+-- The pickaxe Tool is permanent cosmetic equipment; hide the default backpack
+-- hotbar so it doesn't overlap the HUD button row.
+task.spawn(function()
+	for _ = 1, 10 do
+		local ok = pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+		end)
+		if ok then
+			return
+		end
+		task.wait(0.5)
+	end
+end)
 
 local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)

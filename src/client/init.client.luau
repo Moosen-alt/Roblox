@@ -3,6 +3,21 @@
 
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local StarterGui = game:GetService("StarterGui")
+
+-- The pickaxe Tool is permanent cosmetic equipment; hide the default backpack
+-- hotbar so it doesn't overlap the HUD button row.
+task.spawn(function()
+	for _ = 1, 10 do
+		local ok = pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+		end)
+		if ok then
+			return
+		end
+		task.wait(0.5)
+	end
+end)
 
 local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)
