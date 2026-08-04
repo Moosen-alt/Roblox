@@ -335,6 +335,29 @@ function MapBuilder.Build(): MapRefs
 	spawn.Duration = 0
 	spawn.Parent = map
 
+	-- Friendly like prompt beside the spawn (honest version of the genre's
+	-- like-goal boards — no fake counters, no reward-baiting).
+	local likeSign = part({
+		Name = "LikeSign",
+		Size = Vector3.new(10, 4.5, 0.6),
+		CFrame = CFrame.lookAt(Vector3.new(-15, 3, -58), Vector3.new(0, 3, -48)),
+		Color = Color3.fromRGB(40, 38, 60),
+		Material = Enum.Material.SmoothPlastic,
+	}, map)
+	local likeGui = Instance.new("SurfaceGui")
+	likeGui.Face = Enum.NormalId.Front
+	likeGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	likeGui.PixelsPerStud = 40
+	local likeLabel = Instance.new("TextLabel")
+	likeLabel.Size = UDim2.fromScale(1, 1)
+	likeLabel.BackgroundTransparency = 1
+	likeLabel.Font = Enum.Font.FredokaOne
+	likeLabel.Text = "Enjoying the game?\nA 👍 helps small games grow!"
+	likeLabel.TextColor3 = Color3.fromRGB(120, 255, 200)
+	likeLabel.TextScaled = true
+	likeLabel.Parent = likeGui
+	likeGui.Parent = likeSign
+
 	map.Parent = Workspace
 
 	return {

@@ -1,12 +1,14 @@
 --!strict
--- Daily login streaks with 7/14/30 milestones, one grace day, and a 2x bonus
--- for joining the group (converts players into an owned audience).
+-- Daily login streaks on a visible 7-day reward cycle, with a 2x bonus for
+-- joining the group. Day 7 grants the anchor prize: big coins + a guaranteed
+-- Charged Geode roll (free-action randomness — no disclosure surface).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Monetization = require(Shared.Config.Monetization)
+local Remotes = require(Shared.Remotes)
 
 local StreakService = {}
 
@@ -14,10 +16,11 @@ local ctx: any = nil
 
 export type StreakReport = {
 	Count: number,
+	CycleDay: number,
 	Reward: number,
-	Milestone: boolean,
 	GroupBonus: boolean,
 	StreakLost: boolean,
+	Premium: boolean,
 }
 
 function StreakService.HandleJoin(player: Player, data: any): StreakReport?
@@ -39,12 +42,9 @@ function StreakService.HandleJoin(player: Player, data: any): StreakReport?
 	streak.LastDay = today
 	streak.Best = math.max(streak.Best, streak.Count)
 
-	local day = math.min(streak.Count, Balance.StreakDayCap)
-	local reward = Balance.StreakBaseReward * day
-	local milestoneMult = Balance.StreakMilestones[streak.Count]
-	if milestoneMult then
-		reward *= milestoneMult
-	end
+	local cycleDay = ((streak.Count - 1) % #Balance.StreakCycle) + 1
+	local cycleReward = Balance.StreakCycle[cycleDay]
+	local reward = cycleReward.Coins
 
 	local inGroup = false
 	if Monetization.GroupId ~= 0 then
@@ -59,14 +59,26 @@ function StreakService.HandleJoin(player: Player, data: any): StreakReport?
 
 	data.Coins += reward
 	data.TotalCoinsEarned += reward
-	ctx.Data.MarkDirty(player)
 
+	if cycleReward.PremiumGeode then
+		local result = ctx.Crack.RollWithLuck(player, 3)
+		if result then
+			task.delay(3, function()
+				if player.Parent then
+					Remotes.Event("CrackResult"):FireClient(player, { result }, true)
+				end
+			end)
+		end
+	end
+
+	ctx.Data.MarkDirty(player)
 	return {
 		Count = streak.Count,
+		CycleDay = cycleDay,
 		Reward = reward,
-		Milestone = milestoneMult ~= nil,
 		GroupBonus = inGroup,
 		StreakLost = lost,
+		Premium = cycleReward.PremiumGeode == true,
 	}
 end
 

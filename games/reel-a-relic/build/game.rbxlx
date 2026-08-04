@@ -87,11 +87,19 @@ Balance.Events = {
 	{ Name = "Moon Tide", LuckMult = 1, MutationMult = 5, Color = Color3.fromRGB(160, 200, 255) },
 }
 
--- Daily streaks (day 7/14/30 milestones, 1 grace day before reset).
-Balance.StreakBaseReward = 100 -- coins x current streak day (capped)
-Balance.StreakDayCap = 30
-Balance.StreakMilestones = { [7] = 3, [14] = 4, [30] = 6 } -- reward multiplier on milestone days
+-- Daily streaks: a VISIBLE 7-day reward cycle (repeats forever, 1 grace day).
+-- Day 7 anchor: big coins + a guaranteed Golden Chest roll (free-action
+-- randomness, no paid-random surface).
 Balance.StreakGraceDays = 1
+Balance.StreakCycle = {
+	{ Coins = 150 },
+	{ Coins = 300 },
+	{ Coins = 600 },
+	{ Coins = 1000 },
+	{ Coins = 1500 },
+	{ Coins = 2500 },
+	{ Coins = 5000, PremiumGeode = true },
+}
 
 -- Boosts
 Balance.StarterPackCoins = 2500
@@ -639,13 +647,22 @@ print("[ReelARelic] Server ready.")
         <Properties>
           <string name="Name">AnalyticsService</string>
           <string name="Source"><![CDATA[--!strict
--- Thin, fail-safe wrapper over Roblox AnalyticsService. The onboarding funnel
--- (FirstGeode -> FirstCrack -> FirstRare -> FirstSocket -> FirstRebirth) is the
--- go/no-go dashboard for spending any ad budget: fix the biggest drop-off first.
+-- Fail-safe wrapper over Roblox AnalyticsService. The onboarding funnel
+-- (FirstGeode -> FirstCrack -> FirstRare -> FirstSocket -> FirstRebirth) is
+-- the go/no-go dashboard for ad spend — and each first-time step now pays a
+-- small coin reward so the on-screen objectives feel like a tutorial quest.
 
 local RobloxAnalytics = game:GetService("AnalyticsService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Remotes = require(Shared.Remotes)
 
 local AnalyticsService = {}
+
+local ctx: any = nil
+
+local STEP_REWARDS = { 50, 100, 150, 250, 500 }
 
 function AnalyticsService.FunnelStep(player: Player, data: any, step: number, stepName: string)
 	if data.Funnel[stepName] then
@@ -655,6 +672,14 @@ function AnalyticsService.FunnelStep(player: Player, data: any, step: number, st
 	pcall(function()
 		RobloxAnalytics:LogOnboardingFunnelStepEvent(player, step, stepName)
 	end)
+	local reward = STEP_REWARDS[step]
+	if reward and ctx then
+		ctx.Data.AddCoins(player, reward, false)
+		Remotes.Event("Notify"):FireClient(player, {
+			Text = "Objective complete!  +" .. reward .. " coins",
+			Color = Color3.fromRGB(120, 255, 200),
+		})
+	end
 end
 
 function AnalyticsService.LogCustom(player: Player, eventName: string, value: number?)
@@ -663,7 +688,9 @@ function AnalyticsService.LogCustom(player: Player, eventName: string, value: nu
 	end)
 end
 
-function AnalyticsService.Init(_serviceCtx: any) end
+function AnalyticsService.Init(serviceCtx: any)
+	ctx = serviceCtx
+end
 
 return AnalyticsService
 ]]></string>
@@ -1106,6 +1133,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		StarterPackOwned = data.StarterPackOwned,
 		Boost2xUntil = data.Boosts.Coins2xUntil,
 		Stats = data.Stats,
+		Funnel = data.Funnel,
 	}
 end
 
@@ -1648,6 +1676,28 @@ function MapBuilder.Build(): MapRefs
 	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.Duration = 0
 	spawn.Parent = map
+
+	-- Friendly like prompt beside the dock spawn
+	local likeSign = part({
+		Name = "LikeSign",
+		Size = Vector3.new(10, 4.5, 0.6),
+		CFrame = CFrame.lookAt(Vector3.new(12, 4, -28), Vector3.new(0, 3, -40)),
+		Color = Color3.fromRGB(90, 65, 45),
+		Material = Enum.Material.Wood,
+	}, map)
+	local likeGui = Instance.new("SurfaceGui")
+	likeGui.Face = Enum.NormalId.Front
+	likeGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	likeGui.PixelsPerStud = 40
+	local likeLabel = Instance.new("TextLabel")
+	likeLabel.Size = UDim2.fromScale(1, 1)
+	likeLabel.BackgroundTransparency = 1
+	likeLabel.Font = Enum.Font.FredokaOne
+	likeLabel.Text = "Enjoying the game?\nA 👍 helps small games grow!"
+	likeLabel.TextColor3 = Color3.fromRGB(255, 210, 90)
+	likeLabel.TextScaled = true
+	likeLabel.Parent = likeGui
+	likeGui.Parent = likeSign
 
 	map.Parent = Workspace
 
@@ -5000,14 +5050,16 @@ return ShopService
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
--- Daily login streaks with 7/14/30 milestones, one grace day, and a 2x bonus
--- for joining the group (converts players into an owned audience).
+-- Daily login streaks on a visible 7-day reward cycle, with a 2x bonus for
+-- joining the group. Day 7 grants the anchor prize: big coins + a guaranteed
+-- Golden Chest roll (free-action randomness — no disclosure surface).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Monetization = require(Shared.Config.Monetization)
+local Remotes = require(Shared.Remotes)
 
 local StreakService = {}
 
@@ -5015,10 +5067,11 @@ local ctx: any = nil
 
 export type StreakReport = {
 	Count: number,
+	CycleDay: number,
 	Reward: number,
-	Milestone: boolean,
 	GroupBonus: boolean,
 	StreakLost: boolean,
+	Premium: boolean,
 }
 
 function StreakService.HandleJoin(player: Player, data: any): StreakReport?
@@ -5040,12 +5093,9 @@ function StreakService.HandleJoin(player: Player, data: any): StreakReport?
 	streak.LastDay = today
 	streak.Best = math.max(streak.Best, streak.Count)
 
-	local day = math.min(streak.Count, Balance.StreakDayCap)
-	local reward = Balance.StreakBaseReward * day
-	local milestoneMult = Balance.StreakMilestones[streak.Count]
-	if milestoneMult then
-		reward *= milestoneMult
-	end
+	local cycleDay = ((streak.Count - 1) % #Balance.StreakCycle) + 1
+	local cycleReward = Balance.StreakCycle[cycleDay]
+	local reward = cycleReward.Coins
 
 	local inGroup = false
 	if Monetization.GroupId ~= 0 then
@@ -5060,14 +5110,26 @@ function StreakService.HandleJoin(player: Player, data: any): StreakReport?
 
 	data.Coins += reward
 	data.TotalCoinsEarned += reward
-	ctx.Data.MarkDirty(player)
 
+	if cycleReward.PremiumGeode then
+		local result = ctx.Crack.RollWithLuck(player, 3)
+		if result then
+			task.delay(3, function()
+				if player.Parent then
+					Remotes.Event("CrackResult"):FireClient(player, { result }, true)
+				end
+			end)
+		end
+	end
+
+	ctx.Data.MarkDirty(player)
 	return {
 		Count = streak.Count,
+		CycleDay = cycleDay,
 		Reward = reward,
-		Milestone = milestoneMult ~= nil,
 		GroupBonus = inGroup,
 		StreakLost = lost,
+		Premium = cycleReward.PremiumGeode == true,
 	}
 end
 
@@ -5194,6 +5256,7 @@ end)
 local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)
 local MiningInput = require(script.MiningInput)
+local ObjectiveBanner = require(script.ObjectiveBanner)
 local Toasts = require(script.Toasts)
 local Hud = require(script.Hud)
 local CrackScreen = require(script.Screens.CrackScreen)
@@ -5217,6 +5280,7 @@ State.Init()
 MiningInput.Init()
 Toasts.Init(gui)
 Hud.Init(gui)
+ObjectiveBanner.Init(gui)
 CrackScreen.Init(gui)
 RacksScreen.Init(gui)
 ShopScreen.Init(gui)
@@ -5541,6 +5605,65 @@ return MiningInput
         </Item>
         <Item class="ModuleScript" referent="33">
           <Properties>
+            <string name="Name">ObjectiveBanner</string>
+            <string name="Source"><![CDATA[--!strict
+-- Guided objective banner: shows new players exactly what to do next, driven
+-- by the server-side onboarding funnel (each step also pays a coin reward).
+-- Disappears forever once the loop is learned (first rebirth).
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local State = require(script.Parent.State)
+local UiKit = require(script.Parent.UiKit)
+
+local _ = Shared
+
+local ObjectiveBanner = {}
+
+local STEPS = {
+	{ key = "FirstGeode", text = "⛏️ Objective: Catch a chest at a glowing fishing spot!" },
+	{ key = "FirstCrack", text = "💥 Objective: Open your chest at Treasure Chests!" },
+	{ key = "FirstRare", text = "💎 Objective: Keep opening — find a Rare relic!" },
+	{ key = "FirstSocket", text = "🔮 Objective: Display a relic in your Aquarium!" },
+	{ key = "FirstRebirth", text = "✨ Objective: Save up coins and Set Sail!" },
+}
+
+function ObjectiveBanner.Init(gui: ScreenGui)
+	local banner = UiKit.Create("TextLabel", {
+		Text = "",
+		Font = Enum.Font.GothamBold,
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(255, 240, 180),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		BackgroundTransparency = 0.25,
+		Size = UDim2.fromOffset(540, 34),
+		Position = UDim2.new(0.5, -270, 0, 284),
+		Visible = false,
+		Parent = gui,
+	}) :: TextLabel
+	UiKit.Corner(10).Parent = banner
+	UiKit.Pad(6).Parent = banner
+
+	State.Changed:Connect(function(state)
+		local funnel = state.Funnel or {}
+		for _, step in STEPS do
+			if not funnel[step.key] then
+				banner.Text = step.text
+				banner.Visible = true
+				return
+			end
+		end
+		banner.Visible = false
+	end)
+end
+
+return ObjectiveBanner
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="34">
+          <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
 -- Client-side purchase prompts, driven by the Monetization config. Offers with
@@ -5578,7 +5701,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -5828,7 +5951,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -5885,11 +6008,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="36">
+        <Item class="Folder" referent="37">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="37">
+          <Item class="ModuleScript" referent="38">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6381,7 +6504,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="38">
+          <Item class="ModuleScript" referent="39">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6504,7 +6627,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="40">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6796,7 +6919,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="41">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6895,7 +7018,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="41">
+          <Item class="ModuleScript" referent="42">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7156,7 +7279,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="42">
+          <Item class="ModuleScript" referent="43">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7338,7 +7461,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -7385,7 +7508,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -7396,6 +7519,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
 local Crystals = require(Shared.Config.Crystals)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
@@ -7441,8 +7565,8 @@ local function showWelcome(report: { [string]: any })
 	local streak = report.Streak
 	if streak then
 		local streakLine = ("Day %d streak! +%s coins"):format(streak.Count, Format.Number(streak.Reward))
-		if streak.Milestone then
-			streakLine ..= "  (MILESTONE!)"
+		if streak.Premium then
+			streakLine ..= "  + a FREE Golden Chest!"
 		end
 		if streak.GroupBonus then
 			streakLine ..= "  (2x group bonus)"
@@ -7466,9 +7590,10 @@ local function showWelcome(report: { [string]: any })
 		return
 	end
 
+	local calendarHeight = streak and 92 or 0
 	local popup = UiKit.Create("Frame", {
-		Size = UDim2.fromOffset(420, 90 + #lines * 34),
-		Position = UDim2.fromScale(0.5, 0.32),
+		Size = UDim2.fromOffset(470, 96 + #lines * 34 + calendarHeight),
+		Position = UDim2.fromScale(0.5, 0.34),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = UiKit.Colors.Bg,
 		Parent = gui,
@@ -7494,6 +7619,50 @@ local function showWelcome(report: { [string]: any })
 			Parent = popup,
 		})
 	end
+
+	-- The visible 7-day cycle: tomorrow's reward is always on screen.
+	if streak then
+		local cycleDay = ((streak.Count - 1) % #Balance.StreakCycle) + 1
+		local calendar = UiKit.Create("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -20, 0, 78),
+			Position = UDim2.fromOffset(10, 48 + #lines * 34 + 6),
+			Parent = popup,
+		})
+		local cellWidth = 60
+		for day, reward in Balance.StreakCycle do
+			local isToday = day == cycleDay
+			local isPast = day < cycleDay
+			local cell = UiKit.Create("Frame", {
+				Size = UDim2.fromOffset(cellWidth, 74),
+				Position = UDim2.fromOffset((day - 1) * (cellWidth + 4), 0),
+				BackgroundColor3 = isToday and UiKit.Colors.BgLighter or UiKit.Colors.BgLight,
+				BackgroundTransparency = isPast and 0.5 or 0,
+				Parent = calendar,
+			})
+			UiKit.Corner(8).Parent = cell
+			if isToday then
+				UiKit.Stroke(UiKit.Colors.Accent, 2).Parent = cell
+			end
+			UiKit.Label({
+				Text = "Day " .. day,
+				Font = Enum.Font.GothamBold,
+				TextColor3 = isToday and UiKit.Colors.Accent or UiKit.Colors.TextDim,
+				Size = UDim2.new(1, -4, 0, 20),
+				Position = UDim2.fromOffset(2, 4),
+				Parent = cell,
+			})
+			UiKit.Label({
+				Text = isPast and "✓" or (reward.PremiumGeode and "💎 OP!" or Format.Number(reward.Coins)),
+				Font = Enum.Font.FredokaOne,
+				TextColor3 = reward.PremiumGeode and Color3.fromRGB(255, 140, 255) or UiKit.Colors.Text,
+				Size = UDim2.new(1, -4, 0, 34),
+				Position = UDim2.fromOffset(2, 28),
+				Parent = cell,
+			})
+		end
+	end
+
 	local okButton = UiKit.Button({
 		Text = "Let's fish!",
 		Size = UDim2.fromOffset(160, 38),
@@ -7503,7 +7672,7 @@ local function showWelcome(report: { [string]: any })
 	okButton.Activated:Connect(function()
 		popup:Destroy()
 	end)
-	task.delay(12, function()
+	task.delay(15, function()
 		if popup.Parent then
 			popup:Destroy()
 		end
@@ -7555,7 +7724,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict

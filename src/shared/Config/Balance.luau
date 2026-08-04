@@ -73,11 +73,20 @@ Balance.Events = {
 	{ Name = "Aurora", LuckMult = 1, MutationMult = 5, Color = Color3.fromRGB(120, 255, 200) },
 }
 
--- Daily streaks (day 7/14/30 milestones, 1 grace day before reset).
-Balance.StreakBaseReward = 100 -- coins x current streak day (capped)
-Balance.StreakDayCap = 30
-Balance.StreakMilestones = { [7] = 3, [14] = 4, [30] = 6 } -- reward multiplier on milestone days
+-- Daily streaks: a VISIBLE 7-day reward cycle (repeats forever, 1 grace day).
+-- Players see the whole week's rewards in the welcome calendar — anticipation
+-- is the retention hook. Day 7 is the anchor: big coins + a guaranteed
+-- Charged Geode roll (free-action randomness, no paid-random surface).
 Balance.StreakGraceDays = 1
+Balance.StreakCycle = {
+	{ Coins = 150 },
+	{ Coins = 300 },
+	{ Coins = 600 },
+	{ Coins = 1000 },
+	{ Coins = 1500 },
+	{ Coins = 2500 },
+	{ Coins = 5000, PremiumGeode = true },
+}
 
 -- Boosts
 Balance.StarterPackCoins = 2500

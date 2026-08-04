@@ -180,6 +180,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		StarterPackOwned = data.StarterPackOwned,
 		Boost2xUntil = data.Boosts.Coins2xUntil,
 		Stats = data.Stats,
+		Funnel = data.Funnel,
 	}
 end
 

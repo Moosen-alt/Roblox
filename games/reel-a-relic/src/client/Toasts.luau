@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
 local Crystals = require(Shared.Config.Crystals)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
@@ -51,8 +52,8 @@ local function showWelcome(report: { [string]: any })
 	local streak = report.Streak
 	if streak then
 		local streakLine = ("Day %d streak! +%s coins"):format(streak.Count, Format.Number(streak.Reward))
-		if streak.Milestone then
-			streakLine ..= "  (MILESTONE!)"
+		if streak.Premium then
+			streakLine ..= "  + a FREE Golden Chest!"
 		end
 		if streak.GroupBonus then
 			streakLine ..= "  (2x group bonus)"
@@ -76,9 +77,10 @@ local function showWelcome(report: { [string]: any })
 		return
 	end
 
+	local calendarHeight = streak and 92 or 0
 	local popup = UiKit.Create("Frame", {
-		Size = UDim2.fromOffset(420, 90 + #lines * 34),
-		Position = UDim2.fromScale(0.5, 0.32),
+		Size = UDim2.fromOffset(470, 96 + #lines * 34 + calendarHeight),
+		Position = UDim2.fromScale(0.5, 0.34),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = UiKit.Colors.Bg,
 		Parent = gui,
@@ -104,6 +106,50 @@ local function showWelcome(report: { [string]: any })
 			Parent = popup,
 		})
 	end
+
+	-- The visible 7-day cycle: tomorrow's reward is always on screen.
+	if streak then
+		local cycleDay = ((streak.Count - 1) % #Balance.StreakCycle) + 1
+		local calendar = UiKit.Create("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -20, 0, 78),
+			Position = UDim2.fromOffset(10, 48 + #lines * 34 + 6),
+			Parent = popup,
+		})
+		local cellWidth = 60
+		for day, reward in Balance.StreakCycle do
+			local isToday = day == cycleDay
+			local isPast = day < cycleDay
+			local cell = UiKit.Create("Frame", {
+				Size = UDim2.fromOffset(cellWidth, 74),
+				Position = UDim2.fromOffset((day - 1) * (cellWidth + 4), 0),
+				BackgroundColor3 = isToday and UiKit.Colors.BgLighter or UiKit.Colors.BgLight,
+				BackgroundTransparency = isPast and 0.5 or 0,
+				Parent = calendar,
+			})
+			UiKit.Corner(8).Parent = cell
+			if isToday then
+				UiKit.Stroke(UiKit.Colors.Accent, 2).Parent = cell
+			end
+			UiKit.Label({
+				Text = "Day " .. day,
+				Font = Enum.Font.GothamBold,
+				TextColor3 = isToday and UiKit.Colors.Accent or UiKit.Colors.TextDim,
+				Size = UDim2.new(1, -4, 0, 20),
+				Position = UDim2.fromOffset(2, 4),
+				Parent = cell,
+			})
+			UiKit.Label({
+				Text = isPast and "✓" or (reward.PremiumGeode and "💎 OP!" or Format.Number(reward.Coins)),
+				Font = Enum.Font.FredokaOne,
+				TextColor3 = reward.PremiumGeode and Color3.fromRGB(255, 140, 255) or UiKit.Colors.Text,
+				Size = UDim2.new(1, -4, 0, 34),
+				Position = UDim2.fromOffset(2, 28),
+				Parent = cell,
+			})
+		end
+	end
+
 	local okButton = UiKit.Button({
 		Text = "Let's fish!",
 		Size = UDim2.fromOffset(160, 38),
@@ -113,7 +159,7 @@ local function showWelcome(report: { [string]: any })
 	okButton.Activated:Connect(function()
 		popup:Destroy()
 	end)
-	task.delay(12, function()
+	task.delay(15, function()
 		if popup.Parent then
 			popup:Destroy()
 		end
