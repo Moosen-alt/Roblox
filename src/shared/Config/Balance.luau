@@ -20,7 +20,7 @@ Balance.PityForcedRareCrack = 3 -- the Nth lifetime crack is guaranteed Rare+ (f
 -- Pickaxes: damage per tap. Index 1 is the freebie. Color/Material/Glow drive
 -- the held pickaxe model so every upgrade is visible in your hand.
 Balance.Pickaxes = {
-	{ Name = "Rusty Pick", Damage = 1, Cost = 0, Color = Color3.fromRGB(140, 100, 70), Material = Enum.Material.CorrodedMetal, Glow = false },
+	{ Name = "Rusty Pick", Damage = 1, Cost = 0, Color = Color3.fromRGB(160, 158, 165), Material = Enum.Material.Metal, Glow = false },
 	{ Name = "Copper Pick", Damage = 2, Cost = 150, Color = Color3.fromRGB(205, 125, 70), Material = Enum.Material.Metal, Glow = false },
 	{ Name = "Iron Pick", Damage = 3, Cost = 600, Color = Color3.fromRGB(190, 190, 200), Material = Enum.Material.Metal, Glow = false },
 	{ Name = "Golden Pick", Damage = 5, Cost = 2000, Color = Color3.fromRGB(255, 200, 60), Material = Enum.Material.Metal, Glow = false },
