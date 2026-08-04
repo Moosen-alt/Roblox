@@ -4259,10 +4259,11 @@ return ProfileStore</string>
         <Properties>
           <string name="Name">PickaxeVisual</string>
           <string name="Source"><![CDATA[--!strict
--- The held pickaxe: a procedural model welded into the player's hand that
+-- The held pickaxe: a procedural model jointed into the player's hand that
 -- upgrades visually with every pickaxe tier and swings on each mining tap.
--- Pure cosmetics — input still goes through the node ClickDetectors, so this
--- changes feel, not mechanics.
+-- Every piece hangs off Motor6D joints (transform-driven, like character
+-- limbs) so nothing can physically detach or drift — no welds, no physics.
+-- Pure cosmetics: input still goes through the node ClickDetectors.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -4280,63 +4281,61 @@ local swinging: { [Player]: boolean } = {}
 -- Grip: handle stands in the palm (tilted ~20 degrees forward), head above the
 -- hand spanning forward/back — reads as "holding a pickaxe" in idle animations.
 local GRIP_C0 = CFrame.Angles(math.rad(-20), 0, 0) * CFrame.Angles(0, math.rad(90), 0)
-local GRIP_C1 = CFrame.new(0, -0.5, 0)
+local GRIP_C1 = CFrame.new(0, -0.6, 0)
 local SWING_C0 = CFrame.Angles(math.rad(-80), 0, 0) * GRIP_C0
+
+local function toolPart(name: string, size: Vector3, color: Color3, material: Enum.Material, parent: Instance): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.Color = color
+	p.Material = material
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Massless = true
+	p.Parent = parent
+	return p
+end
+
+local function joint(part0: BasePart, part1: BasePart, offset: CFrame)
+	local motor = Instance.new("Motor6D")
+	motor.Name = part1.Name .. "Joint"
+	motor.Part0 = part0
+	motor.Part1 = part1
+	motor.C0 = offset
+	motor.Parent = part0
+end
 
 local function buildModel(tier: { [string]: any }): (Model, BasePart)
 	local model = Instance.new("Model")
 	model.Name = "HeldPickaxe"
 
-	local handle = Instance.new("Part")
-	handle.Name = "Handle"
-	handle.Size = Vector3.new(0.3, 2.6, 0.3)
-	handle.Color = Color3.fromRGB(110, 80, 55)
-	handle.Material = Enum.Material.Wood
-	handle.CanCollide = false
-	handle.CanQuery = false
-	handle.Massless = true
-	handle.Parent = model
+	local headColor = tier.Color or Color3.fromRGB(190, 190, 200)
+	local headMaterial = tier.Material or Enum.Material.Metal
 
-	local head = Instance.new("Part")
-	head.Name = "Head"
-	head.Size = Vector3.new(1.9, 0.4, 0.45)
-	head.Color = tier.Color or Color3.fromRGB(190, 190, 200)
-	head.Material = tier.Material or Enum.Material.Metal
-	head.CanCollide = false
-	head.CanQuery = false
-	head.Massless = true
-	head.CFrame = handle.CFrame * CFrame.new(0, 1.25, 0)
-	head.Parent = model
+	local handle = toolPart("Handle", Vector3.new(0.35, 3, 0.35), Color3.fromRGB(95, 70, 48), Enum.Material.Wood, model)
 
-	for side = -1, 1, 2 do
-		local tip = Instance.new("WedgePart")
-		tip.Name = side == -1 and "TipL" or "TipR"
-		tip.Size = Vector3.new(0.45, 0.4, 0.55)
-		tip.Color = head.Color
-		tip.Material = head.Material
-		tip.CanCollide = false
-		tip.CanQuery = false
-		tip.Massless = true
-		tip.CFrame = head.CFrame * CFrame.new(side * 1.15, 0, 0) * CFrame.Angles(0, side == -1 and math.rad(-90) or math.rad(90), 0)
-		tip.Parent = model
-		local tipWeld = Instance.new("WeldConstraint")
-		tipWeld.Part0 = head
-		tipWeld.Part1 = tip
-		tipWeld.Parent = tip
-	end
+	-- Bright binding band where the head meets the handle: makes even the
+	-- starter pick read as a crafted tool instead of a stick.
+	local band = toolPart("Band", Vector3.new(0.45, 0.28, 0.45), Color3.fromRGB(255, 210, 90), Enum.Material.Neon, model)
+	joint(handle, band, CFrame.new(0, 0.85, 0))
+
+	-- Head bar + two down-angled spikes = the classic curved-pick silhouette
+	local head = toolPart("Head", Vector3.new(2.2, 0.5, 0.55), headColor, headMaterial, model)
+	joint(handle, head, CFrame.new(0, 1.15, 0))
+	local spikeLeft = toolPart("SpikeL", Vector3.new(1.1, 0.38, 0.45), headColor, headMaterial, model)
+	joint(head, spikeLeft, CFrame.new(-1.35, -0.35, 0) * CFrame.Angles(0, 0, math.rad(40)))
+	local spikeRight = toolPart("SpikeR", Vector3.new(1.1, 0.38, 0.45), headColor, headMaterial, model)
+	joint(head, spikeRight, CFrame.new(1.35, -0.35, 0) * CFrame.Angles(0, 0, math.rad(-40)))
 
 	if tier.Glow then
 		local light = Instance.new("PointLight")
-		light.Color = head.Color
+		light.Color = headColor
 		light.Range = 8
 		light.Brightness = 1.2
 		light.Parent = head
 	end
-
-	local headWeld = Instance.new("WeldConstraint")
-	headWeld.Part0 = handle
-	headWeld.Part1 = head
-	headWeld.Parent = head
 
 	model.PrimaryPart = handle
 	return model, handle
@@ -4356,6 +4355,10 @@ function PickaxeVisual.Refresh(player: Player)
 	local existing = character:FindFirstChild("HeldPickaxe")
 	if existing then
 		existing:Destroy()
+	end
+	local oldGrip = hand:FindFirstChild("PickaxeGrip")
+	if oldGrip then
+		oldGrip:Destroy()
 	end
 	grips[player] = nil
 
