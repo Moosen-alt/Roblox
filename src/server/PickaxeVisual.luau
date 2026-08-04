@@ -18,13 +18,13 @@ local ctx: any = nil
 local grips: { [Player]: Motor6D } = {}
 local swinging: { [Player]: boolean } = {}
 
--- Grip: with a hanging arm the hand's local +Y runs DOWN toward the fingers
--- and its X axis faces forward — so flip 180 about Z to stand the handle up
--- with the head bar spanning forward/back like a real pick. The swing chops
--- in the forward/up plane (rotation about the hand's Z).
-local GRIP_C0 = CFrame.Angles(0, 0, math.rad(180))
+-- Grip (dialed in from playtest screenshots): the hand's +Y points up along
+-- the handle and its X axis faces forward/back — so no rotation at all stands
+-- the handle upright with the head bar spanning forward/back like a real
+-- pick. The swing chops in the forward/up plane (rotation about hand Z).
+local GRIP_C0 = CFrame.new()
 local GRIP_C1 = CFrame.new(0, -0.95, 0)
-local SWING_C0 = CFrame.Angles(0, 0, math.rad(110))
+local SWING_C0 = CFrame.Angles(0, 0, math.rad(-70))
 
 local function toolPart(name: string, size: Vector3, color: Color3, material: Enum.Material, parent: Instance): Part
 	local p = Instance.new("Part")
