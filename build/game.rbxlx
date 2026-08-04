@@ -6204,21 +6204,31 @@ local function showReveal(results: { { [string]: any } })
 	local handledIds: { [string]: boolean } = {}
 
 	-- Sell All stays live: recomputed from unhandled cards, hidden when empty.
+	-- Once every card is handled there is nothing left to decide, so the
+	-- reveal closes itself after a beat.
 	local sellAllRef: TextButton? = nil
 	local function refreshSellAll()
-		local button = sellAllRef
-		if not button then
-			return
-		end
 		local remaining = 0
+		local unhandled = 0
 		for _, crystal in results do
 			if not handledIds[crystal.Id] then
+				unhandled += 1
 				remaining += crystal.Value
 			end
 		end
-		button.Visible = remaining > 0
-		if remaining > 0 then
-			button.Text = "Sell All  (+" .. Format.Number(remaining) .. ")"
+		local button = sellAllRef
+		if button then
+			button.Visible = remaining > 0
+			if remaining > 0 then
+				button.Text = "Sell All  (+" .. Format.Number(remaining) .. ")"
+			end
+		end
+		if unhandled == 0 then
+			task.delay(0.75, function()
+				if overlay.Parent then
+					overlay:Destroy()
+				end
+			end)
 		end
 	end
 
