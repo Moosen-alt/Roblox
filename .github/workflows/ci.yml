@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish place files to Roblox"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -84,7 +89,7 @@ jobs:
       #   REEL_UNIVERSE_ID  / REEL_PLACE_ID    - Reel a Relic
       #   OBBY_UNIVERSE_ID  / OBBY_PLACE_ID    - Easy Obby
       - name: Publish Crack a Geode to Roblox (if configured)
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && vars.AUTO_PUBLISH == 'true') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
           UNIVERSE_ID: ${{ secrets.GEODE_UNIVERSE_ID }}
@@ -92,7 +97,7 @@ jobs:
         run: bash .github/scripts/publish-place.sh build/game.rbxlx
 
       - name: Publish Reel a Relic to Roblox (if configured)
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && vars.AUTO_PUBLISH == 'true') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
           UNIVERSE_ID: ${{ secrets.REEL_UNIVERSE_ID }}
@@ -100,7 +105,7 @@ jobs:
         run: bash .github/scripts/publish-place.sh games/reel-a-relic/build/game.rbxlx
 
       - name: Publish Easy Obby to Roblox (if configured)
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && vars.AUTO_PUBLISH == 'true') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
           UNIVERSE_ID: ${{ secrets.OBBY_UNIVERSE_ID }}
