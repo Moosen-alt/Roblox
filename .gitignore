@@ -1,0 +1,7 @@
+# Rojo build artifacts are committed on purpose (build/game.rbxlx) so the game
+# can be opened in Studio without any local tooling. Everything else transient:
+*.rbxlx.lock
+*.rbxl.lock
+/sourcemap.json
+/DataStore
+.DS_Store
