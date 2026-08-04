@@ -5640,17 +5640,12 @@ RevealFx.ShellColor = Color3.fromRGB(120, 100, 150)
 RevealFx.ShellStroke = Color3.fromRGB(80, 65, 105)
 
 local TICK_SOUND = "rbxasset://sounds/electronicpingshort.wav"
+local THUD_SOUND = "rbxasset://sounds/snap.mp3"
 
-export type PlayOptions = {
-	Color: Color3, -- tier color for glow/burst
-	Suspense: number, -- seconds of shake before the burst
-	Charged: boolean, -- extra white charge-up before burst (Epic+)
-}
-
-local function tick(parent: Instance, pitch: number)
+local function play(parent: Instance, id: string, pitch: number, volume: number)
 	local sound = Instance.new("Sound")
-	sound.SoundId = TICK_SOUND
-	sound.Volume = 0.35
+	sound.SoundId = id
+	sound.Volume = volume
 	sound.PlaybackSpeed = pitch
 	sound.Parent = parent
 	sound:Play()
@@ -5662,6 +5657,38 @@ local function tick(parent: Instance, pitch: number)
 			sound:Destroy()
 		end
 	end)
+end
+
+-- Tier-scaled hype: built-in sounds pitched into arpeggios. Commons pop,
+-- Rares get a rising triad, Legendary/Mythic get a full fanfare with bass —
+-- the reveal should SOUND as big as it looks. {delay, sound, pitch, volume}
+local FANFARES: { [number]: { { number } } } = {}
+FANFARES[1] = { { 0, 1, 1.0, 0.5 } } :: any
+FANFARES[2] = { { 0, 1, 1.15, 0.55 } } :: any
+FANFARES[3] = { { 0, 0, 1.0, 0.55 }, { 0.09, 0, 1.26, 0.6 }, { 0.18, 0, 1.5, 0.65 } } :: any
+FANFARES[4] = { { 0, 1, 0.6, 0.8 }, { 0.05, 0, 1.0, 0.6 }, { 0.14, 0, 1.26, 0.6 }, { 0.23, 0, 1.5, 0.65 }, { 0.32, 0, 2.0, 0.7 } } :: any
+FANFARES[5] = { { 0, 1, 0.5, 0.9 }, { 0.08, 0, 1.0, 0.65 }, { 0.16, 0, 1.26, 0.65 }, { 0.24, 0, 1.5, 0.7 }, { 0.32, 0, 1.68, 0.7 }, { 0.4, 0, 2.0, 0.8 }, { 0.55, 1, 1.4, 0.7 } } :: any
+FANFARES[6] = { { 0, 1, 0.4, 1 }, { 0.06, 0, 1.0, 0.7 }, { 0.12, 0, 1.26, 0.7 }, { 0.18, 0, 1.5, 0.7 }, { 0.24, 0, 1.68, 0.75 }, { 0.3, 0, 2.0, 0.8 }, { 0.38, 0, 2.52, 0.85 }, { 0.5, 0, 3.0, 0.9 }, { 0.62, 1, 1.6, 0.8 } } :: any
+
+function RevealFx.Fanfare(parent: Instance, tierRank: number)
+	local notes = FANFARES[math.clamp(tierRank, 1, 6)]
+	for _, note in notes do
+		task.delay(note[1], function()
+			if parent.Parent then
+				play(parent, note[2] == 1 and THUD_SOUND or TICK_SOUND, note[3], note[4])
+			end
+		end)
+	end
+end
+
+export type PlayOptions = {
+	Color: Color3, -- tier color for glow/burst
+	Suspense: number, -- seconds of shake before the burst
+	Charged: boolean, -- extra white charge-up before burst (Epic+)
+}
+
+local function tick(parent: Instance, pitch: number)
+	play(parent, TICK_SOUND, pitch, 0.35)
 end
 
 -- Anticipation + burst. Calls onBurst at the explosion moment, then cleans up
@@ -6057,11 +6084,17 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 	end
 	local sellButton = cardButton("Sell", UiKit.Colors.Buy, 8)
 	local socketButton = cardButton("Socket", UiKit.Colors.Good, cardWidth // 2 + 6)
+	-- The server call yields, so lock BEFORE invoking — otherwise a fast
+	-- double-tap (or tapping both buttons) can double-render the done state.
+	local busy = false
 	local function markDone(text: string)
 		handledIds[crystal.Id] = true
 		sellButton:Destroy()
 		socketButton:Destroy()
-		UiKit.Label({
+		if card:FindFirstChild("DoneLabel") then
+			return
+		end
+		local done = UiKit.Label({
 			Text = text,
 			TextColor3 = UiKit.Colors.TextDim,
 			Size = UDim2.new(1, -12, 0, 26),
@@ -6069,27 +6102,36 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 			ZIndex = 3,
 			Parent = card,
 		})
+		done.Name = "DoneLabel"
 	end
 	sellButton.Activated:Connect(function()
-		if handledIds[crystal.Id] then
+		if busy or handledIds[crystal.Id] then
 			return
 		end
+		busy = true
 		local ok, err = Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
 		if ok then
 			markDone("Sold  (+" .. Format.Number(crystal.Value) .. ")")
-		elseif typeof(err) == "string" then
-			Toasts.Push(err, UiKit.Colors.Bad)
+		else
+			busy = false
+			if typeof(err) == "string" then
+				Toasts.Push(err, UiKit.Colors.Bad)
+			end
 		end
 	end)
 	socketButton.Activated:Connect(function()
-		if handledIds[crystal.Id] then
+		if busy or handledIds[crystal.Id] then
 			return
 		end
+		busy = true
 		local ok, err = Remotes.Function("SocketCrystal"):InvokeServer(crystal.Id)
 		if ok then
 			markDone("Socketed!")
-		elseif typeof(err) == "string" then
-			Toasts.Push(err, UiKit.Colors.Bad)
+		else
+			busy = false
+			if typeof(err) == "string" then
+				Toasts.Push(err, UiKit.Colors.Bad)
+			end
 		end
 	end)
 	if crystal.New then
@@ -6159,6 +6201,7 @@ local function showReveal(results: { { [string]: any } })
 		Charged = bestRank >= 4,
 	}, function()
 		-- Celebration extras land with the burst
+		RevealFx.Fanfare(overlay, bestRank)
 		if bestRank >= 4 then
 			RevealFx.Confetti(overlay, bestColor, bestRank >= 5 and 36 or 20)
 		end

@@ -13,17 +13,12 @@ RevealFx.ShellColor = Color3.fromRGB(130, 95, 60)
 RevealFx.ShellStroke = Color3.fromRGB(255, 200, 60)
 
 local TICK_SOUND = "rbxasset://sounds/electronicpingshort.wav"
+local THUD_SOUND = "rbxasset://sounds/snap.mp3"
 
-export type PlayOptions = {
-	Color: Color3, -- tier color for glow/burst
-	Suspense: number, -- seconds of shake before the burst
-	Charged: boolean, -- extra white charge-up before burst (Epic+)
-}
-
-local function tick(parent: Instance, pitch: number)
+local function play(parent: Instance, id: string, pitch: number, volume: number)
 	local sound = Instance.new("Sound")
-	sound.SoundId = TICK_SOUND
-	sound.Volume = 0.35
+	sound.SoundId = id
+	sound.Volume = volume
 	sound.PlaybackSpeed = pitch
 	sound.Parent = parent
 	sound:Play()
@@ -35,6 +30,38 @@ local function tick(parent: Instance, pitch: number)
 			sound:Destroy()
 		end
 	end)
+end
+
+-- Tier-scaled hype: built-in sounds pitched into arpeggios. Commons pop,
+-- Rares get a rising triad, Legendary/Mythic get a full fanfare with bass —
+-- the reveal should SOUND as big as it looks. {delay, sound, pitch, volume}
+local FANFARES: { [number]: { { number } } } = {}
+FANFARES[1] = { { 0, 1, 1.0, 0.5 } } :: any
+FANFARES[2] = { { 0, 1, 1.15, 0.55 } } :: any
+FANFARES[3] = { { 0, 0, 1.0, 0.55 }, { 0.09, 0, 1.26, 0.6 }, { 0.18, 0, 1.5, 0.65 } } :: any
+FANFARES[4] = { { 0, 1, 0.6, 0.8 }, { 0.05, 0, 1.0, 0.6 }, { 0.14, 0, 1.26, 0.6 }, { 0.23, 0, 1.5, 0.65 }, { 0.32, 0, 2.0, 0.7 } } :: any
+FANFARES[5] = { { 0, 1, 0.5, 0.9 }, { 0.08, 0, 1.0, 0.65 }, { 0.16, 0, 1.26, 0.65 }, { 0.24, 0, 1.5, 0.7 }, { 0.32, 0, 1.68, 0.7 }, { 0.4, 0, 2.0, 0.8 }, { 0.55, 1, 1.4, 0.7 } } :: any
+FANFARES[6] = { { 0, 1, 0.4, 1 }, { 0.06, 0, 1.0, 0.7 }, { 0.12, 0, 1.26, 0.7 }, { 0.18, 0, 1.5, 0.7 }, { 0.24, 0, 1.68, 0.75 }, { 0.3, 0, 2.0, 0.8 }, { 0.38, 0, 2.52, 0.85 }, { 0.5, 0, 3.0, 0.9 }, { 0.62, 1, 1.6, 0.8 } } :: any
+
+function RevealFx.Fanfare(parent: Instance, tierRank: number)
+	local notes = FANFARES[math.clamp(tierRank, 1, 6)]
+	for _, note in notes do
+		task.delay(note[1], function()
+			if parent.Parent then
+				play(parent, note[2] == 1 and THUD_SOUND or TICK_SOUND, note[3], note[4])
+			end
+		end)
+	end
+end
+
+export type PlayOptions = {
+	Color: Color3, -- tier color for glow/burst
+	Suspense: number, -- seconds of shake before the burst
+	Charged: boolean, -- extra white charge-up before burst (Epic+)
+}
+
+local function tick(parent: Instance, pitch: number)
+	play(parent, TICK_SOUND, pitch, 0.35)
 end
 
 -- Anticipation + burst. Calls onBurst at the explosion moment, then cleans up

@@ -146,11 +146,17 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 	end
 	local sellButton = cardButton("Sell", UiKit.Colors.Buy, 8)
 	local socketButton = cardButton("Display", UiKit.Colors.Good, cardWidth // 2 + 6)
+	-- The server call yields, so lock BEFORE invoking — otherwise a fast
+	-- double-tap (or tapping both buttons) can double-render the done state.
+	local busy = false
 	local function markDone(text: string)
 		handledIds[crystal.Id] = true
 		sellButton:Destroy()
 		socketButton:Destroy()
-		UiKit.Label({
+		if card:FindFirstChild("DoneLabel") then
+			return
+		end
+		local done = UiKit.Label({
 			Text = text,
 			TextColor3 = UiKit.Colors.TextDim,
 			Size = UDim2.new(1, -12, 0, 26),
@@ -158,27 +164,36 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 			ZIndex = 3,
 			Parent = card,
 		})
+		done.Name = "DoneLabel"
 	end
 	sellButton.Activated:Connect(function()
-		if handledIds[crystal.Id] then
+		if busy or handledIds[crystal.Id] then
 			return
 		end
+		busy = true
 		local ok, err = Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
 		if ok then
 			markDone("Sold  (+" .. Format.Number(crystal.Value) .. ")")
-		elseif typeof(err) == "string" then
-			Toasts.Push(err, UiKit.Colors.Bad)
+		else
+			busy = false
+			if typeof(err) == "string" then
+				Toasts.Push(err, UiKit.Colors.Bad)
+			end
 		end
 	end)
 	socketButton.Activated:Connect(function()
-		if handledIds[crystal.Id] then
+		if busy or handledIds[crystal.Id] then
 			return
 		end
+		busy = true
 		local ok, err = Remotes.Function("SocketCrystal"):InvokeServer(crystal.Id)
 		if ok then
 			markDone("Displayed!")
-		elseif typeof(err) == "string" then
-			Toasts.Push(err, UiKit.Colors.Bad)
+		else
+			busy = false
+			if typeof(err) == "string" then
+				Toasts.Push(err, UiKit.Colors.Bad)
+			end
 		end
 	end)
 	if crystal.New then
@@ -248,6 +263,7 @@ local function showReveal(results: { { [string]: any } })
 		Charged = bestRank >= 4,
 	}, function()
 		-- Celebration extras land with the burst
+		RevealFx.Fanfare(overlay, bestRank)
 		if bestRank >= 4 then
 			RevealFx.Confetti(overlay, bestColor, bestRank >= 5 and 36 or 20)
 		end
