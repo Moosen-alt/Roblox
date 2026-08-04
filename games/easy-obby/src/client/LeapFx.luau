@@ -13,6 +13,38 @@ local LeapFx = {}
 local gui: ScreenGui? = nil
 local lastCheckpoint: number? = nil
 
+-- Celebration audio from built-in sounds pitched into arpeggios (the same
+-- hype-scaling trick as the collectible games' reveal fanfares).
+local function play(pitch: number, volume: number, thud: boolean?)
+	local parent = gui
+	if not parent then
+		return
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = thud and "rbxasset://sounds/snap.mp3" or "rbxasset://sounds/electronicpingshort.wav"
+	sound.PlaybackSpeed = pitch
+	sound.Volume = volume
+	sound.Parent = parent
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	task.delay(2, function()
+		if sound.Parent then
+			sound:Destroy()
+		end
+	end)
+end
+
+-- notes: {delaySeconds, pitch, volume, thud?}
+function LeapFx.Chime(notes: { { number } })
+	for _, note in notes do
+		task.delay(note[1], function()
+			play(note[2], note[3], note[4] == 1)
+		end)
+	end
+end
+
 local function celebrate(delta: number)
 	local parent = gui
 	if not parent then
@@ -43,6 +75,7 @@ local function celebrate(delta: number)
 
 	LeapFx.Banner(("MEGA LEAP!  +%d"):format(delta), UiKit.Colors.Accent)
 	LeapFx.Confetti(math.min(10 + delta * 2, 34))
+	LeapFx.Chime({ { 0, 1.0, 0.55 }, { 0.08, 1.26, 0.6 }, { 0.16, 1.5, 0.65 } })
 end
 
 function LeapFx.Confetti(count: number)
@@ -124,6 +157,14 @@ function LeapFx.Init(screenGui: ScreenGui)
 		if lastRebirths ~= nil and state.Rebirths > lastRebirths then
 			LeapFx.Banner(("REBIRTH %d!"):format(state.Rebirths), Color3.fromRGB(255, 120, 255))
 			LeapFx.Confetti(34)
+			LeapFx.Chime({
+				{ 0, 0.5, 0.9, 1 },
+				{ 0.08, 1.0, 0.65 },
+				{ 0.16, 1.26, 0.65 },
+				{ 0.24, 1.5, 0.7 },
+				{ 0.32, 2.0, 0.8 },
+				{ 0.45, 1.4, 0.7, 1 },
+			})
 		end
 		lastRebirths = state.Rebirths
 	end)

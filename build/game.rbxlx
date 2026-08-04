@@ -6016,7 +6016,7 @@ local function renderOdds()
 	end
 end
 
-local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number, handledIds: { [string]: boolean }): Frame
+local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number, handledIds: { [string]: boolean }, onHandled: () -> ()): Frame
 	local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
 	local baseDef = Crystals.GetBase(crystal.Base)
 	local card = UiKit.Create("Frame", {
@@ -6087,22 +6087,23 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 	-- The server call yields, so lock BEFORE invoking — otherwise a fast
 	-- double-tap (or tapping both buttons) can double-render the done state.
 	local busy = false
+	-- Overlap-proof by construction: the Sell button ITSELF becomes the status
+	-- text (one instance mutated in place — nothing new is ever added at these
+	-- coordinates, so no race can double-render).
 	local function markDone(text: string)
 		handledIds[crystal.Id] = true
-		sellButton:Destroy()
-		socketButton:Destroy()
-		if card:FindFirstChild("DoneLabel") then
-			return
+		if socketButton.Parent then
+			socketButton:Destroy()
 		end
-		local done = UiKit.Label({
-			Text = text,
-			TextColor3 = UiKit.Colors.TextDim,
-			Size = UDim2.new(1, -12, 0, 26),
-			Position = UDim2.fromOffset(6, 224),
-			ZIndex = 3,
-			Parent = card,
-		})
-		done.Name = "DoneLabel"
+		sellButton.Active = false
+		sellButton.AutoButtonColor = false
+		sellButton.BackgroundTransparency = 1
+		sellButton.Font = Enum.Font.GothamBold
+		sellButton.TextColor3 = UiKit.Colors.TextDim
+		sellButton.Text = text
+		sellButton.Size = UDim2.new(1, -16, 0, 26)
+		sellButton.Position = UDim2.fromOffset(8, 224)
+		onHandled()
 	end
 	sellButton.Activated:Connect(function()
 		if busy or handledIds[crystal.Id] then
@@ -6178,11 +6179,9 @@ local function showReveal(results: { { [string]: any } })
 		Parent = revealGui,
 	})
 
-	local sellValue = 0
 	local bestTier = "Common"
 	local bestIndex = 1
 	for i, crystal in results do
-		sellValue += crystal.Value
 		if tierRank(crystal.Tier) > tierRank(bestTier) then
 			bestTier = crystal.Tier
 			bestIndex = i
@@ -6194,6 +6193,25 @@ local function showReveal(results: { { [string]: any } })
 	local cardWidth = 200
 	local totalWidth = #results * cardWidth + (#results - 1) * 16
 	local handledIds: { [string]: boolean } = {}
+
+	-- Sell All stays live: recomputed from unhandled cards, hidden when empty.
+	local sellAllRef: TextButton? = nil
+	local function refreshSellAll()
+		local button = sellAllRef
+		if not button then
+			return
+		end
+		local remaining = 0
+		for _, crystal in results do
+			if not handledIds[crystal.Id] then
+				remaining += crystal.Value
+			end
+		end
+		button.Visible = remaining > 0
+		if remaining > 0 then
+			button.Text = "Sell All  (+" .. Format.Number(remaining) .. ")"
+		end
+	end
 
 	RevealFx.Play(overlay, {
 		Color = bestColor,
@@ -6212,7 +6230,7 @@ local function showReveal(results: { { [string]: any } })
 			end
 			task.delay((i - 1) * 0.18, function()
 				if overlay.Parent then
-					makeCard(overlay, crystal, position, cardWidth, handledIds)
+					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll)
 				end
 			end)
 		end
@@ -6222,13 +6240,15 @@ local function showReveal(results: { { [string]: any } })
 				return
 			end
 			local sellAll = UiKit.Button({
-				Text = "Sell All  (+" .. Format.Number(sellValue) .. ")",
+				Text = "Sell All",
 				BackgroundColor3 = UiKit.Colors.Buy,
 				Size = UDim2.fromOffset(220, 48),
 				Position = UDim2.new(0.5, -232, 0.72, 0),
 				Parent = overlay,
 			})
 			sellAll.ZIndex = 4
+			sellAllRef = sellAll
+			refreshSellAll()
 			local keepAll = UiKit.Button({
 				Text = "Keep",
 				BackgroundColor3 = UiKit.Colors.BgLighter,

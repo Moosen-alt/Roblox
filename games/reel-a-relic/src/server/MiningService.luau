@@ -191,6 +191,14 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 			end)
 		end
 	end
+	-- Primary tap path: the equipped rod Tool swallows clicks before
+	-- ClickDetectors see them, so the client raycasts its tap and reports the
+	-- spot here. Same server-side validation (membership, distance, timing).
+	Remotes.Event("MineNode").OnServerEvent:Connect(function(player, spot)
+		if typeof(spot) == "Instance" and spots[spot :: any] then
+			onSpotClicked(spot :: BasePart, player)
+		end
+	end)
 
 	-- One loop drives bite flashes, missed-window recasts, and claim expiry.
 	local accumulator = 0

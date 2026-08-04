@@ -34,14 +34,14 @@ Balance.PityForcedRareCrack = 3 -- the Nth lifetime crack is guaranteed Rare+ (f
 
 -- Pickaxes: damage per tap. Index 1 is the freebie.
 Balance.Pickaxes = {
-	{ Name = "Twig Rod", Damage = 1, Cost = 0 },
-	{ Name = "Copper Rod", Damage = 2, Cost = 150 },
-	{ Name = "Iron Rod", Damage = 3, Cost = 600 },
-	{ Name = "Golden Rod", Damage = 5, Cost = 2000 },
-	{ Name = "Coral Rod", Damage = 8, Cost = 8000 },
-	{ Name = "Laser Rod", Damage = 12, Cost = 30000 },
-	{ Name = "Storm Rod", Damage = 20, Cost = 120000 },
-	{ Name = "Leviathan Rod", Damage = 30, Cost = 500000 },
+	{ Name = "Twig Rod", Damage = 1, Cost = 0, Color = Color3.fromRGB(140, 105, 70), Material = Enum.Material.Wood, Glow = false },
+	{ Name = "Copper Rod", Damage = 2, Cost = 150, Color = Color3.fromRGB(205, 125, 70), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Iron Rod", Damage = 3, Cost = 600, Color = Color3.fromRGB(190, 190, 200), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Golden Rod", Damage = 5, Cost = 2000, Color = Color3.fromRGB(255, 200, 60), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Coral Rod", Damage = 8, Cost = 8000, Color = Color3.fromRGB(255, 120, 140), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Laser Rod", Damage = 12, Cost = 30000, Color = Color3.fromRGB(255, 60, 80), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Storm Rod", Damage = 20, Cost = 120000, Color = Color3.fromRGB(120, 200, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Leviathan Rod", Damage = 30, Cost = 500000, Color = Color3.fromRGB(120, 90, 200), Material = Enum.Material.Neon, Glow = true },
 }
 
 -- Backpacks: how many uncracked geodes you can carry.
@@ -482,6 +482,7 @@ local FUNCTIONS = {
 	"Rebirth", -- () -> ok, err
 	"GetShopStock", -- () -> stock table (policy-filtered)
 	"BuyShopItem", -- (itemIndex) -> ok, err
+	"MineNode", -- client -> server: tapped a fishing spot (Tools swallow ClickDetector clicks)
 	"ToggleAutoCrack", -- () -> nowEnabled (pass owners can watch the full reveal again)
 }
 
@@ -573,6 +574,7 @@ local MonetizationService = require(script.MonetizationService)
 local PolicyGuard = require(script.PolicyGuard)
 local RackService = require(script.RackService)
 local RebirthService = require(script.RebirthService)
+local RodVisual = require(script.RodVisual)
 local ShopService = require(script.ShopService)
 local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
@@ -591,6 +593,7 @@ local ctx: any = {
 	Upgrades = UpgradeService,
 	Monetization = MonetizationService,
 	Policy = PolicyGuard,
+	RodVis = RodVisual,
 	Analytics = AnalyticsService,
 }
 
@@ -625,6 +628,7 @@ UpgradeService.Init(ctx)
 ShopService.Init(ctx)
 StreakService.Init(ctx)
 MiningService.Init(ctx, map.Nodes)
+RodVisual.Init(ctx)
 Leaderboards.Init(ctx, map.BoardRebirths, map.BoardRarest)
 DataService.Init(ctx)
 
@@ -1858,6 +1862,14 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 			end)
 		end
 	end
+	-- Primary tap path: the equipped rod Tool swallows clicks before
+	-- ClickDetectors see them, so the client raycasts its tap and reports the
+	-- spot here. Same server-side validation (membership, distance, timing).
+	Remotes.Event("MineNode").OnServerEvent:Connect(function(player, spot)
+		if typeof(spot) == "Instance" and spots[spot :: any] then
+			onSpotClicked(spot :: BasePart, player)
+		end
+	end)
 
 	-- One loop drives bite flashes, missed-window recasts, and claim expiry.
 	local accumulator = 0
@@ -4629,6 +4641,148 @@ return RebirthService
       </Item>
       <Item class="ModuleScript" referent="24">
         <Properties>
+          <string name="Name">RodVisual</string>
+          <string name="Source"><![CDATA[--!strict
+-- The held fishing rod: a real Tool (Roblox handles grip + hold pose), tilted
+-- forward like a rod at rest. The grip wrap and glowing tip upgrade per rod
+-- tier so every upgrade is visible in your hands. Pure cosmetics — casting
+-- input goes through the raycast tap path.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+
+local RodVisual = {}
+
+local ctx: any = nil
+
+local TOOL_TAG = "HeldRodTool"
+
+local function toolPart(name: string, size: Vector3, color: Color3, material: Enum.Material, parent: Instance): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.Color = color
+	p.Material = material
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Massless = true
+	p.Parent = parent
+	return p
+end
+
+local function joint(part0: BasePart, part1: BasePart, offset: CFrame)
+	local motor = Instance.new("Motor6D")
+	motor.Name = part1.Name .. "Joint"
+	motor.Part0 = part0
+	motor.Part1 = part1
+	motor.C0 = offset
+	motor.Parent = part0
+end
+
+local function buildTool(tier: { [string]: any }): Tool
+	local tool = Instance.new("Tool")
+	tool.Name = tier.Name
+	tool.RequiresHandle = true
+	tool.CanBeDropped = false
+	-- Tip the rod forward like a rod at the ready
+	tool.Grip = CFrame.Angles(math.rad(-35), 0, 0)
+	tool:SetAttribute(TOOL_TAG, true)
+
+	local accentColor = tier.Color or Color3.fromRGB(190, 190, 200)
+	local accentMaterial = tier.Material or Enum.Material.Metal
+
+	local handle = toolPart("Handle", Vector3.new(0.25, 5, 0.25), Color3.fromRGB(133, 95, 60), Enum.Material.Wood, tool)
+	local wrap = toolPart("GripWrap", Vector3.new(0.34, 1, 0.34), accentColor, accentMaterial, tool)
+	joint(handle, wrap, CFrame.new(0, -1.6, 0))
+	local reel = toolPart("Reel", Vector3.new(0.4, 0.4, 0.25), accentColor, accentMaterial, tool)
+	joint(handle, reel, CFrame.new(0.28, -1, 0))
+	local tip = toolPart("Tip", Vector3.new(0.32, 0.32, 0.32), accentColor, Enum.Material.Neon, tool)
+	joint(handle, tip, CFrame.new(0, 2.55, 0))
+
+	if tier.Glow then
+		local light = Instance.new("PointLight")
+		light.Color = accentColor
+		light.Range = 8
+		light.Brightness = 1.2
+		light.Parent = tip
+	end
+
+	return tool
+end
+
+local function clearOldTools(player: Player)
+	local function sweep(container: Instance?)
+		if not container then
+			return
+		end
+		for _, child in container:GetChildren() do
+			if child:IsA("Tool") and child:GetAttribute(TOOL_TAG) then
+				child:Destroy()
+			end
+		end
+	end
+	sweep(player.Character)
+	sweep(player:FindFirstChild("Backpack"))
+end
+
+function RodVisual.Refresh(player: Player)
+	local data = ctx.Data.Get(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not data or not character or not humanoid or humanoid.Health <= 0 then
+		return
+	end
+	clearOldTools(player)
+	local tier = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
+	local tool = buildTool(tier)
+	tool.Parent = player:FindFirstChild("Backpack") or player
+	humanoid:EquipTool(tool)
+end
+
+local function onCharacterAdded(player: Player, character: Model)
+	for _ = 1, 10 do
+		if ctx.Data.Get(player) and character:FindFirstChildOfClass("Humanoid") then
+			break
+		end
+		task.wait(0.5)
+	end
+	if player.Character == character then
+		RodVisual.Refresh(player)
+	end
+	task.delay(1.5, function()
+		if player.Character == character and not (character:FindFirstChildOfClass("Tool") or (player:FindFirstChild("Backpack") and (player.Backpack :: any):FindFirstChildOfClass("Tool"))) then
+			RodVisual.Refresh(player)
+		end
+	end)
+end
+
+function RodVisual.Init(serviceCtx: any)
+	ctx = serviceCtx
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function(character)
+			task.spawn(onCharacterAdded, player, character)
+		end)
+	end)
+	for _, player in Players:GetPlayers() do
+		player.CharacterAdded:Connect(function(character)
+			task.spawn(onCharacterAdded, player, character)
+		end)
+		if player.Character then
+			task.spawn(onCharacterAdded, player, player.Character)
+		end
+	end
+end
+
+return RodVisual
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="25">
+        <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[--!strict
 -- Clock-synced shop: stock derives from floor(os.time()/300), so every server
@@ -4842,7 +4996,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4925,7 +5079,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4956,6 +5110,8 @@ function UpgradeService.Buy(player: Player, kind: string): (boolean, string?)
 		end
 		data.Coins -= nextTier.Cost
 		data.Pickaxe += 1
+		ctx.RodVis.Refresh(player)
+		Remotes.Event("Notify"):FireClient(player, { Text = nextTier.Name .. " equipped!", Color = Color3.fromRGB(120, 255, 200) })
 	elseif kind == "Backpack" then
 		local nextTier = Balance.Backpacks[data.Backpack + 1]
 		if not nextTier then
@@ -5002,16 +5158,16 @@ return UpgradeService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="27">
+  <Item class="StarterPlayer" referent="28">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterWalkSpeed">20</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="28">
+    <Item class="StarterPlayerScripts" referent="29">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="29">
+      <Item class="LocalScript" referent="30">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -5019,9 +5175,25 @@ return UpgradeService
 
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local StarterGui = game:GetService("StarterGui")
+
+-- The pickaxe Tool is permanent cosmetic equipment; hide the default backpack
+-- hotbar so it doesn't overlap the HUD button row.
+task.spawn(function()
+	for _ = 1, 10 do
+		local ok = pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+		end)
+		if ok then
+			return
+		end
+		task.wait(0.5)
+	end
+end)
 
 local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)
+local MiningInput = require(script.MiningInput)
 local Toasts = require(script.Toasts)
 local Hud = require(script.Hud)
 local CrackScreen = require(script.Screens.CrackScreen)
@@ -5042,6 +5214,7 @@ gui.DisplayOrder = 10
 gui.Parent = playerGui
 
 State.Init()
+MiningInput.Init()
 Toasts.Init(gui)
 Hud.Init(gui)
 CrackScreen.Init(gui)
@@ -5070,7 +5243,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt)
 end)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -5316,7 +5489,57 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="32">
+          <Properties>
+            <string name="Name">MiningInput</string>
+            <string name="Source"><![CDATA[--!strict
+-- Tap-to-mine input: the equipped pickaxe Tool swallows clicks before
+-- ClickDetectors fire, so we raycast the tap ourselves and report the node.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Remotes = require(Shared.Remotes)
+
+local MiningInput = {}
+
+local MAX_TAP_RANGE = 140
+
+local function tryMine(position: Vector2)
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local ray = camera:ViewportPointToRay(position.X, position.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local character = Players.LocalPlayer.Character
+	params.FilterDescendantsInstances = character and { character } or {}
+	local hit = Workspace:Raycast(ray.Origin, ray.Direction * MAX_TAP_RANGE, params)
+	if hit and hit.Instance:GetAttribute("NodeIndex") ~= nil then
+		Remotes.Event("MineNode"):FireServer(hit.Instance)
+	end
+end
+
+function MiningInput.Init()
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			tryMine(Vector2.new(input.Position.X, input.Position.Y))
+		end
+	end)
+end
+
+return MiningInput
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -5355,7 +5578,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -5605,7 +5828,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -5662,11 +5885,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="34">
+        <Item class="Folder" referent="36">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="35">
+          <Item class="ModuleScript" referent="37">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -5749,7 +5972,7 @@ local function renderOdds()
 	end
 end
 
-local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number, handledIds: { [string]: boolean }): Frame
+local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number, handledIds: { [string]: boolean }, onHandled: () -> ()): Frame
 	local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
 	local baseDef = Crystals.GetBase(crystal.Base)
 	local card = UiKit.Create("Frame", {
@@ -5820,22 +6043,23 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 	-- The server call yields, so lock BEFORE invoking — otherwise a fast
 	-- double-tap (or tapping both buttons) can double-render the done state.
 	local busy = false
+	-- Overlap-proof by construction: the Sell button ITSELF becomes the status
+	-- text (one instance mutated in place — nothing new is ever added at these
+	-- coordinates, so no race can double-render).
 	local function markDone(text: string)
 		handledIds[crystal.Id] = true
-		sellButton:Destroy()
-		socketButton:Destroy()
-		if card:FindFirstChild("DoneLabel") then
-			return
+		if socketButton.Parent then
+			socketButton:Destroy()
 		end
-		local done = UiKit.Label({
-			Text = text,
-			TextColor3 = UiKit.Colors.TextDim,
-			Size = UDim2.new(1, -12, 0, 26),
-			Position = UDim2.fromOffset(6, 224),
-			ZIndex = 3,
-			Parent = card,
-		})
-		done.Name = "DoneLabel"
+		sellButton.Active = false
+		sellButton.AutoButtonColor = false
+		sellButton.BackgroundTransparency = 1
+		sellButton.Font = Enum.Font.GothamBold
+		sellButton.TextColor3 = UiKit.Colors.TextDim
+		sellButton.Text = text
+		sellButton.Size = UDim2.new(1, -16, 0, 26)
+		sellButton.Position = UDim2.fromOffset(8, 224)
+		onHandled()
 	end
 	sellButton.Activated:Connect(function()
 		if busy or handledIds[crystal.Id] then
@@ -5911,11 +6135,9 @@ local function showReveal(results: { { [string]: any } })
 		Parent = revealGui,
 	})
 
-	local sellValue = 0
 	local bestTier = "Common"
 	local bestIndex = 1
 	for i, crystal in results do
-		sellValue += crystal.Value
 		if tierRank(crystal.Tier) > tierRank(bestTier) then
 			bestTier = crystal.Tier
 			bestIndex = i
@@ -5927,6 +6149,25 @@ local function showReveal(results: { { [string]: any } })
 	local cardWidth = 200
 	local totalWidth = #results * cardWidth + (#results - 1) * 16
 	local handledIds: { [string]: boolean } = {}
+
+	-- Sell All stays live: recomputed from unhandled cards, hidden when empty.
+	local sellAllRef: TextButton? = nil
+	local function refreshSellAll()
+		local button = sellAllRef
+		if not button then
+			return
+		end
+		local remaining = 0
+		for _, crystal in results do
+			if not handledIds[crystal.Id] then
+				remaining += crystal.Value
+			end
+		end
+		button.Visible = remaining > 0
+		if remaining > 0 then
+			button.Text = "Sell All  (+" .. Format.Number(remaining) .. ")"
+		end
+	end
 
 	RevealFx.Play(overlay, {
 		Color = bestColor,
@@ -5945,7 +6186,7 @@ local function showReveal(results: { { [string]: any } })
 			end
 			task.delay((i - 1) * 0.18, function()
 				if overlay.Parent then
-					makeCard(overlay, crystal, position, cardWidth, handledIds)
+					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll)
 				end
 			end)
 		end
@@ -5955,13 +6196,15 @@ local function showReveal(results: { { [string]: any } })
 				return
 			end
 			local sellAll = UiKit.Button({
-				Text = "Sell All  (+" .. Format.Number(sellValue) .. ")",
+				Text = "Sell All",
 				BackgroundColor3 = UiKit.Colors.Buy,
 				Size = UDim2.fromOffset(220, 48),
 				Position = UDim2.new(0.5, -232, 0.72, 0),
 				Parent = overlay,
 			})
 			sellAll.ZIndex = 4
+			sellAllRef = sellAll
+			refreshSellAll()
 			local keepAll = UiKit.Button({
 				Text = "Keep",
 				BackgroundColor3 = UiKit.Colors.BgLighter,
@@ -6119,7 +6362,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="36">
+          <Item class="ModuleScript" referent="38">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6242,7 +6485,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="37">
+          <Item class="ModuleScript" referent="39">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6534,7 +6777,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="38">
+          <Item class="ModuleScript" referent="40">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6633,7 +6876,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="41">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6894,7 +7137,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="42">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7076,7 +7319,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -7123,7 +7366,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -7293,7 +7536,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict

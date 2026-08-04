@@ -17,6 +17,7 @@ local MonetizationService = require(script.MonetizationService)
 local PolicyGuard = require(script.PolicyGuard)
 local RackService = require(script.RackService)
 local RebirthService = require(script.RebirthService)
+local RodVisual = require(script.RodVisual)
 local ShopService = require(script.ShopService)
 local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
@@ -35,6 +36,7 @@ local ctx: any = {
 	Upgrades = UpgradeService,
 	Monetization = MonetizationService,
 	Policy = PolicyGuard,
+	RodVis = RodVisual,
 	Analytics = AnalyticsService,
 }
 
@@ -69,6 +71,7 @@ UpgradeService.Init(ctx)
 ShopService.Init(ctx)
 StreakService.Init(ctx)
 MiningService.Init(ctx, map.Nodes)
+RodVisual.Init(ctx)
 Leaderboards.Init(ctx, map.BoardRebirths, map.BoardRarest)
 DataService.Init(ctx)
 

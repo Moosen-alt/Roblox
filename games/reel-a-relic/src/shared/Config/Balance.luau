@@ -18,14 +18,14 @@ Balance.PityForcedRareCrack = 3 -- the Nth lifetime crack is guaranteed Rare+ (f
 
 -- Pickaxes: damage per tap. Index 1 is the freebie.
 Balance.Pickaxes = {
-	{ Name = "Twig Rod", Damage = 1, Cost = 0 },
-	{ Name = "Copper Rod", Damage = 2, Cost = 150 },
-	{ Name = "Iron Rod", Damage = 3, Cost = 600 },
-	{ Name = "Golden Rod", Damage = 5, Cost = 2000 },
-	{ Name = "Coral Rod", Damage = 8, Cost = 8000 },
-	{ Name = "Laser Rod", Damage = 12, Cost = 30000 },
-	{ Name = "Storm Rod", Damage = 20, Cost = 120000 },
-	{ Name = "Leviathan Rod", Damage = 30, Cost = 500000 },
+	{ Name = "Twig Rod", Damage = 1, Cost = 0, Color = Color3.fromRGB(140, 105, 70), Material = Enum.Material.Wood, Glow = false },
+	{ Name = "Copper Rod", Damage = 2, Cost = 150, Color = Color3.fromRGB(205, 125, 70), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Iron Rod", Damage = 3, Cost = 600, Color = Color3.fromRGB(190, 190, 200), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Golden Rod", Damage = 5, Cost = 2000, Color = Color3.fromRGB(255, 200, 60), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Coral Rod", Damage = 8, Cost = 8000, Color = Color3.fromRGB(255, 120, 140), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Laser Rod", Damage = 12, Cost = 30000, Color = Color3.fromRGB(255, 60, 80), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Storm Rod", Damage = 20, Cost = 120000, Color = Color3.fromRGB(120, 200, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Leviathan Rod", Damage = 30, Cost = 500000, Color = Color3.fromRGB(120, 90, 200), Material = Enum.Material.Neon, Glow = true },
 }
 
 -- Backpacks: how many uncracked geodes you can carry.
