@@ -64,6 +64,8 @@ local function onNodeTapped(node: BasePart, player: Player)
 		return
 	end
 
+	ctx.PickaxeVis.Swing(player)
+
 	if data.Geodes >= ctx.Data.BackpackCapacity(data) then
 		Remotes.Event("Notify"):FireClient(player, { Text = "Backpack full! Crack your geodes.", Color = Color3.fromRGB(255, 120, 120) })
 		return

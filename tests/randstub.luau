@@ -10,6 +10,17 @@ Color3 = {
 	end,
 }
 
+-- Any Enum.X.Y resolves to a placeholder string (configs reference materials etc.)
+Enum = setmetatable({}, {
+	__index = function(_, category)
+		return setmetatable({}, {
+			__index = function(_, item)
+				return category .. "." .. item
+			end,
+		})
+	end,
+})
+
 Random = {}
 Random.__index = Random
 function Random.new(seed)

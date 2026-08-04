@@ -14,6 +14,7 @@ local Leaderboards = require(script.Leaderboards)
 local MapBuilder = require(script.MapBuilder)
 local MiningService = require(script.MiningService)
 local MonetizationService = require(script.MonetizationService)
+local PickaxeVisual = require(script.PickaxeVisual)
 local PolicyGuard = require(script.PolicyGuard)
 local RackService = require(script.RackService)
 local RebirthService = require(script.RebirthService)
@@ -36,6 +37,7 @@ local ctx: any = {
 	Monetization = MonetizationService,
 	Policy = PolicyGuard,
 	Analytics = AnalyticsService,
+	PickaxeVis = PickaxeVisual,
 }
 
 -- Called by DataService once a profile is loaded (before the first StateSync).
@@ -69,6 +71,7 @@ UpgradeService.Init(ctx)
 ShopService.Init(ctx)
 StreakService.Init(ctx)
 MiningService.Init(ctx, map.Nodes)
+PickaxeVisual.Init(ctx)
 Leaderboards.Init(ctx, map.BoardRebirths, map.BoardRarest)
 DataService.Init(ctx)
 

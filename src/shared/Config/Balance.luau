@@ -16,16 +16,17 @@ Balance.NodeRespawnTime = 2.5
 Balance.NodeCount = 12 -- deposit nodes on the mine wall
 Balance.PityForcedRareCrack = 3 -- the Nth lifetime crack is guaranteed Rare+ (first-session hook)
 
--- Pickaxes: damage per tap. Index 1 is the freebie.
+-- Pickaxes: damage per tap. Index 1 is the freebie. Color/Material/Glow drive
+-- the held pickaxe model so every upgrade is visible in your hand.
 Balance.Pickaxes = {
-	{ Name = "Rusty Pick", Damage = 1, Cost = 0 },
-	{ Name = "Copper Pick", Damage = 2, Cost = 150 },
-	{ Name = "Iron Pick", Damage = 3, Cost = 600 },
-	{ Name = "Golden Pick", Damage = 5, Cost = 2000 },
-	{ Name = "Crystal Pick", Damage = 8, Cost = 8000 },
-	{ Name = "Laser Pick", Damage = 12, Cost = 30000 },
-	{ Name = "Plasma Pick", Damage = 20, Cost = 120000 },
-	{ Name = "Singularity Pick", Damage = 30, Cost = 500000 },
+	{ Name = "Rusty Pick", Damage = 1, Cost = 0, Color = Color3.fromRGB(140, 100, 70), Material = Enum.Material.CorrodedMetal, Glow = false },
+	{ Name = "Copper Pick", Damage = 2, Cost = 150, Color = Color3.fromRGB(205, 125, 70), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Iron Pick", Damage = 3, Cost = 600, Color = Color3.fromRGB(190, 190, 200), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Golden Pick", Damage = 5, Cost = 2000, Color = Color3.fromRGB(255, 200, 60), Material = Enum.Material.Metal, Glow = false },
+	{ Name = "Crystal Pick", Damage = 8, Cost = 8000, Color = Color3.fromRGB(190, 90, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Laser Pick", Damage = 12, Cost = 30000, Color = Color3.fromRGB(255, 60, 80), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Plasma Pick", Damage = 20, Cost = 120000, Color = Color3.fromRGB(80, 220, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Singularity Pick", Damage = 30, Cost = 500000, Color = Color3.fromRGB(60, 30, 90), Material = Enum.Material.Neon, Glow = true },
 }
 
 -- Backpacks: how many uncracked geodes you can carry.

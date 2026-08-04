@@ -26,6 +26,8 @@ function UpgradeService.Buy(player: Player, kind: string): (boolean, string?)
 		end
 		data.Coins -= nextTier.Cost
 		data.Pickaxe += 1
+		ctx.PickaxeVis.Refresh(player)
+		Remotes.Event("Notify"):FireClient(player, { Text = nextTier.Name .. " equipped!", Color = Color3.fromRGB(120, 255, 200) })
 	elseif kind == "Backpack" then
 		local nextTier = Balance.Backpacks[data.Backpack + 1]
 		if not nextTier then
