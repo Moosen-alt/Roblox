@@ -13,7 +13,9 @@ local Remotes = require(Shared.Remotes)
 local MiningService = {}
 
 local ctx: any = nil
-local nodeHealth: { [BasePart]: number } = {}
+-- Mining progress is per-player: deposit toughness scales with each miner's
+-- own layer, so upgrades matter for everyone regardless of who shares the wall.
+local progress: { [BasePart]: { [Player]: number } } = {}
 local lastTap: { [Player]: number } = {}
 local rng = Random.new()
 
@@ -26,8 +28,8 @@ local NODE_COLORS = {
 	Color3.fromRGB(255, 60, 80),
 }
 
-local function maxHealth(): number
-	return Balance.NodeBaseHealth
+local function requiredHealth(layer: number): number
+	return Balance.NodeBaseHealth * Balance.NodeHealthLayerGrowth ^ (math.max(layer, 1) - 1)
 end
 
 local function playSound(parent: Instance, id: string, pitch: number, volume: number)
@@ -84,13 +86,14 @@ local function popEffects(node: BasePart)
 end
 
 local function respawnNode(node: BasePart)
+	progress[node] = nil
 	node.Transparency = 0.85
 	local click = node:FindFirstChildOfClass("ClickDetector")
 	if click then
 		click.MaxActivationDistance = 0
 	end
 	task.delay(Balance.NodeRespawnTime, function()
-		nodeHealth[node] = maxHealth()
+		progress[node] = {}
 		node.Color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)]
 		node.Transparency = 0.05
 		node.Size = Vector3.new(6, 6, 3)
@@ -124,20 +127,21 @@ local function onNodeTapped(node: BasePart, player: Player)
 		return
 	end
 
-	local health = nodeHealth[node]
-	if not health or health <= 0 then
-		return
+	local nodeProgress = progress[node]
+	if not nodeProgress then
+		return -- respawning
 	end
 	local pickaxe = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
-	health -= pickaxe.Damage
-	nodeHealth[node] = health
+	local required = requiredHealth(ctx.Data.Layer(data))
+	local done = (nodeProgress[player] or 0) + pickaxe.Damage
+	nodeProgress[player] = done
 
 	-- crunch feedback: hit tick + node shrinks as it takes damage
 	playSound(node, "rbxasset://sounds/electronicpingshort.wav", 0.9 + rng:NextNumber(0, 0.25), 0.4)
-	local fraction = math.clamp(health / maxHealth(), 0.35, 1)
+	local fraction = math.clamp(1 - done / required, 0.35, 1)
 	TweenService:Create(node, TweenInfo.new(0.12), { Size = Vector3.new(6 * fraction, 6 * fraction, 3) }):Play()
 
-	if health <= 0 then
+	if done >= required then
 		popEffects(node)
 		data.Geodes += 1
 		data.Stats.GeodesMined += 1
@@ -153,7 +157,7 @@ end
 function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 	ctx = serviceCtx
 	for _, node in nodes do
-		nodeHealth[node] = maxHealth()
+		progress[node] = {}
 		local click = node:FindFirstChildOfClass("ClickDetector")
 		if click then
 			click.MouseClick:Connect(function(player)
@@ -163,6 +167,9 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		lastTap[player] = nil
+		for _, nodeProgress in progress do
+			nodeProgress[player] = nil
+		end
 	end)
 end
 

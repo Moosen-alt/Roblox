@@ -11,7 +11,8 @@ Balance.LayerNames = { "Crystal Cavern", "Amber Depths", "Frost Hollow", "Ember 
 
 -- Mining
 Balance.MineCooldown = 0.22 -- seconds between counted taps (server enforced)
-Balance.NodeBaseHealth = 3 -- taps to pop a geode at pickaxe damage 1
+Balance.NodeBaseHealth = 3 -- damage to pop a layer-1 geode (pickaxe damage 1 = 3 taps)
+Balance.NodeHealthLayerGrowth = 3 -- deposit toughness x3 per layer, so every pickaxe tier stays relevant
 Balance.NodeRespawnTime = 2.5
 Balance.NodeCount = 12 -- deposit nodes on the mine wall
 Balance.PityForcedRareCrack = 3 -- the Nth lifetime crack is guaranteed Rare+ (first-session hook)
