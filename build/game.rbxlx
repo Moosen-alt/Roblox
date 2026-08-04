@@ -470,6 +470,7 @@ local EVENTS = {
 	"Notify", -- server -> client: toast messages { Text, Color? }
 	"WelcomeReport", -- server -> client on join: offline earnings + streak summary
 	"CrackResult", -- server -> client: crystals from a crack (drives the reveal)
+	"MineNode", -- client -> server: tapped a deposit node (Tools swallow ClickDetector clicks)
 }
 
 local FUNCTIONS = {
@@ -1902,8 +1903,10 @@ end
 
 function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 	ctx = serviceCtx
+	local nodeSet: { [Instance]: boolean } = {}
 	for _, node in nodes do
 		progress[node] = {}
+		nodeSet[node] = true
 		local click = node:FindFirstChildOfClass("ClickDetector")
 		if click then
 			click.MouseClick:Connect(function(player)
@@ -1911,6 +1914,14 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 			end)
 		end
 	end
+	-- Primary tap path: the equipped pickaxe Tool swallows clicks before
+	-- ClickDetectors see them, so the client raycasts its tap and reports the
+	-- node here. Same server-side validation (membership, distance, cooldown).
+	Remotes.Event("MineNode").OnServerEvent:Connect(function(player, node)
+		if typeof(node) == "Instance" and nodeSet[node] then
+			onNodeTapped(node :: BasePart, player)
+		end
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		lastTap[player] = nil
 		for _, nodeProgress in progress do
@@ -5226,6 +5237,7 @@ end)
 
 local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)
+local MiningInput = require(script.MiningInput)
 local Toasts = require(script.Toasts)
 local Hud = require(script.Hud)
 local CrackScreen = require(script.Screens.CrackScreen)
@@ -5246,6 +5258,7 @@ gui.DisplayOrder = 10
 gui.Parent = playerGui
 
 State.Init()
+MiningInput.Init()
 Toasts.Init(gui)
 Hud.Init(gui)
 CrackScreen.Init(gui)
@@ -5522,6 +5535,56 @@ return Hud
         </Item>
         <Item class="ModuleScript" referent="32">
           <Properties>
+            <string name="Name">MiningInput</string>
+            <string name="Source"><![CDATA[--!strict
+-- Tap-to-mine input: the equipped pickaxe Tool swallows clicks before
+-- ClickDetectors fire, so we raycast the tap ourselves and report the node.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Remotes = require(Shared.Remotes)
+
+local MiningInput = {}
+
+local MAX_TAP_RANGE = 140
+
+local function tryMine(position: Vector2)
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local ray = camera:ViewportPointToRay(position.X, position.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local character = Players.LocalPlayer.Character
+	params.FilterDescendantsInstances = character and { character } or {}
+	local hit = Workspace:Raycast(ray.Origin, ray.Direction * MAX_TAP_RANGE, params)
+	if hit and hit.Instance:GetAttribute("NodeIndex") ~= nil then
+		Remotes.Event("MineNode"):FireServer(hit.Instance)
+	end
+end
+
+function MiningInput.Init()
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			tryMine(Vector2.new(input.Position.X, input.Position.Y))
+		end
+	end)
+end
+
+return MiningInput
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="33">
+          <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
 -- Client-side purchase prompts, driven by the Monetization config. Offers with
@@ -5559,7 +5622,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -5782,7 +5845,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -5839,11 +5902,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="35">
+        <Item class="Folder" referent="36">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="36">
+          <Item class="ModuleScript" referent="37">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6280,7 +6343,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="37">
+          <Item class="ModuleScript" referent="38">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6403,7 +6466,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="38">
+          <Item class="ModuleScript" referent="39">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6695,7 +6758,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="40">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6794,7 +6857,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="41">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7055,7 +7118,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="41">
+          <Item class="ModuleScript" referent="42">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7237,7 +7300,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -7284,7 +7347,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -7454,7 +7517,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict

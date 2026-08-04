@@ -156,8 +156,10 @@ end
 
 function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 	ctx = serviceCtx
+	local nodeSet: { [Instance]: boolean } = {}
 	for _, node in nodes do
 		progress[node] = {}
+		nodeSet[node] = true
 		local click = node:FindFirstChildOfClass("ClickDetector")
 		if click then
 			click.MouseClick:Connect(function(player)
@@ -165,6 +167,14 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 			end)
 		end
 	end
+	-- Primary tap path: the equipped pickaxe Tool swallows clicks before
+	-- ClickDetectors see them, so the client raycasts its tap and reports the
+	-- node here. Same server-side validation (membership, distance, cooldown).
+	Remotes.Event("MineNode").OnServerEvent:Connect(function(player, node)
+		if typeof(node) == "Instance" and nodeSet[node] then
+			onNodeTapped(node :: BasePart, player)
+		end
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		lastTap[player] = nil
 		for _, nodeProgress in progress do

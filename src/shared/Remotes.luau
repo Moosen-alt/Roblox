@@ -10,6 +10,7 @@ local EVENTS = {
 	"Notify", -- server -> client: toast messages { Text, Color? }
 	"WelcomeReport", -- server -> client on join: offline earnings + streak summary
 	"CrackResult", -- server -> client: crystals from a crack (drives the reveal)
+	"MineNode", -- client -> server: tapped a deposit node (Tools swallow ClickDetector clicks)
 }
 
 local FUNCTIONS = {

@@ -21,6 +21,7 @@ end)
 
 local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)
+local MiningInput = require(script.MiningInput)
 local Toasts = require(script.Toasts)
 local Hud = require(script.Hud)
 local CrackScreen = require(script.Screens.CrackScreen)
@@ -41,6 +42,7 @@ gui.DisplayOrder = 10
 gui.Parent = playerGui
 
 State.Init()
+MiningInput.Init()
 Toasts.Init(gui)
 Hud.Init(gui)
 CrackScreen.Init(gui)
