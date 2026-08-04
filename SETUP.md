@@ -32,6 +32,8 @@ Your job is the ~2–3 hours of account clicking that only the game owner can do
 
 ## Step 3 — Store page (~30 min, matters a lot)
 
+**Paste-ready name, description, and icon/thumbnail shot list: [`marketing/store-page.md`](marketing/store-page.md).**
+
 On create.roblox.com → your experience:
 
 - **Name:** `Crack a Geode! [Mining Simulator]` — keep the bracketed genre keyword; Roblox
@@ -98,7 +100,8 @@ Also enable a **Private Server** subscription at **99 Robux/month** (Access & Pr
    drop-off by tweaking `src/shared/Config/Balance.luau` constants.
 2. **Content channel:** post the crack-reveal moment (screen-record a Celestial/Opal reveal) to
    TikTok + YouTube Shorts 3–5x/week. This is the channel that built every 2025–26 Roblox hit,
-   and it costs $0.
+   and it costs $0. Eight ready-to-shoot scripts with hooks, shot lists, and captions:
+   [`marketing/tiktok-scripts.md`](marketing/tiktok-scripts.md).
 3. **Ads gate — do not skip:** only spend your ad budget once **D1 retention ≥ 30%** and most
    first sessions exceed 60 seconds (both visible in Analytics). The recommendation algorithm
    ranks you only on organically-acquired players, so ads on an unretentive game are burned money.

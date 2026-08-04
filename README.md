@@ -21,6 +21,11 @@ The design rationale, market research, and revenue math live in the project plan
   idempotent receipts, PolicyService gating, leaderboards, analytics funnel.
 - `src/client/` — mobile-first UI: HUD, crack reveal, racks, shop, Robux store, collection index,
   rebirth screen, toasts, event banner.
+- `marketing/` — paste-ready store-page copy and the TikTok/Shorts launch scripts.
+- `tests/` — math tests (odds compliance invariants, roll distribution, economy) runnable with the
+  standalone Luau CLI: `sh tests/run.sh`.
+- `.github/workflows/ci.yml` — CI: strict analysis + tests + rebuilds `build/game.rbxlx` on every
+  push (auto-commits it when source changed).
 
 ## Key design decisions
 

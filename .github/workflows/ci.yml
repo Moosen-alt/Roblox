@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain (rojo, luau, luau-lsp)
+        run: |
+          mkdir -p /tmp/tools && cd /tmp/tools
+          curl -sSL -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.7.0/rojo-7.7.0-linux-x86_64.zip
+          unzip -o rojo.zip
+          curl -sSL -o luau.zip https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip
+          unzip -o luau.zip
+          curl -sSL -o luau-lsp.zip https://github.com/JohnnyMorganz/luau-lsp/releases/latest/download/luau-lsp-linux-x86_64.zip
+          unzip -o luau-lsp.zip
+          curl -sSL -o globalTypes.d.luau https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/main/scripts/globalTypes.d.luau
+          chmod +x rojo luau luau-lsp
+          echo "/tmp/tools" >> "$GITHUB_PATH"
+
+      - name: Static analysis (strict Luau, Roblox API definitions)
+        run: |
+          rojo sourcemap default.project.json -o sourcemap.json
+          luau-lsp analyze --sourcemap sourcemap.json \
+            --definitions /tmp/tools/globalTypes.d.luau \
+            --ignore "src/server/Packages/**" src
+
+      - name: Math tests
+        run: LUAU=luau sh tests/run.sh
+
+      - name: Build place file
+        run: rojo build default.project.json -o build/game.rbxlx
+
+      # Rojo builds are deterministic, so this only fires when src/ actually
+      # changed the output. [skip ci] prevents a rebuild loop.
+      - name: Commit rebuilt place file
+        if: github.event_name == 'push'
+        run: |
+          if ! git diff --quiet -- build/game.rbxlx; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add build/game.rbxlx
+            git commit -m "ci: rebuild game.rbxlx [skip ci]"
+            git push
+          else
+            echo "Place file unchanged."
+          fi
+
+      - name: Upload place file artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-rbxlx
+          path: build/game.rbxlx
