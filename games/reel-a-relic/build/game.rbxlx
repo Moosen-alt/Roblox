@@ -5219,6 +5219,229 @@ return Purchase
         </Item>
         <Item class="ModuleScript" referent="32">
           <Properties>
+            <string name="Name">RevealFx</string>
+            <string name="Source"><![CDATA[--!strict
+-- The reveal engine: anticipation (shaking shell, spreading cracks, rising
+-- ticks), burst (shard explosion + screen flash), and celebration extras
+-- (confetti, rotating sunburst) for high-tier pulls. Suspense scales with the
+-- best rarity in the batch — slot-machine timing, the clip moment.
+
+local TweenService = game:GetService("TweenService")
+
+local RevealFx = {}
+
+-- Theme knobs (the fishing re-theme overrides these via sed)
+RevealFx.ShellColor = Color3.fromRGB(130, 95, 60)
+RevealFx.ShellStroke = Color3.fromRGB(255, 200, 60)
+
+local TICK_SOUND = "rbxasset://sounds/electronicpingshort.wav"
+
+export type PlayOptions = {
+	Color: Color3, -- tier color for glow/burst
+	Suspense: number, -- seconds of shake before the burst
+	Charged: boolean, -- extra white charge-up before burst (Epic+)
+}
+
+local function tick(parent: Instance, pitch: number)
+	local sound = Instance.new("Sound")
+	sound.SoundId = TICK_SOUND
+	sound.Volume = 0.35
+	sound.PlaybackSpeed = pitch
+	sound.Parent = parent
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	task.delay(2, function()
+		if sound.Parent then
+			sound:Destroy()
+		end
+	end)
+end
+
+-- Anticipation + burst. Calls onBurst at the explosion moment, then cleans up
+-- its own instances (everything is parented to `overlay`, which the caller
+-- destroys when the reveal closes).
+function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
+	local center = UDim2.fromScale(0.5, 0.42)
+
+	-- Glow behind the shell, building in tier color
+	local glow = Instance.new("Frame")
+	glow.AnchorPoint = Vector2.new(0.5, 0.5)
+	glow.Position = center
+	glow.Size = UDim2.fromOffset(120, 120)
+	glow.BackgroundColor3 = options.Color
+	glow.BackgroundTransparency = 0.85
+	glow.Parent = overlay
+	local glowCorner = Instance.new("UICorner")
+	glowCorner.CornerRadius = UDim.new(1, 0)
+	glowCorner.Parent = glow
+	TweenService:Create(
+		glow,
+		TweenInfo.new(options.Suspense, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+		{ Size = UDim2.fromOffset(340, 340), BackgroundTransparency = 0.45 }
+	):Play()
+
+	-- The shell
+	local shell = Instance.new("Frame")
+	shell.AnchorPoint = Vector2.new(0.5, 0.5)
+	shell.Position = center
+	shell.Size = UDim2.fromOffset(0, 0)
+	shell.Rotation = 45
+	shell.BackgroundColor3 = RevealFx.ShellColor
+	shell.Parent = overlay
+	local shellCorner = Instance.new("UICorner")
+	shellCorner.CornerRadius = UDim.new(0, 28)
+	shellCorner.Parent = shell
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = RevealFx.ShellStroke
+	stroke.Thickness = 5
+	stroke.Parent = shell
+	TweenService:Create(shell, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(140, 140),
+	}):Play()
+
+	task.spawn(function()
+		task.wait(0.3)
+		local rng = Random.new()
+		local elapsed = 0
+		local crackCount = 0
+		local step = 0.045
+		while elapsed < options.Suspense do
+			task.wait(step)
+			elapsed += step
+			local progress = elapsed / options.Suspense
+			local amplitude = 2 + progress * 12
+			shell.Position = center + UDim2.fromOffset(rng:NextInteger(-amplitude, amplitude), rng:NextInteger(-amplitude, amplitude))
+			shell.Rotation = 45 + rng:NextNumber(-progress * 10, progress * 10)
+
+			-- Cracks spread at fixed progress milestones, with rising ticks
+			local wantedCracks = math.floor(progress * 5)
+			if wantedCracks > crackCount then
+				crackCount = wantedCracks
+				local crack = Instance.new("Frame")
+				crack.AnchorPoint = Vector2.new(0.5, 0.5)
+				crack.Position = UDim2.new(0.5, rng:NextInteger(-40, 40), 0.5, rng:NextInteger(-40, 40))
+				crack.Size = UDim2.fromOffset(3, 20 + crackCount * 16)
+				crack.Rotation = rng:NextInteger(0, 179)
+				crack.BackgroundColor3 = Color3.new(1, 1, 1)
+				crack.BackgroundTransparency = 0.15
+				crack.BorderSizePixel = 0
+				crack.Parent = shell
+				tick(overlay, 0.9 + crackCount * 0.12)
+			end
+		end
+
+		-- Optional white charge-up for big pulls
+		if options.Charged then
+			local charge = TweenService:Create(shell, TweenInfo.new(0.3), { BackgroundColor3 = Color3.new(1, 1, 1) })
+			charge:Play()
+			charge.Completed:Wait()
+		end
+
+		-- BURST: flash + shards, then hand off to the cards
+		local flash = Instance.new("Frame")
+		flash.Size = UDim2.fromScale(1, 1)
+		flash.BackgroundColor3 = Color3.new(1, 1, 1)
+		flash.BackgroundTransparency = 0.25
+		flash.BorderSizePixel = 0
+		flash.ZIndex = 5
+		flash.Parent = overlay
+		TweenService:Create(flash, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
+		task.delay(0.45, function()
+			flash:Destroy()
+		end)
+
+		shell.Visible = false
+		tick(overlay, 0.6)
+		for _ = 1, 14 do
+			local shard = Instance.new("Frame")
+			shard.AnchorPoint = Vector2.new(0.5, 0.5)
+			shard.Position = center
+			local size = rng:NextInteger(10, 26)
+			shard.Size = UDim2.fromOffset(size, size)
+			shard.Rotation = rng:NextInteger(0, 89)
+			shard.BackgroundColor3 = if rng:NextNumber() < 0.5 then RevealFx.ShellColor else options.Color
+			shard.BorderSizePixel = 0
+			shard.Parent = overlay
+			local shardCorner = Instance.new("UICorner")
+			shardCorner.CornerRadius = UDim.new(0, 4)
+			shardCorner.Parent = shard
+			local angle = rng:NextNumber(0, math.pi * 2)
+			local distance = rng:NextInteger(140, 280)
+			TweenService:Create(shard, TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = center + UDim2.fromOffset(math.cos(angle) * distance, math.sin(angle) * distance - 40),
+				Rotation = shard.Rotation + rng:NextInteger(-180, 180),
+				BackgroundTransparency = 1,
+			}):Play()
+			task.delay(0.6, function()
+				shard:Destroy()
+			end)
+		end
+		TweenService:Create(glow, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
+
+		onBurst()
+	end)
+end
+
+-- Falling confetti for Epic+ pulls.
+function RevealFx.Confetti(overlay: Frame, tierColor: Color3, count: number)
+	local rng = Random.new()
+	local palette = { tierColor, Color3.fromRGB(255, 210, 90), Color3.fromRGB(120, 255, 200), Color3.fromRGB(255, 150, 220) }
+	for _ = 1, count do
+		local piece = Instance.new("Frame")
+		piece.AnchorPoint = Vector2.new(0.5, 0.5)
+		piece.Position = UDim2.new(rng:NextNumber(0.1, 0.9), 0, 0, -20)
+		piece.Size = UDim2.fromOffset(rng:NextInteger(6, 11), rng:NextInteger(6, 11))
+		piece.Rotation = rng:NextInteger(0, 179)
+		piece.BackgroundColor3 = palette[rng:NextInteger(1, #palette)]
+		piece.BorderSizePixel = 0
+		piece.Parent = overlay
+		TweenService:Create(piece, TweenInfo.new(rng:NextNumber(1.1, 1.9), Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.new(piece.Position.X.Scale + rng:NextNumber(-0.08, 0.08), 0, 1.1, 0),
+			Rotation = piece.Rotation + rng:NextInteger(-360, 360),
+		}):Play()
+		task.delay(2, function()
+			piece:Destroy()
+		end)
+	end
+end
+
+-- Slowly rotating sunburst rays behind a Legendary/Mythic card.
+function RevealFx.Sunburst(overlay: Frame, position: UDim2, color: Color3): Frame
+	local container = Instance.new("Frame")
+	container.AnchorPoint = Vector2.new(0.5, 0.5)
+	container.Position = position
+	container.Size = UDim2.fromOffset(0, 0)
+	container.BackgroundTransparency = 1
+	container.ZIndex = 0
+	container.Parent = overlay
+	for i = 1, 8 do
+		local ray = Instance.new("Frame")
+		ray.AnchorPoint = Vector2.new(0.5, 0.5)
+		ray.Position = UDim2.fromScale(0.5, 0.5)
+		ray.Size = UDim2.fromOffset(340, 26)
+		ray.Rotation = i * 22.5
+		ray.BackgroundColor3 = color
+		ray.BackgroundTransparency = 0.82
+		ray.BorderSizePixel = 0
+		ray.ZIndex = 0
+		ray.Parent = container
+	end
+	TweenService:Create(
+		container,
+		TweenInfo.new(6, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1),
+		{ Rotation = 360 }
+	):Play()
+	return container
+end
+
+return RevealFx
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="33">
+          <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
 -- One modal screen open at a time; screens register a panel + optional OnOpen.
@@ -5274,16 +5497,16 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="33">
+        <Item class="Folder" referent="34">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="34">
+          <Item class="ModuleScript" referent="35">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
 -- Crack Station: live odds panel (always visible — the compliance surface AND
--- a trust feature) + the slow-mo reveal, the game's engineered clip moment.
+-- a trust feature) + the multi-phase reveal, the game's engineered clip moment.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -5294,6 +5517,7 @@ local Format = require(Shared.Format)
 local RarityMath = require(Shared.RarityMath)
 local Remotes = require(Shared.Remotes)
 local Purchase = require(script.Parent.Parent.Purchase)
+local RevealFx = require(script.Parent.Parent.RevealFx)
 local ScreenManager = require(script.Parent.Parent.ScreenManager)
 local State = require(script.Parent.Parent.State)
 local Toasts = require(script.Parent.Parent.Toasts)
@@ -5305,6 +5529,25 @@ local oddsList: ScrollingFrame? = nil
 local geodeLabel: TextLabel? = nil
 local revealGui: ScreenGui? = nil
 local cracking = false
+
+-- Suspense seconds by best tier in the batch (rarer = longer shake)
+local SUSPENSE = {
+	Common = 0.7,
+	Uncommon = 0.8,
+	Rare = 1.1,
+	Epic = 1.5,
+	Legendary = 2.0,
+	Mythic = 2.4,
+}
+
+local function tierRank(tier: string): number
+	for i, name in Crystals.Tiers do
+		if name == tier then
+			return i
+		end
+	end
+	return 1
+end
 
 local function renderOdds()
 	local state = State.Get()
@@ -5341,6 +5584,88 @@ local function renderOdds()
 	end
 end
 
+local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number): Frame
+	local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
+	local baseDef = Crystals.GetBase(crystal.Base)
+	local card = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(cardWidth, 260),
+		Position = position,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		ZIndex = 2,
+		Parent = overlay,
+	})
+	UiKit.Corner(16).Parent = card
+	UiKit.Stroke(tierColor, 4).Parent = card
+	local gem = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(90, 90),
+		Position = UDim2.new(0.5, -45, 0, 22),
+		BackgroundColor3 = baseDef and baseDef.Color or tierColor,
+		Rotation = 45,
+		ZIndex = 2,
+		Parent = card,
+	})
+	UiKit.Corner(18).Parent = gem
+	UiKit.Stroke(Color3.new(1, 1, 1), 2).Parent = gem
+	local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
+	UiKit.Label({
+		Text = mutPrefix .. crystal.Base,
+		TextColor3 = UiKit.Colors.Text,
+		Font = Enum.Font.FredokaOne,
+		Size = UDim2.new(1, -12, 0, 34),
+		Position = UDim2.fromOffset(6, 122),
+		ZIndex = 2,
+		Parent = card,
+	})
+	UiKit.Label({
+		Text = crystal.Tier,
+		TextColor3 = tierColor,
+		Size = UDim2.new(1, -12, 0, 26),
+		Position = UDim2.fromOffset(6, 158),
+		ZIndex = 2,
+		Parent = card,
+	})
+	UiKit.Label({
+		Text = "Value: " .. Format.Number(crystal.Value),
+		TextColor3 = UiKit.Colors.Accent,
+		Size = UDim2.new(1, -12, 0, 26),
+		Position = UDim2.fromOffset(6, 190),
+		ZIndex = 2,
+		Parent = card,
+	})
+	if crystal.New then
+		local badge = UiKit.Create("TextLabel", {
+			Text = "NEW!",
+			Font = Enum.Font.FredokaOne,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(30, 26, 20),
+			BackgroundColor3 = UiKit.Colors.Good,
+			Rotation = -12,
+			Size = UDim2.fromOffset(64, 30),
+			Position = UDim2.new(1, -48, 0, -10),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			ZIndex = 3,
+			Parent = card,
+		})
+		UiKit.Corner(8).Parent = badge
+		badge.Size = UDim2.fromOffset(0, 0)
+		TweenService:Create(
+			badge,
+			TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out, 0, false, 0.2),
+			{ Size = UDim2.fromOffset(64, 30) }
+		):Play()
+	end
+
+	-- pop in
+	card.Size = UDim2.fromOffset(0, 0)
+	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(cardWidth, 260),
+	}):Play()
+	local spin = TweenService:Create(gem, TweenInfo.new(2.4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), { Rotation = 405 })
+	spin:Play()
+	return card
+end
+
 local function showReveal(results: { { [string]: any } })
 	if not revealGui then
 		return
@@ -5351,86 +5676,75 @@ local function showReveal(results: { { [string]: any } })
 		BackgroundTransparency = 0.35,
 		Parent = revealGui,
 	})
-	local cardWidth = 200
-	local totalWidth = #results * cardWidth + (#results - 1) * 16
+
 	local sellValue = 0
+	local bestTier = "Common"
+	local bestIndex = 1
 	for i, crystal in results do
 		sellValue += crystal.Value
-		local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
-		local baseDef = Crystals.GetBase(crystal.Base)
-		local card = UiKit.Create("Frame", {
-			Size = UDim2.fromOffset(cardWidth, 260),
-			Position = UDim2.new(0.5, -totalWidth // 2 + (i - 1) * (cardWidth + 16), 0.42, -130),
-			BackgroundColor3 = UiKit.Colors.Bg,
-			Parent = overlay,
-		})
-		UiKit.Corner(16).Parent = card
-		UiKit.Stroke(tierColor, 4).Parent = card
-		local gem = UiKit.Create("Frame", {
-			Size = UDim2.fromOffset(90, 90),
-			Position = UDim2.new(0.5, -45, 0, 22),
-			BackgroundColor3 = baseDef and baseDef.Color or tierColor,
-			Rotation = 45,
-			Parent = card,
-		})
-		UiKit.Corner(18).Parent = gem
-		UiKit.Stroke(Color3.new(1, 1, 1), 2).Parent = gem
-		local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
-		UiKit.Label({
-			Text = mutPrefix .. crystal.Base,
-			TextColor3 = UiKit.Colors.Text,
-			Font = Enum.Font.FredokaOne,
-			Size = UDim2.new(1, -12, 0, 34),
-			Position = UDim2.fromOffset(6, 122),
-			Parent = card,
-		})
-		UiKit.Label({
-			Text = crystal.Tier .. (crystal.New and "  •  NEW!" or ""),
-			TextColor3 = tierColor,
-			Size = UDim2.new(1, -12, 0, 26),
-			Position = UDim2.fromOffset(6, 158),
-			Parent = card,
-		})
-		UiKit.Label({
-			Text = "Value: " .. Format.Number(crystal.Value),
-			TextColor3 = UiKit.Colors.Accent,
-			Size = UDim2.new(1, -12, 0, 26),
-			Position = UDim2.fromOffset(6, 190),
-			Parent = card,
-		})
-		card.Size = UDim2.fromOffset(0, 0)
-		card.Position += UDim2.fromOffset(cardWidth // 2, 130)
-		TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Size = UDim2.fromOffset(cardWidth, 260),
-			Position = UDim2.new(0.5, -totalWidth // 2 + (i - 1) * (cardWidth + 16), 0.42, -130),
-		}):Play()
-		local spin = TweenService:Create(gem, TweenInfo.new(2.4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), { Rotation = 405 })
-		spin:Play()
-	end
-
-	local sellAll = UiKit.Button({
-		Text = "Sell All  (+" .. Format.Number(sellValue) .. ")",
-		BackgroundColor3 = UiKit.Colors.Buy,
-		Size = UDim2.fromOffset(220, 48),
-		Position = UDim2.new(0.5, -232, 0.72, 0),
-		Parent = overlay,
-	})
-	local keepAll = UiKit.Button({
-		Text = "Keep",
-		BackgroundColor3 = UiKit.Colors.BgLighter,
-		TextColor3 = UiKit.Colors.Text,
-		Size = UDim2.fromOffset(160, 48),
-		Position = UDim2.new(0.5, 12, 0.72, 0),
-		Parent = overlay,
-	})
-	sellAll.Activated:Connect(function()
-		for _, crystal in results do
-			Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+		if tierRank(crystal.Tier) > tierRank(bestTier) then
+			bestTier = crystal.Tier
+			bestIndex = i
 		end
-		overlay:Destroy()
-	end)
-	keepAll.Activated:Connect(function()
-		overlay:Destroy()
+	end
+	local bestColor = Crystals.TierColors[bestTier] or UiKit.Colors.Accent
+	local bestRank = tierRank(bestTier)
+
+	local cardWidth = 200
+	local totalWidth = #results * cardWidth + (#results - 1) * 16
+
+	RevealFx.Play(overlay, {
+		Color = bestColor,
+		Suspense = SUSPENSE[bestTier] or 1,
+		Charged = bestRank >= 4,
+	}, function()
+		-- Celebration extras land with the burst
+		if bestRank >= 4 then
+			RevealFx.Confetti(overlay, bestColor, bestRank >= 5 and 36 or 20)
+		end
+		for i, crystal in results do
+			local position = UDim2.new(0.5, -totalWidth // 2 + (i - 1) * (cardWidth + 16) + cardWidth // 2, 0.42, 0)
+			if i == bestIndex and bestRank >= 5 then
+				RevealFx.Sunburst(overlay, position, bestColor)
+			end
+			task.delay((i - 1) * 0.18, function()
+				if overlay.Parent then
+					makeCard(overlay, crystal, position, cardWidth)
+				end
+			end)
+		end
+
+		task.delay(#results * 0.18 + 0.3, function()
+			if not overlay.Parent then
+				return
+			end
+			local sellAll = UiKit.Button({
+				Text = "Sell All  (+" .. Format.Number(sellValue) .. ")",
+				BackgroundColor3 = UiKit.Colors.Buy,
+				Size = UDim2.fromOffset(220, 48),
+				Position = UDim2.new(0.5, -232, 0.72, 0),
+				Parent = overlay,
+			})
+			sellAll.ZIndex = 4
+			local keepAll = UiKit.Button({
+				Text = "Keep",
+				BackgroundColor3 = UiKit.Colors.BgLighter,
+				TextColor3 = UiKit.Colors.Text,
+				Size = UDim2.fromOffset(160, 48),
+				Position = UDim2.new(0.5, 12, 0.72, 0),
+				Parent = overlay,
+			})
+			keepAll.ZIndex = 4
+			sellAll.Activated:Connect(function()
+				for _, crystal in results do
+					Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+				end
+				overlay:Destroy()
+			end)
+			keepAll.Activated:Connect(function()
+				overlay:Destroy()
+			end)
+		end)
 	end)
 end
 
@@ -5503,7 +5817,7 @@ function CrackScreen.Init(gui: ScreenGui)
 		Position = UDim2.fromScale(0.05, 0.52),
 		Parent = right,
 	})
-	local hint = UiKit.Label({
+	UiKit.Label({
 		Text = "Cast at a glowing fishing spot to catch chests!",
 		TextColor3 = UiKit.Colors.TextDim,
 		Font = Enum.Font.Gotham,
@@ -5512,7 +5826,6 @@ function CrackScreen.Init(gui: ScreenGui)
 		Position = UDim2.fromScale(0.05, 0.76),
 		Parent = right,
 	})
-	local _ = hint
 
 	crackOne.Activated:Connect(function()
 		crack(1)
@@ -5547,7 +5860,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="35">
+          <Item class="ModuleScript" referent="36">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -5670,7 +5983,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="36">
+          <Item class="ModuleScript" referent="37">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -5962,7 +6275,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="37">
+          <Item class="ModuleScript" referent="38">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6061,7 +6374,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="38">
+          <Item class="ModuleScript" referent="39">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6322,7 +6635,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="40">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6504,7 +6817,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -6551,7 +6864,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -6721,7 +7034,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict

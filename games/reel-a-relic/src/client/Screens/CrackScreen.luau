@@ -1,6 +1,6 @@
 --!strict
 -- Crack Station: live odds panel (always visible — the compliance surface AND
--- a trust feature) + the slow-mo reveal, the game's engineered clip moment.
+-- a trust feature) + the multi-phase reveal, the game's engineered clip moment.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -11,6 +11,7 @@ local Format = require(Shared.Format)
 local RarityMath = require(Shared.RarityMath)
 local Remotes = require(Shared.Remotes)
 local Purchase = require(script.Parent.Parent.Purchase)
+local RevealFx = require(script.Parent.Parent.RevealFx)
 local ScreenManager = require(script.Parent.Parent.ScreenManager)
 local State = require(script.Parent.Parent.State)
 local Toasts = require(script.Parent.Parent.Toasts)
@@ -22,6 +23,25 @@ local oddsList: ScrollingFrame? = nil
 local geodeLabel: TextLabel? = nil
 local revealGui: ScreenGui? = nil
 local cracking = false
+
+-- Suspense seconds by best tier in the batch (rarer = longer shake)
+local SUSPENSE = {
+	Common = 0.7,
+	Uncommon = 0.8,
+	Rare = 1.1,
+	Epic = 1.5,
+	Legendary = 2.0,
+	Mythic = 2.4,
+}
+
+local function tierRank(tier: string): number
+	for i, name in Crystals.Tiers do
+		if name == tier then
+			return i
+		end
+	end
+	return 1
+end
 
 local function renderOdds()
 	local state = State.Get()
@@ -58,6 +78,88 @@ local function renderOdds()
 	end
 end
 
+local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number): Frame
+	local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
+	local baseDef = Crystals.GetBase(crystal.Base)
+	local card = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(cardWidth, 260),
+		Position = position,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		ZIndex = 2,
+		Parent = overlay,
+	})
+	UiKit.Corner(16).Parent = card
+	UiKit.Stroke(tierColor, 4).Parent = card
+	local gem = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(90, 90),
+		Position = UDim2.new(0.5, -45, 0, 22),
+		BackgroundColor3 = baseDef and baseDef.Color or tierColor,
+		Rotation = 45,
+		ZIndex = 2,
+		Parent = card,
+	})
+	UiKit.Corner(18).Parent = gem
+	UiKit.Stroke(Color3.new(1, 1, 1), 2).Parent = gem
+	local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
+	UiKit.Label({
+		Text = mutPrefix .. crystal.Base,
+		TextColor3 = UiKit.Colors.Text,
+		Font = Enum.Font.FredokaOne,
+		Size = UDim2.new(1, -12, 0, 34),
+		Position = UDim2.fromOffset(6, 122),
+		ZIndex = 2,
+		Parent = card,
+	})
+	UiKit.Label({
+		Text = crystal.Tier,
+		TextColor3 = tierColor,
+		Size = UDim2.new(1, -12, 0, 26),
+		Position = UDim2.fromOffset(6, 158),
+		ZIndex = 2,
+		Parent = card,
+	})
+	UiKit.Label({
+		Text = "Value: " .. Format.Number(crystal.Value),
+		TextColor3 = UiKit.Colors.Accent,
+		Size = UDim2.new(1, -12, 0, 26),
+		Position = UDim2.fromOffset(6, 190),
+		ZIndex = 2,
+		Parent = card,
+	})
+	if crystal.New then
+		local badge = UiKit.Create("TextLabel", {
+			Text = "NEW!",
+			Font = Enum.Font.FredokaOne,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(30, 26, 20),
+			BackgroundColor3 = UiKit.Colors.Good,
+			Rotation = -12,
+			Size = UDim2.fromOffset(64, 30),
+			Position = UDim2.new(1, -48, 0, -10),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			ZIndex = 3,
+			Parent = card,
+		})
+		UiKit.Corner(8).Parent = badge
+		badge.Size = UDim2.fromOffset(0, 0)
+		TweenService:Create(
+			badge,
+			TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out, 0, false, 0.2),
+			{ Size = UDim2.fromOffset(64, 30) }
+		):Play()
+	end
+
+	-- pop in
+	card.Size = UDim2.fromOffset(0, 0)
+	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(cardWidth, 260),
+	}):Play()
+	local spin = TweenService:Create(gem, TweenInfo.new(2.4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), { Rotation = 405 })
+	spin:Play()
+	return card
+end
+
 local function showReveal(results: { { [string]: any } })
 	if not revealGui then
 		return
@@ -68,86 +170,75 @@ local function showReveal(results: { { [string]: any } })
 		BackgroundTransparency = 0.35,
 		Parent = revealGui,
 	})
-	local cardWidth = 200
-	local totalWidth = #results * cardWidth + (#results - 1) * 16
+
 	local sellValue = 0
+	local bestTier = "Common"
+	local bestIndex = 1
 	for i, crystal in results do
 		sellValue += crystal.Value
-		local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
-		local baseDef = Crystals.GetBase(crystal.Base)
-		local card = UiKit.Create("Frame", {
-			Size = UDim2.fromOffset(cardWidth, 260),
-			Position = UDim2.new(0.5, -totalWidth // 2 + (i - 1) * (cardWidth + 16), 0.42, -130),
-			BackgroundColor3 = UiKit.Colors.Bg,
-			Parent = overlay,
-		})
-		UiKit.Corner(16).Parent = card
-		UiKit.Stroke(tierColor, 4).Parent = card
-		local gem = UiKit.Create("Frame", {
-			Size = UDim2.fromOffset(90, 90),
-			Position = UDim2.new(0.5, -45, 0, 22),
-			BackgroundColor3 = baseDef and baseDef.Color or tierColor,
-			Rotation = 45,
-			Parent = card,
-		})
-		UiKit.Corner(18).Parent = gem
-		UiKit.Stroke(Color3.new(1, 1, 1), 2).Parent = gem
-		local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
-		UiKit.Label({
-			Text = mutPrefix .. crystal.Base,
-			TextColor3 = UiKit.Colors.Text,
-			Font = Enum.Font.FredokaOne,
-			Size = UDim2.new(1, -12, 0, 34),
-			Position = UDim2.fromOffset(6, 122),
-			Parent = card,
-		})
-		UiKit.Label({
-			Text = crystal.Tier .. (crystal.New and "  •  NEW!" or ""),
-			TextColor3 = tierColor,
-			Size = UDim2.new(1, -12, 0, 26),
-			Position = UDim2.fromOffset(6, 158),
-			Parent = card,
-		})
-		UiKit.Label({
-			Text = "Value: " .. Format.Number(crystal.Value),
-			TextColor3 = UiKit.Colors.Accent,
-			Size = UDim2.new(1, -12, 0, 26),
-			Position = UDim2.fromOffset(6, 190),
-			Parent = card,
-		})
-		card.Size = UDim2.fromOffset(0, 0)
-		card.Position += UDim2.fromOffset(cardWidth // 2, 130)
-		TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Size = UDim2.fromOffset(cardWidth, 260),
-			Position = UDim2.new(0.5, -totalWidth // 2 + (i - 1) * (cardWidth + 16), 0.42, -130),
-		}):Play()
-		local spin = TweenService:Create(gem, TweenInfo.new(2.4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), { Rotation = 405 })
-		spin:Play()
-	end
-
-	local sellAll = UiKit.Button({
-		Text = "Sell All  (+" .. Format.Number(sellValue) .. ")",
-		BackgroundColor3 = UiKit.Colors.Buy,
-		Size = UDim2.fromOffset(220, 48),
-		Position = UDim2.new(0.5, -232, 0.72, 0),
-		Parent = overlay,
-	})
-	local keepAll = UiKit.Button({
-		Text = "Keep",
-		BackgroundColor3 = UiKit.Colors.BgLighter,
-		TextColor3 = UiKit.Colors.Text,
-		Size = UDim2.fromOffset(160, 48),
-		Position = UDim2.new(0.5, 12, 0.72, 0),
-		Parent = overlay,
-	})
-	sellAll.Activated:Connect(function()
-		for _, crystal in results do
-			Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+		if tierRank(crystal.Tier) > tierRank(bestTier) then
+			bestTier = crystal.Tier
+			bestIndex = i
 		end
-		overlay:Destroy()
-	end)
-	keepAll.Activated:Connect(function()
-		overlay:Destroy()
+	end
+	local bestColor = Crystals.TierColors[bestTier] or UiKit.Colors.Accent
+	local bestRank = tierRank(bestTier)
+
+	local cardWidth = 200
+	local totalWidth = #results * cardWidth + (#results - 1) * 16
+
+	RevealFx.Play(overlay, {
+		Color = bestColor,
+		Suspense = SUSPENSE[bestTier] or 1,
+		Charged = bestRank >= 4,
+	}, function()
+		-- Celebration extras land with the burst
+		if bestRank >= 4 then
+			RevealFx.Confetti(overlay, bestColor, bestRank >= 5 and 36 or 20)
+		end
+		for i, crystal in results do
+			local position = UDim2.new(0.5, -totalWidth // 2 + (i - 1) * (cardWidth + 16) + cardWidth // 2, 0.42, 0)
+			if i == bestIndex and bestRank >= 5 then
+				RevealFx.Sunburst(overlay, position, bestColor)
+			end
+			task.delay((i - 1) * 0.18, function()
+				if overlay.Parent then
+					makeCard(overlay, crystal, position, cardWidth)
+				end
+			end)
+		end
+
+		task.delay(#results * 0.18 + 0.3, function()
+			if not overlay.Parent then
+				return
+			end
+			local sellAll = UiKit.Button({
+				Text = "Sell All  (+" .. Format.Number(sellValue) .. ")",
+				BackgroundColor3 = UiKit.Colors.Buy,
+				Size = UDim2.fromOffset(220, 48),
+				Position = UDim2.new(0.5, -232, 0.72, 0),
+				Parent = overlay,
+			})
+			sellAll.ZIndex = 4
+			local keepAll = UiKit.Button({
+				Text = "Keep",
+				BackgroundColor3 = UiKit.Colors.BgLighter,
+				TextColor3 = UiKit.Colors.Text,
+				Size = UDim2.fromOffset(160, 48),
+				Position = UDim2.new(0.5, 12, 0.72, 0),
+				Parent = overlay,
+			})
+			keepAll.ZIndex = 4
+			sellAll.Activated:Connect(function()
+				for _, crystal in results do
+					Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+				end
+				overlay:Destroy()
+			end)
+			keepAll.Activated:Connect(function()
+				overlay:Destroy()
+			end)
+		end)
 	end)
 end
 
@@ -220,7 +311,7 @@ function CrackScreen.Init(gui: ScreenGui)
 		Position = UDim2.fromScale(0.05, 0.52),
 		Parent = right,
 	})
-	local hint = UiKit.Label({
+	UiKit.Label({
 		Text = "Cast at a glowing fishing spot to catch chests!",
 		TextColor3 = UiKit.Colors.TextDim,
 		Font = Enum.Font.Gotham,
@@ -229,7 +320,6 @@ function CrackScreen.Init(gui: ScreenGui)
 		Position = UDim2.fromScale(0.05, 0.76),
 		Parent = right,
 	})
-	local _ = hint
 
 	crackOne.Activated:Connect(function()
 		crack(1)
