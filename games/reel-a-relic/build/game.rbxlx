@@ -482,6 +482,7 @@ local FUNCTIONS = {
 	"Rebirth", -- () -> ok, err
 	"GetShopStock", -- () -> stock table (policy-filtered)
 	"BuyShopItem", -- (itemIndex) -> ok, err
+	"ToggleAutoCrack", -- () -> nowEnabled (pass owners can watch the full reveal again)
 }
 
 local Remotes = {}
@@ -901,6 +902,15 @@ function CrackService.Init(serviceCtx: any)
 		end
 		return CrackService.SellCrystal(player, idOrAll)
 	end
+	Remotes.Function("ToggleAutoCrack").OnServerInvoke = function(player)
+		local data = ctx.Data.Get(player)
+		if not data then
+			return false
+		end
+		data.Settings.AutoCrack = data.Settings.AutoCrack == false
+		ctx.Data.MarkDirty(player)
+		return data.Settings.AutoCrack
+	end
 end
 
 return CrackService
@@ -947,6 +957,7 @@ local TEMPLATE = {
 	Funnel = {} :: { [string]: boolean },
 	PityCracks = 0,
 	RareGiven = false,
+	Settings = { AutoCrack = true },
 	ShopSalt = 0,
 	ShopWindow = { Seed = 0, Bought = {} :: { [string]: number } },
 	LastSeen = 0,
@@ -1087,6 +1098,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		TotalIndex = Crystals.TotalIndexEntries(),
 		Streak = { Count = data.Streak.Count, Best = data.Streak.Best },
 		Passes = passes,
+		AutoCrackEnabled = data.Settings.AutoCrack ~= false,
 		StarterPackOwned = data.StarterPackOwned,
 		Boost2xUntil = data.Boosts.Coins2xUntil,
 		Stats = data.Stats,
@@ -1793,7 +1805,7 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 			Color = Color3.fromRGB(120, 255, 200),
 		})
 	end
-	if ctx.Monetization.OwnsPass(player, "AutoCrack") then
+	if ctx.Monetization.OwnsPass(player, "AutoCrack") and data.Settings.AutoCrack ~= false then
 		for _ = 1, caught do
 			ctx.Crack.AutoCrack(player)
 		end
@@ -5932,13 +5944,26 @@ function CrackScreen.Init(gui: ScreenGui)
 		Position = UDim2.fromScale(0.05, 0.52),
 		Parent = right,
 	})
+	-- Pass owners can pause auto-cracking to enjoy the full reveal
+	local autoToggle = UiKit.Button({
+		Text = "Auto-Open: ON",
+		BackgroundColor3 = UiKit.Colors.BgLighter,
+		TextColor3 = UiKit.Colors.Text,
+		Size = UDim2.new(0.9, 0, 0, 36),
+		Position = UDim2.fromScale(0.05, 0.7),
+		Visible = false,
+		Parent = right,
+	})
+	autoToggle.Activated:Connect(function()
+		Remotes.Function("ToggleAutoCrack"):InvokeServer()
+	end)
 	UiKit.Label({
 		Text = "Cast at a glowing fishing spot to catch chests!",
 		TextColor3 = UiKit.Colors.TextDim,
 		Font = Enum.Font.Gotham,
 		TextWrapped = true,
-		Size = UDim2.new(0.9, 0, 0, 60),
-		Position = UDim2.fromScale(0.05, 0.76),
+		Size = UDim2.new(0.9, 0, 0, 44),
+		Position = UDim2.fromScale(0.05, 0.84),
 		Parent = right,
 	})
 
@@ -5957,6 +5982,14 @@ function CrackScreen.Init(gui: ScreenGui)
 	State.Changed:Connect(function(state)
 		if geodeLabel then
 			geodeLabel.Text = ("Chests: %d / %d"):format(state.Geodes, state.BackpackCapacity)
+		end
+		local ownsAuto = state.Passes and state.Passes.AutoCrack == true
+		autoToggle.Visible = ownsAuto == true
+		if ownsAuto then
+			local enabled = state.AutoCrackEnabled ~= false
+			autoToggle.Text = enabled and "Auto-Open: ON" or "Auto-Open: OFF"
+			autoToggle.BackgroundColor3 = enabled and UiKit.Colors.Good or UiKit.Colors.BgLighter
+			autoToggle.TextColor3 = enabled and Color3.fromRGB(25, 22, 18) or UiKit.Colors.Text
 		end
 		if panel.Visible then
 			renderOdds()

@@ -143,7 +143,7 @@ local function onNodeTapped(node: BasePart, player: Player)
 		data.Stats.GeodesMined += 1
 		ctx.Data.MarkDirty(player)
 		ctx.Analytics.FunnelStep(player, data, 1, "FirstGeode")
-		if ctx.Monetization.OwnsPass(player, "AutoCrack") then
+		if ctx.Monetization.OwnsPass(player, "AutoCrack") and data.Settings.AutoCrack ~= false then
 			ctx.Crack.AutoCrack(player)
 		end
 		respawnNode(node)

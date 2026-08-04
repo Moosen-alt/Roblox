@@ -22,6 +22,7 @@ local FUNCTIONS = {
 	"Rebirth", -- () -> ok, err
 	"GetShopStock", -- () -> stock table (policy-filtered)
 	"BuyShopItem", -- (itemIndex) -> ok, err
+	"ToggleAutoCrack", -- () -> nowEnabled (pass owners can watch the full reveal again)
 }
 
 local Remotes = {}

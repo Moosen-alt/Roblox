@@ -138,7 +138,7 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 			Color = Color3.fromRGB(120, 255, 200),
 		})
 	end
-	if ctx.Monetization.OwnsPass(player, "AutoCrack") then
+	if ctx.Monetization.OwnsPass(player, "AutoCrack") and data.Settings.AutoCrack ~= false then
 		for _ = 1, caught do
 			ctx.Crack.AutoCrack(player)
 		end

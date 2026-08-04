@@ -143,6 +143,13 @@ local function onCharacterAdded(player: Player, character: Model)
 	if player.Character == character then
 		PickaxeVisual.Refresh(player)
 	end
+	-- Belt-and-suspenders: if anything raced (slow profile, R15 parts still
+	-- streaming in), try once more a second later.
+	task.delay(1, function()
+		if player.Character == character and not character:FindFirstChild("HeldPickaxe") then
+			PickaxeVisual.Refresh(player)
+		end
+	end)
 end
 
 function PickaxeVisual.Init(serviceCtx: any)

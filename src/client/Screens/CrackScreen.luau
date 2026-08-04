@@ -368,13 +368,26 @@ function CrackScreen.Init(gui: ScreenGui)
 		Position = UDim2.fromScale(0.05, 0.52),
 		Parent = right,
 	})
+	-- Pass owners can pause auto-cracking to enjoy the full reveal
+	local autoToggle = UiKit.Button({
+		Text = "Auto-Crack: ON",
+		BackgroundColor3 = UiKit.Colors.BgLighter,
+		TextColor3 = UiKit.Colors.Text,
+		Size = UDim2.new(0.9, 0, 0, 36),
+		Position = UDim2.fromScale(0.05, 0.7),
+		Visible = false,
+		Parent = right,
+	})
+	autoToggle.Activated:Connect(function()
+		Remotes.Function("ToggleAutoCrack"):InvokeServer()
+	end)
 	UiKit.Label({
 		Text = "Mine the glowing wall to find geodes!",
 		TextColor3 = UiKit.Colors.TextDim,
 		Font = Enum.Font.Gotham,
 		TextWrapped = true,
-		Size = UDim2.new(0.9, 0, 0, 60),
-		Position = UDim2.fromScale(0.05, 0.76),
+		Size = UDim2.new(0.9, 0, 0, 44),
+		Position = UDim2.fromScale(0.05, 0.84),
 		Parent = right,
 	})
 
@@ -393,6 +406,14 @@ function CrackScreen.Init(gui: ScreenGui)
 	State.Changed:Connect(function(state)
 		if geodeLabel then
 			geodeLabel.Text = ("Geodes: %d / %d"):format(state.Geodes, state.BackpackCapacity)
+		end
+		local ownsAuto = state.Passes and state.Passes.AutoCrack == true
+		autoToggle.Visible = ownsAuto == true
+		if ownsAuto then
+			local enabled = state.AutoCrackEnabled ~= false
+			autoToggle.Text = enabled and "Auto-Crack: ON" or "Auto-Crack: OFF"
+			autoToggle.BackgroundColor3 = enabled and UiKit.Colors.Good or UiKit.Colors.BgLighter
+			autoToggle.TextColor3 = enabled and Color3.fromRGB(25, 22, 18) or UiKit.Colors.Text
 		end
 		if panel.Visible then
 			renderOdds()

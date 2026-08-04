@@ -232,6 +232,15 @@ function CrackService.Init(serviceCtx: any)
 		end
 		return CrackService.SellCrystal(player, idOrAll)
 	end
+	Remotes.Function("ToggleAutoCrack").OnServerInvoke = function(player)
+		local data = ctx.Data.Get(player)
+		if not data then
+			return false
+		end
+		data.Settings.AutoCrack = data.Settings.AutoCrack == false
+		ctx.Data.MarkDirty(player)
+		return data.Settings.AutoCrack
+	end
 end
 
 return CrackService

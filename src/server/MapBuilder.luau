@@ -42,17 +42,19 @@ local function part(props: { [string]: any }, parent: Instance): Part
 end
 
 local function setLighting()
+	-- Moody cave, but never so dark that the floor/stations vanish on low
+	-- graphics settings — dark scenes read as "broken" to new players.
 	Lighting.ClockTime = 0
-	Lighting.Brightness = 1.2
-	Lighting.Ambient = Color3.fromRGB(28, 26, 45)
-	Lighting.OutdoorAmbient = Color3.fromRGB(25, 22, 40)
-	Lighting.FogColor = Color3.fromRGB(12, 10, 25)
-	Lighting.FogEnd = 420
+	Lighting.Brightness = 2
+	Lighting.Ambient = Color3.fromRGB(72, 68, 102)
+	Lighting.OutdoorAmbient = Color3.fromRGB(62, 58, 92)
+	Lighting.FogColor = Color3.fromRGB(28, 24, 52)
+	Lighting.FogEnd = 650
 	Lighting.GlobalShadows = true
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.35
-	atmosphere.Color = Color3.fromRGB(70, 60, 120)
-	atmosphere.Haze = 1.6
+	atmosphere.Density = 0.28
+	atmosphere.Color = Color3.fromRGB(90, 80, 140)
+	atmosphere.Haze = 1.3
 	atmosphere.Parent = Lighting
 end
 
