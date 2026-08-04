@@ -29,6 +29,59 @@ local ctx: any = nil
 local spots: { [BasePart]: SpotState } = {}
 local rng = Random.new()
 
+local function playSound(parent: Instance, id: string, pitch: number, volume: number)
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.PlaybackSpeed = pitch
+	sound.Volume = volume
+	sound.Parent = parent
+	sound:Play()
+	task.delay(2, function()
+		if sound.Parent then
+			sound:Destroy()
+		end
+	end)
+end
+
+-- Catch celebration: pop sound, splash burst, floating "+N Chest!".
+local function catchEffects(spot: BasePart, caught: number)
+	playSound(spot, "rbxasset://sounds/snap.mp3", 1 + rng:NextNumber(-0.1, 0.2), 0.7)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Color = ColorSequence.new(Color3.fromRGB(160, 220, 255))
+	emitter.Lifetime = NumberRange.new(0.35, 0.7)
+	emitter.Speed = NumberRange.new(8, 16)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Size = NumberSequence.new(0.5, 0)
+	emitter.Enabled = false
+	emitter.Parent = spot
+	emitter:Emit(18)
+	task.delay(1.2, function()
+		emitter:Destroy()
+	end)
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(6, 1.6)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.Text = caught > 1 and ("+" .. caught .. " Chests!") or "+1 Chest!"
+	label.TextColor3 = Color3.fromRGB(255, 210, 90)
+	label.TextScaled = true
+	label.TextStrokeTransparency = 0.3
+	label.Parent = billboard
+	billboard.Parent = spot
+	TweenService:Create(billboard, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		StudsOffset = Vector3.new(0, 7, 0),
+	}):Play()
+	TweenService:Create(label, TweenInfo.new(0.9), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	task.delay(1, function()
+		billboard:Destroy()
+	end)
+end
+
 local function setIdle(spot: BasePart, state: SpotState)
 	state.OwnerUserId = nil
 	state.BiteAt = nil
@@ -47,6 +100,8 @@ local function setBite(spot: BasePart)
 	spot.Color = Color3.fromRGB(255, 255, 255)
 	spot.Transparency = 0
 	TweenService:Create(spot, TweenInfo.new(0.15), { Size = Vector3.new(4.2, 2.8, 4.2) }):Play()
+	-- Audible cue so the timing window works by ear as well as by eye
+	playSound(spot, "rbxasset://sounds/electronicpingshort.wav", 1.4, 0.8)
 end
 
 local function rodDamage(data: any): number
@@ -76,10 +131,13 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 	data.Stats.GeodesMined += caught
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 1, "FirstGeode")
-	Remotes.Event("Notify"):FireClient(player, {
-		Text = caught > 1 and ("DOUBLE HOOK! +" .. caught .. " chests!") or "+1 chest!",
-		Color = Color3.fromRGB(120, 255, 200),
-	})
+	catchEffects(spot, caught)
+	if caught > 1 then
+		Remotes.Event("Notify"):FireClient(player, {
+			Text = "DOUBLE HOOK! +" .. caught .. " chests!",
+			Color = Color3.fromRGB(120, 255, 200),
+		})
+	end
 	if ctx.Monetization.OwnsPass(player, "AutoCrack") then
 		for _ = 1, caught do
 			ctx.Crack.AutoCrack(player)

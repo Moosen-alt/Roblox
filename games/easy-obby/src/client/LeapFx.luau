@@ -41,15 +41,49 @@ local function celebrate(delta: number)
 		end)
 	end
 
-	-- The banner
+	LeapFx.Banner(("MEGA LEAP!  +%d"):format(delta), UiKit.Colors.Accent)
+	LeapFx.Confetti(math.min(10 + delta * 2, 34))
+end
+
+function LeapFx.Confetti(count: number)
+	local parent = gui
+	if not parent then
+		return
+	end
+	local rng = Random.new()
+	local palette = { UiKit.Colors.Accent, Color3.fromRGB(120, 255, 200), Color3.fromRGB(255, 150, 220), Color3.fromRGB(120, 200, 255) }
+	for _ = 1, count do
+		local piece = Instance.new("Frame")
+		piece.AnchorPoint = Vector2.new(0.5, 0.5)
+		piece.Position = UDim2.new(rng:NextNumber(0.2, 0.8), 0, 0, -20)
+		piece.Size = UDim2.fromOffset(rng:NextInteger(6, 11), rng:NextInteger(6, 11))
+		piece.Rotation = rng:NextInteger(0, 179)
+		piece.BackgroundColor3 = palette[rng:NextInteger(1, #palette)]
+		piece.BorderSizePixel = 0
+		piece.Parent = parent
+		TweenService:Create(piece, TweenInfo.new(rng:NextNumber(1.0, 1.7), Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.new(piece.Position.X.Scale + rng:NextNumber(-0.08, 0.08), 0, 1.1, 0),
+			Rotation = piece.Rotation + rng:NextInteger(-360, 360),
+		}):Play()
+		task.delay(1.8, function()
+			piece:Destroy()
+		end)
+	end
+end
+
+function LeapFx.Banner(text: string, color: Color3)
+	local parent = gui
+	if not parent then
+		return
+	end
 	local banner = Instance.new("TextLabel")
 	banner.AnchorPoint = Vector2.new(0.5, 0.5)
 	banner.Position = UDim2.fromScale(0.5, 0.38)
 	banner.Size = UDim2.fromOffset(0, 0)
 	banner.BackgroundTransparency = 1
 	banner.Font = Enum.Font.FredokaOne
-	banner.Text = ("MEGA LEAP!  +%d"):format(delta)
-	banner.TextColor3 = UiKit.Colors.Accent
+	banner.Text = text
+	banner.TextColor3 = color
 	banner.TextStrokeColor3 = Color3.fromRGB(40, 30, 10)
 	banner.TextStrokeTransparency = 0.2
 	banner.TextScaled = true
@@ -71,30 +105,11 @@ local function celebrate(delta: number)
 			banner:Destroy()
 		end)
 	end)
-
-	-- Confetti scaled to the leap
-	local palette = { UiKit.Colors.Accent, Color3.fromRGB(120, 255, 200), Color3.fromRGB(255, 150, 220), Color3.fromRGB(120, 200, 255) }
-	for _ = 1, math.min(10 + delta * 2, 34) do
-		local piece = Instance.new("Frame")
-		piece.AnchorPoint = Vector2.new(0.5, 0.5)
-		piece.Position = UDim2.new(rng:NextNumber(0.2, 0.8), 0, 0, -20)
-		piece.Size = UDim2.fromOffset(rng:NextInteger(6, 11), rng:NextInteger(6, 11))
-		piece.Rotation = rng:NextInteger(0, 179)
-		piece.BackgroundColor3 = palette[rng:NextInteger(1, #palette)]
-		piece.BorderSizePixel = 0
-		piece.Parent = parent
-		TweenService:Create(piece, TweenInfo.new(rng:NextNumber(1.0, 1.7), Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = UDim2.new(piece.Position.X.Scale + rng:NextNumber(-0.08, 0.08), 0, 1.1, 0),
-			Rotation = piece.Rotation + rng:NextInteger(-360, 360),
-		}):Play()
-		task.delay(1.8, function()
-			piece:Destroy()
-		end)
-	end
 end
 
 function LeapFx.Init(screenGui: ScreenGui)
 	gui = screenGui
+	local lastRebirths: number? = nil
 	State.Changed:Connect(function(state)
 		local checkpoint = state.Checkpoint
 		if lastCheckpoint ~= nil and checkpoint > lastCheckpoint then
@@ -104,6 +119,13 @@ function LeapFx.Init(screenGui: ScreenGui)
 			end
 		end
 		lastCheckpoint = checkpoint
+
+		-- Rebirth celebration (checkpoint drops to 0, so it never double-fires)
+		if lastRebirths ~= nil and state.Rebirths > lastRebirths then
+			LeapFx.Banner(("REBIRTH %d!"):format(state.Rebirths), Color3.fromRGB(255, 120, 255))
+			LeapFx.Confetti(34)
+		end
+		lastRebirths = state.Rebirths
 	end)
 end
 

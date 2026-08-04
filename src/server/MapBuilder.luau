@@ -233,10 +233,10 @@ function MapBuilder.Build(): MapRefs
 	local boardRebirths = makeBoard(Vector3.new(-70, 7, 30), Vector3.new(0, 7, 0), "Top Recrystallizers", map)
 	local boardRarest = makeBoard(Vector3.new(70, 7, 30), Vector3.new(0, 7, 0), "Rarest Finds", map)
 
-	-- Spawn
+	-- Spawn: three steps from the mine wall, facing it (first geode in seconds)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Size = Vector3.new(10, 1, 10)
-	spawn.Position = Vector3.new(0, 0.5, 14)
+	spawn.Position = Vector3.new(0, 0.5, -48)
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Color = Color3.fromRGB(60, 56, 84)

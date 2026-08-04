@@ -78,7 +78,7 @@ local function renderOdds()
 	end
 end
 
-local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number): Frame
+local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number, handledIds: { [string]: boolean }): Frame
 	local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
 	local baseDef = Crystals.GetBase(crystal.Base)
 	local card = UiKit.Create("Frame", {
@@ -127,6 +127,60 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		ZIndex = 2,
 		Parent = card,
 	})
+
+	-- Per-crystal choice, right on the card: sell it or socket it on a rack.
+	local function cardButton(text: string, color: Color3, x: number): TextButton
+		local button = UiKit.Create("TextButton", {
+			Text = text,
+			Font = Enum.Font.FredokaOne,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(25, 22, 18),
+			BackgroundColor3 = color,
+			Size = UDim2.fromOffset(cardWidth // 2 - 14, 30),
+			Position = UDim2.fromOffset(x, 222),
+			ZIndex = 3,
+			Parent = card,
+		})
+		UiKit.Corner(8).Parent = button
+		return button
+	end
+	local sellButton = cardButton("Sell", UiKit.Colors.Buy, 8)
+	local socketButton = cardButton("Display", UiKit.Colors.Good, cardWidth // 2 + 6)
+	local function markDone(text: string)
+		handledIds[crystal.Id] = true
+		sellButton:Destroy()
+		socketButton:Destroy()
+		UiKit.Label({
+			Text = text,
+			TextColor3 = UiKit.Colors.TextDim,
+			Size = UDim2.new(1, -12, 0, 26),
+			Position = UDim2.fromOffset(6, 224),
+			ZIndex = 3,
+			Parent = card,
+		})
+	end
+	sellButton.Activated:Connect(function()
+		if handledIds[crystal.Id] then
+			return
+		end
+		local ok, err = Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+		if ok then
+			markDone("Sold  (+" .. Format.Number(crystal.Value) .. ")")
+		elseif typeof(err) == "string" then
+			Toasts.Push(err, UiKit.Colors.Bad)
+		end
+	end)
+	socketButton.Activated:Connect(function()
+		if handledIds[crystal.Id] then
+			return
+		end
+		local ok, err = Remotes.Function("SocketCrystal"):InvokeServer(crystal.Id)
+		if ok then
+			markDone("Displayed!")
+		elseif typeof(err) == "string" then
+			Toasts.Push(err, UiKit.Colors.Bad)
+		end
+	end)
 	if crystal.New then
 		local badge = UiKit.Create("TextLabel", {
 			Text = "NEW!",
@@ -186,6 +240,7 @@ local function showReveal(results: { { [string]: any } })
 
 	local cardWidth = 200
 	local totalWidth = #results * cardWidth + (#results - 1) * 16
+	local handledIds: { [string]: boolean } = {}
 
 	RevealFx.Play(overlay, {
 		Color = bestColor,
@@ -203,7 +258,7 @@ local function showReveal(results: { { [string]: any } })
 			end
 			task.delay((i - 1) * 0.18, function()
 				if overlay.Parent then
-					makeCard(overlay, crystal, position, cardWidth)
+					makeCard(overlay, crystal, position, cardWidth, handledIds)
 				end
 			end)
 		end
@@ -231,7 +286,9 @@ local function showReveal(results: { { [string]: any } })
 			keepAll.ZIndex = 4
 			sellAll.Activated:Connect(function()
 				for _, crystal in results do
-					Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+					if not handledIds[crystal.Id] then
+						Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+					end
 				end
 				overlay:Destroy()
 			end)

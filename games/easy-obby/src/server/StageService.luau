@@ -6,12 +6,55 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
 
 local StageService = {}
+
+-- Per-stage juice: ping + floating "+N Jump" above the runner's head.
+local function stageFeedback(player: Player, delta: number, jumpGain: number)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+	sound.PlaybackSpeed = 1 + math.min(delta * 0.06, 0.6)
+	sound.Volume = 0.5
+	sound.Parent = root
+	sound:Play()
+	task.delay(2, function()
+		if sound.Parent then
+			sound:Destroy()
+		end
+	end)
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(7, 1.6)
+	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
+	billboard.AlwaysOnTop = true
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.Text = ("+%d Jump Power!"):format(jumpGain)
+	label.TextColor3 = Color3.fromRGB(120, 200, 255)
+	label.TextScaled = true
+	label.TextStrokeTransparency = 0.3
+	label.Parent = billboard
+	billboard.Parent = root
+	TweenService:Create(billboard, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		StudsOffset = Vector3.new(0, 7, 0),
+	}):Play()
+	TweenService:Create(label, TweenInfo.new(0.9), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	task.delay(1, function()
+		billboard:Destroy()
+	end)
+end
 
 local ctx: any = nil
 local pads: { BasePart } = {}
@@ -58,6 +101,7 @@ function StageService.AdvanceTo(player: Player, target: number)
 	ctx.Data.AddCoins(player, coins, true)
 	ctx.Data.MarkDirty(player)
 	StageService.ApplyStats(player)
+	stageFeedback(player, delta, jumpGain)
 
 	ctx.Analytics.FunnelStep(player, data, 1, "FirstStage")
 	if target >= 10 then

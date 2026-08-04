@@ -247,10 +247,10 @@ function MapBuilder.Build(): MapRefs
 	local boardRebirths = makeBoard(Vector3.new(-70, 7, 70), Vector3.new(0, 7, 20), "Top Voyagers", map)
 	local boardRarest = makeBoard(Vector3.new(70, 7, 70), Vector3.new(0, 7, 20), "Rarest Finds", map)
 
-	-- Spawn on the beach facing the dock
+	-- Spawn on the dock, steps from the fishing spots (first cast in seconds)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Size = Vector3.new(10, 1, 10)
-	spawn.Position = Vector3.new(0, 0.5, 56)
+	spawn.Position = Vector3.new(0, 1.6, -40)
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Color = Color3.fromRGB(210, 185, 140)

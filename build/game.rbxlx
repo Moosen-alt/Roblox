@@ -1609,10 +1609,10 @@ function MapBuilder.Build(): MapRefs
 	local boardRebirths = makeBoard(Vector3.new(-70, 7, 30), Vector3.new(0, 7, 0), "Top Recrystallizers", map)
 	local boardRarest = makeBoard(Vector3.new(70, 7, 30), Vector3.new(0, 7, 0), "Rarest Finds", map)
 
-	-- Spawn
+	-- Spawn: three steps from the mine wall, facing it (first geode in seconds)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Size = Vector3.new(10, 1, 10)
-	spawn.Position = Vector3.new(0, 0.5, 14)
+	spawn.Position = Vector3.new(0, 0.5, -48)
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Color = Color3.fromRGB(60, 56, 84)
@@ -1673,6 +1673,59 @@ local function maxHealth(): number
 	return Balance.NodeBaseHealth
 end
 
+local function playSound(parent: Instance, id: string, pitch: number, volume: number)
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.PlaybackSpeed = pitch
+	sound.Volume = volume
+	sound.Parent = parent
+	sound:Play()
+	task.delay(2, function()
+		if sound.Parent then
+			sound:Destroy()
+		end
+	end)
+end
+
+-- The juicy geode-break moment: pop sound, color burst, floating "+1".
+local function popEffects(node: BasePart)
+	playSound(node, "rbxasset://sounds/snap.mp3", 1 + rng:NextNumber(-0.1, 0.2), 0.7)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Color = ColorSequence.new(node.Color)
+	emitter.Lifetime = NumberRange.new(0.35, 0.7)
+	emitter.Speed = NumberRange.new(8, 16)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Size = NumberSequence.new(0.5, 0)
+	emitter.Enabled = false
+	emitter.Parent = node
+	emitter:Emit(16)
+	task.delay(1.2, function()
+		emitter:Destroy()
+	end)
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(6, 1.6)
+	billboard.StudsOffset = Vector3.new(0, 4, 0)
+	billboard.AlwaysOnTop = true
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.Text = "+1 Geode!"
+	label.TextColor3 = node.Color
+	label.TextScaled = true
+	label.TextStrokeTransparency = 0.3
+	label.Parent = billboard
+	billboard.Parent = node
+	TweenService:Create(billboard, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		StudsOffset = Vector3.new(0, 8, 0),
+	}):Play()
+	TweenService:Create(label, TweenInfo.new(0.9), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	task.delay(1, function()
+		billboard:Destroy()
+	end)
+end
+
 local function respawnNode(node: BasePart)
 	node.Transparency = 0.85
 	local click = node:FindFirstChildOfClass("ClickDetector")
@@ -1722,11 +1775,13 @@ local function onNodeTapped(node: BasePart, player: Player)
 	health -= pickaxe.Damage
 	nodeHealth[node] = health
 
-	-- crunch feedback: node shrinks as it takes damage
+	-- crunch feedback: hit tick + node shrinks as it takes damage
+	playSound(node, "rbxasset://sounds/electronicpingshort.wav", 0.9 + rng:NextNumber(0, 0.25), 0.4)
 	local fraction = math.clamp(health / maxHealth(), 0.35, 1)
 	TweenService:Create(node, TweenInfo.new(0.12), { Size = Vector3.new(6 * fraction, 6 * fraction, 3) }):Play()
 
 	if health <= 0 then
+		popEffects(node)
 		data.Geodes += 1
 		data.Stats.GeodesMined += 1
 		ctx.Data.MarkDirty(player)
@@ -5683,7 +5738,7 @@ local function renderOdds()
 	end
 end
 
-local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number): Frame
+local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number, handledIds: { [string]: boolean }): Frame
 	local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
 	local baseDef = Crystals.GetBase(crystal.Base)
 	local card = UiKit.Create("Frame", {
@@ -5732,6 +5787,60 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		ZIndex = 2,
 		Parent = card,
 	})
+
+	-- Per-crystal choice, right on the card: sell it or socket it on a rack.
+	local function cardButton(text: string, color: Color3, x: number): TextButton
+		local button = UiKit.Create("TextButton", {
+			Text = text,
+			Font = Enum.Font.FredokaOne,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(25, 22, 18),
+			BackgroundColor3 = color,
+			Size = UDim2.fromOffset(cardWidth // 2 - 14, 30),
+			Position = UDim2.fromOffset(x, 222),
+			ZIndex = 3,
+			Parent = card,
+		})
+		UiKit.Corner(8).Parent = button
+		return button
+	end
+	local sellButton = cardButton("Sell", UiKit.Colors.Buy, 8)
+	local socketButton = cardButton("Socket", UiKit.Colors.Good, cardWidth // 2 + 6)
+	local function markDone(text: string)
+		handledIds[crystal.Id] = true
+		sellButton:Destroy()
+		socketButton:Destroy()
+		UiKit.Label({
+			Text = text,
+			TextColor3 = UiKit.Colors.TextDim,
+			Size = UDim2.new(1, -12, 0, 26),
+			Position = UDim2.fromOffset(6, 224),
+			ZIndex = 3,
+			Parent = card,
+		})
+	end
+	sellButton.Activated:Connect(function()
+		if handledIds[crystal.Id] then
+			return
+		end
+		local ok, err = Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+		if ok then
+			markDone("Sold  (+" .. Format.Number(crystal.Value) .. ")")
+		elseif typeof(err) == "string" then
+			Toasts.Push(err, UiKit.Colors.Bad)
+		end
+	end)
+	socketButton.Activated:Connect(function()
+		if handledIds[crystal.Id] then
+			return
+		end
+		local ok, err = Remotes.Function("SocketCrystal"):InvokeServer(crystal.Id)
+		if ok then
+			markDone("Socketed!")
+		elseif typeof(err) == "string" then
+			Toasts.Push(err, UiKit.Colors.Bad)
+		end
+	end)
 	if crystal.New then
 		local badge = UiKit.Create("TextLabel", {
 			Text = "NEW!",
@@ -5791,6 +5900,7 @@ local function showReveal(results: { { [string]: any } })
 
 	local cardWidth = 200
 	local totalWidth = #results * cardWidth + (#results - 1) * 16
+	local handledIds: { [string]: boolean } = {}
 
 	RevealFx.Play(overlay, {
 		Color = bestColor,
@@ -5808,7 +5918,7 @@ local function showReveal(results: { { [string]: any } })
 			end
 			task.delay((i - 1) * 0.18, function()
 				if overlay.Parent then
-					makeCard(overlay, crystal, position, cardWidth)
+					makeCard(overlay, crystal, position, cardWidth, handledIds)
 				end
 			end)
 		end
@@ -5836,7 +5946,9 @@ local function showReveal(results: { { [string]: any } })
 			keepAll.ZIndex = 4
 			sellAll.Activated:Connect(function()
 				for _, crystal in results do
-					Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+					if not handledIds[crystal.Id] then
+						Remotes.Function("SellCrystal"):InvokeServer(crystal.Id)
+					end
 				end
 				overlay:Destroy()
 			end)
