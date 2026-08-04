@@ -1,0 +1,75 @@
+--!strict
+-- Creates (server) or fetches (client) all RemoteEvents/RemoteFunctions.
+
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local EVENTS = {
+	"StateSync", -- server -> client: sanitized profile snapshot
+	"Notify", -- server -> client: toast messages { Text, Color? }
+	"WelcomeReport", -- server -> client on join: offline earnings + streak summary
+}
+
+local FUNCTIONS = {
+	"Rebirth", -- () -> ok, err
+	"BuyTrail", -- (trailName) -> ok, err
+	"EquipTrail", -- (trailName | "") -> ok, err
+	"TeleportStage", -- (stageIndex) -> ok, err  (VIP)
+}
+
+local Remotes = {}
+
+local function container(): Folder
+	if RunService:IsServer() then
+		local folder = ReplicatedStorage:FindFirstChild("Remotes") :: Folder?
+		if not folder then
+			local newFolder = Instance.new("Folder")
+			newFolder.Name = "Remotes"
+			newFolder.Parent = ReplicatedStorage
+			folder = newFolder
+		end
+		return folder :: Folder
+	end
+	return ReplicatedStorage:WaitForChild("Remotes") :: Folder
+end
+
+function Remotes.Event(name: string): RemoteEvent
+	local folder = container()
+	if RunService:IsServer() then
+		local remote = folder:FindFirstChild(name) :: RemoteEvent?
+		if not remote then
+			local newRemote = Instance.new("RemoteEvent")
+			newRemote.Name = name
+			newRemote.Parent = folder
+			remote = newRemote
+		end
+		return remote :: RemoteEvent
+	end
+	return folder:WaitForChild(name) :: RemoteEvent
+end
+
+function Remotes.Function(name: string): RemoteFunction
+	local folder = container()
+	if RunService:IsServer() then
+		local remote = folder:FindFirstChild(name) :: RemoteFunction?
+		if not remote then
+			local newRemote = Instance.new("RemoteFunction")
+			newRemote.Name = name
+			newRemote.Parent = folder
+			remote = newRemote
+		end
+		return remote :: RemoteFunction
+	end
+	return folder:WaitForChild(name) :: RemoteFunction
+end
+
+function Remotes.Init()
+	for _, name in EVENTS do
+		Remotes.Event(name)
+	end
+	for _, name in FUNCTIONS do
+		Remotes.Function(name)
+	end
+end
+
+return Remotes

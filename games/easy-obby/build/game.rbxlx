@@ -1,0 +1,4996 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="Folder" referent="2">
+        <Properties>
+          <string name="Name">Config</string>
+        </Properties>
+        <Item class="ModuleScript" referent="3">
+          <Properties>
+            <string name="Name">Balance</string>
+            <string name="Source"><![CDATA[--!strict
+-- Every tuning constant in one place.
+
+local Balance = {}
+
+-- Course
+Balance.Stages = 100
+Balance.StageLength = 26 -- studs of course per stage
+Balance.RespawnSeconds = 2
+
+-- The +1 loop: every stage pad adds jump power; speed scales with it so
+-- late-game players leap whole sections (the clip moment).
+Balance.BaseJumpPower = 50
+Balance.JumpPerStage = 1
+Balance.JumpBonusCap = 350 -- total bonus cap (base + bonus <= 400)
+Balance.BaseWalkSpeed = 16
+Balance.SpeedPerJumpBonus = 0.12
+Balance.WalkSpeedCap = 90
+Balance.SpeedCoilBonus = 8 -- Speed Coil gamepass
+
+-- Coins
+Balance.CoinsPerStage = 5
+Balance.CoinsStageScale = 0.02 -- +2% per stage index
+Balance.VipCoinBonus = 0.25
+
+-- Rebirth: reach the Finish pad (stage 100), reset jump/checkpoint, keep coins
+-- and trails, bank a permanent +25% jump-gain & coin multiplier.
+Balance.RebirthStage = 100
+Balance.RebirthGainBonus = 0.25
+Balance.MegaStartJump = 100 -- Mega Start gamepass: starting jump bonus each rebirth
+
+-- Offline "Jump Charge": coins accrue while away, scaled by checkpoint.
+Balance.OfflineCoinsPerStagePerMinute = 0.6
+Balance.OfflineCapSeconds = 8 * 3600
+
+-- Daily streaks (same shape as the other games)
+Balance.StreakBaseReward = 100
+Balance.StreakDayCap = 30
+Balance.StreakMilestones = { [7] = 3, [14] = 4, [30] = 6 }
+Balance.StreakGraceDays = 1
+
+-- Trail cosmetics: the coin sink. "Rainbow" is VIP-exclusive, not buyable.
+Balance.Trails = {
+	{ Name = "Sunset", Color = Color3.fromRGB(255, 150, 80), Cost = 250 },
+	{ Name = "Mint", Color = Color3.fromRGB(120, 255, 200), Cost = 500 },
+	{ Name = "Sky", Color = Color3.fromRGB(120, 200, 255), Cost = 1000 },
+	{ Name = "Bubblegum", Color = Color3.fromRGB(255, 150, 220), Cost = 2000 },
+	{ Name = "Lime", Color = Color3.fromRGB(170, 255, 100), Cost = 4000 },
+	{ Name = "Royal", Color = Color3.fromRGB(150, 120, 255), Cost = 8000 },
+	{ Name = "Gold", Color = Color3.fromRGB(255, 210, 90), Cost = 15000 },
+	{ Name = "Crimson", Color = Color3.fromRGB(255, 80, 90), Cost = 25000 },
+	{ Name = "Void", Color = Color3.fromRGB(60, 50, 90), Cost = 40000 },
+	{ Name = "Star White", Color = Color3.fromRGB(255, 255, 255), Cost = 60000 },
+}
+
+export type TrailDef = { Name: string, Color: Color3, Cost: number }
+
+function Balance.GetTrail(name: string): TrailDef?
+	for _, trail in Balance.Trails do
+		if trail.Name == name then
+			return trail
+		end
+	end
+	return nil
+end
+
+return Balance
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="4">
+          <Properties>
+            <string name="Name">Monetization</string>
+            <string name="Source"><![CDATA[--!strict
+-- ═══════════════════════════════════════════════════════════════════════════
+--  THE ONLY FILE YOU EDIT BY HAND.
+--  After publishing, create each gamepass and developer product on the
+--  Creator Hub and paste its numeric ID below. An ID of 0 means "not created
+--  yet" — the game hides that offer gracefully.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local Monetization = {}
+
+-- Your Roblox group ID (players who join the group get 2x daily streak rewards).
+Monetization.GroupId = 0
+
+Monetization.Gamepasses = {
+	SpeedCoil = { Id = 0, Price = 49, Title = "Speed Coil", Desc = "+8 walkspeed, forever. The classic." },
+	Coins2x = { Id = 0, Price = 149, Title = "2x Coins", Desc = "Permanently double every coin you earn." },
+	JumpGain2x = { Id = 0, Price = 249, Title = "2x Jump Gain", Desc = "Every stage gives +2 Jump Power instead of +1." },
+	Vip = { Id = 0, Price = 499, Title = "VIP", Desc = "Rainbow trail, +25% coins, and teleport to any cleared stage." },
+	MegaStart = { Id = 0, Price = 999, Title = "Mega Start", Desc = "Start every rebirth with +100 Jump Power." },
+}
+
+Monetization.Products = {
+	Skip1 = { Id = 0, Price = 25, Title = "Skip Stage", Desc = "Skip 1 stage (you still get its +1 Jump and coins)." },
+	Skip10 = { Id = 0, Price = 149, Title = "Skip 10 Stages", Desc = "Skip 10 stages at once — rewards included." },
+	JumpBoost50 = { Id = 0, Price = 75, Title = "+50 Jump Boost", Desc = "+50 Jump Power this run, instantly." },
+	InstantRebirth = { Id = 0, Price = 199, Title = "Instant Rebirth", Desc = "Rebirth right now, from anywhere." },
+	Coins1k = { Id = 0, Price = 100, Title = "Coin Pouch", Coins = 1000 },
+	Coins5k = { Id = 0, Price = 500, Title = "Coin Chest", Coins = 5500 },
+}
+
+function Monetization.PassIdByKey(key: string): number
+	local def = (Monetization.Gamepasses :: any)[key]
+	return def and def.Id or 0
+end
+
+function Monetization.ProductIdByKey(key: string): number
+	local def = (Monetization.Products :: any)[key]
+	return def and def.Id or 0
+end
+
+function Monetization.ProductKeyById(id: number): string?
+	if id == 0 then
+		return nil
+	end
+	for key, def in Monetization.Products :: any do
+		if def.Id == id then
+			return key
+		end
+	end
+	return nil
+end
+
+return Monetization
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">Format</string>
+          <string name="Source"><![CDATA[--!strict
+local Format = {}
+
+local SUFFIXES = { "", "K", "M", "B", "T", "Qa", "Qi" }
+
+function Format.Number(value: number): string
+	if value ~= value or value == math.huge then
+		return "0"
+	end
+	local magnitude = 1
+	local scaled = value
+	while math.abs(scaled) >= 1000 and magnitude < #SUFFIXES do
+		scaled /= 1000
+		magnitude += 1
+	end
+	if magnitude == 1 then
+		return tostring(math.floor(scaled + 0.5))
+	end
+	local text = string.format("%.2f%s", scaled, SUFFIXES[magnitude])
+	text = string.gsub(text, "%.00", "")
+	return text
+end
+
+function Format.Percent(value: number): string
+	if value >= 10 then
+		return string.format("%.1f%%", value)
+	elseif value >= 0.1 then
+		return string.format("%.2f%%", value)
+	end
+	return string.format("%.3f%%", value)
+end
+
+function Format.Clock(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	if seconds >= 3600 then
+		return string.format("%d:%02d:%02d", seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+	end
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+function Format.Duration(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	if seconds >= 3600 then
+		return string.format("%dh %dm", seconds // 3600, (seconds % 3600) // 60)
+	elseif seconds >= 60 then
+		return string.format("%dm", seconds // 60)
+	end
+	return string.format("%ds", seconds)
+end
+
+return Format
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">Remotes</string>
+          <string name="Source"><![CDATA[--!strict
+-- Creates (server) or fetches (client) all RemoteEvents/RemoteFunctions.
+
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local EVENTS = {
+	"StateSync", -- server -> client: sanitized profile snapshot
+	"Notify", -- server -> client: toast messages { Text, Color? }
+	"WelcomeReport", -- server -> client on join: offline earnings + streak summary
+}
+
+local FUNCTIONS = {
+	"Rebirth", -- () -> ok, err
+	"BuyTrail", -- (trailName) -> ok, err
+	"EquipTrail", -- (trailName | "") -> ok, err
+	"TeleportStage", -- (stageIndex) -> ok, err  (VIP)
+}
+
+local Remotes = {}
+
+local function container(): Folder
+	if RunService:IsServer() then
+		local folder = ReplicatedStorage:FindFirstChild("Remotes") :: Folder?
+		if not folder then
+			local newFolder = Instance.new("Folder")
+			newFolder.Name = "Remotes"
+			newFolder.Parent = ReplicatedStorage
+			folder = newFolder
+		end
+		return folder :: Folder
+	end
+	return ReplicatedStorage:WaitForChild("Remotes") :: Folder
+end
+
+function Remotes.Event(name: string): RemoteEvent
+	local folder = container()
+	if RunService:IsServer() then
+		local remote = folder:FindFirstChild(name) :: RemoteEvent?
+		if not remote then
+			local newRemote = Instance.new("RemoteEvent")
+			newRemote.Name = name
+			newRemote.Parent = folder
+			remote = newRemote
+		end
+		return remote :: RemoteEvent
+	end
+	return folder:WaitForChild(name) :: RemoteEvent
+end
+
+function Remotes.Function(name: string): RemoteFunction
+	local folder = container()
+	if RunService:IsServer() then
+		local remote = folder:FindFirstChild(name) :: RemoteFunction?
+		if not remote then
+			local newRemote = Instance.new("RemoteFunction")
+			newRemote.Name = name
+			newRemote.Parent = folder
+			remote = newRemote
+		end
+		return remote :: RemoteFunction
+	end
+	return folder:WaitForChild(name) :: RemoteFunction
+end
+
+function Remotes.Init()
+	for _, name in EVENTS do
+		Remotes.Event(name)
+	end
+	for _, name in FUNCTIONS do
+		Remotes.Function(name)
+	end
+end
+
+return Remotes
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="7">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="8">
+      <Properties>
+        <string name="Name">Server</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- Bootstrap: build the course, wire services into a shared context, start data.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Remotes = require(Shared.Remotes)
+
+local AnalyticsService = require(script.AnalyticsService)
+local CourseBuilder = require(script.CourseBuilder)
+local DataService = require(script.DataService)
+local Leaderboards = require(script.Leaderboards)
+local MonetizationService = require(script.MonetizationService)
+local RebirthService = require(script.RebirthService)
+local StageService = require(script.StageService)
+local StreakService = require(script.StreakService)
+local TrailService = require(script.TrailService)
+
+Remotes.Init()
+local course = CourseBuilder.Build()
+
+local ctx: any = {
+	Data = DataService,
+	Stages = StageService,
+	Rebirth = RebirthService,
+	Trails = TrailService,
+	Streak = StreakService,
+	Monetization = MonetizationService,
+	Analytics = AnalyticsService,
+}
+
+ctx.OnProfileLoaded = function(player: Player, data: any)
+	MonetizationService.PreloadPasses(player, data)
+	local streakReport = StreakService.HandleJoin(player, data)
+
+	-- Offline "Jump Charge": coins accrued while away, scaled by checkpoint.
+	local offlineCoins = 0
+	local away = 0
+	if data.LastSeen > 0 and data.Checkpoint > 0 then
+		away = math.min(os.time() - data.LastSeen, Balance.OfflineCapSeconds)
+		offlineCoins = math.floor(away / 60 * data.Checkpoint * Balance.OfflineCoinsPerStagePerMinute)
+		if offlineCoins > 0 then
+			DataService.AddCoins(player, offlineCoins, true)
+		end
+	end
+
+	StageService.ApplyStats(player)
+	task.delay(2, function()
+		if player.Parent then
+			Remotes.Event("WelcomeReport"):FireClient(player, {
+				Streak = streakReport,
+				Offline = { OfflineSeconds = away, PendingCoins = offlineCoins },
+			})
+		end
+	end)
+end
+
+ctx.OnProfileReleasing = function(player: Player, data: any)
+	Leaderboards.Save(player, data)
+end
+
+AnalyticsService.Init(ctx)
+MonetizationService.Init(ctx)
+StageService.Init(ctx, course.Pads)
+RebirthService.Init(ctx)
+TrailService.Init(ctx)
+StreakService.Init(ctx)
+Leaderboards.Init(ctx, course.BoardStages, course.BoardRebirths)
+DataService.Init(ctx)
+
+print("[EasyObby] Server ready.")
+]]></string>
+      </Properties>
+      <Item class="ModuleScript" referent="9">
+        <Properties>
+          <string name="Name">AnalyticsService</string>
+          <string name="Source"><![CDATA[--!strict
+-- Thin, fail-safe wrapper over Roblox AnalyticsService. The onboarding funnel
+-- (FirstGeode -> FirstCrack -> FirstRare -> FirstSocket -> FirstRebirth) is the
+-- go/no-go dashboard for spending any ad budget: fix the biggest drop-off first.
+
+local RobloxAnalytics = game:GetService("AnalyticsService")
+
+local AnalyticsService = {}
+
+function AnalyticsService.FunnelStep(player: Player, data: any, step: number, stepName: string)
+	if data.Funnel[stepName] then
+		return
+	end
+	data.Funnel[stepName] = true
+	pcall(function()
+		RobloxAnalytics:LogOnboardingFunnelStepEvent(player, step, stepName)
+	end)
+end
+
+function AnalyticsService.LogCustom(player: Player, eventName: string, value: number?)
+	pcall(function()
+		RobloxAnalytics:LogCustomEvent(player, eventName, value or 1)
+	end)
+end
+
+function AnalyticsService.Init(_serviceCtx: any) end
+
+return AnalyticsService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="10">
+        <Properties>
+          <string name="Name">CourseBuilder</string>
+          <string name="Source"><![CDATA[--!strict
+-- Generates the whole 100-stage course from ~6 segment archetypes. Every
+-- server rolls a fresh seed, so each server is a new tower layout — systemic
+-- content, Tower-of-Hell style, with zero authored maps.
+
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+
+local CourseBuilder = {}
+
+export type CourseRefs = {
+	Pads: { BasePart }, -- index 1..Stages; pad i has attribute StageIndex = i
+	SpawnPad: BasePart,
+	BoardStages: BasePart,
+	BoardRebirths: BasePart,
+}
+
+local rng = Random.new(os.time())
+
+local function part(props: { [string]: any }, parent: Instance): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in props do
+		if key ~= "Parent" then
+			(p :: any)[key] = value
+		end
+	end
+	p.Parent = parent
+	return p
+end
+
+local function stageColor(i: number): Color3
+	return Color3.fromHSV((i * 0.043) % 1, 0.55, 0.95)
+end
+
+local function setLighting()
+	Lighting.ClockTime = 13
+	Lighting.Brightness = 2.6
+	Lighting.Ambient = Color3.fromRGB(150, 150, 160)
+	Lighting.OutdoorAmbient = Color3.fromRGB(140, 150, 170)
+	Lighting.FogColor = Color3.fromRGB(200, 220, 250)
+	Lighting.FogEnd = 1200
+	local atmosphere = Instance.new("Atmosphere")
+	atmosphere.Density = 0.2
+	atmosphere.Color = Color3.fromRGB(199, 224, 255)
+	atmosphere.Parent = Lighting
+end
+
+-- Segment archetypes fill the gap between pad i-1 (at fromZ) and pad i.
+-- All are "easy": short gaps, wide platforms, gentle heights.
+local function segmentPlatforms(stageRng: Random, kind: number, fromZ: number, toZ: number, folder: Instance, color: Color3)
+	local span = toZ - fromZ
+	if kind == 1 then -- straight hops
+		for j = 1, 3 do
+			part({
+				Size = Vector3.new(8, 1, 5),
+				Position = Vector3.new(stageRng:NextNumber(-2, 2), 0, fromZ + span * j / 4),
+				Color = color,
+				Material = Enum.Material.SmoothPlastic,
+			}, folder)
+		end
+	elseif kind == 2 then -- zigzag
+		for j = 1, 3 do
+			part({
+				Size = Vector3.new(7, 1, 5),
+				Position = Vector3.new((j % 2 == 0 and 7 or -7), 0, fromZ + span * j / 4),
+				Color = color,
+				Material = Enum.Material.SmoothPlastic,
+			}, folder)
+		end
+	elseif kind == 3 then -- rising stairs then drop
+		for j = 1, 3 do
+			part({
+				Size = Vector3.new(8, 1, 5),
+				Position = Vector3.new(0, j * 1.6, fromZ + span * j / 4),
+				Color = color,
+				Material = Enum.Material.SmoothPlastic,
+			}, folder)
+		end
+	elseif kind == 4 then -- one long narrow beam
+		part({
+			Size = Vector3.new(3, 1, span - 8),
+			Position = Vector3.new(0, 0, fromZ + span / 2),
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+		}, folder)
+	elseif kind == 5 then -- pillar hops
+		for j = 1, 4 do
+			part({
+				Size = Vector3.new(4.5, 1, 4.5),
+				Position = Vector3.new(stageRng:NextNumber(-4, 4), 0, fromZ + span * j / 5),
+				Color = color,
+				Material = Enum.Material.SmoothPlastic,
+			}, folder)
+		end
+	else -- two platforms, one slightly longer gap (jump power shines here)
+		part({
+			Size = Vector3.new(8, 1, 6),
+			Position = Vector3.new(0, 0, fromZ + span * 0.3),
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+		}, folder)
+		part({
+			Size = Vector3.new(8, 1, 6),
+			Position = Vector3.new(0, 0, fromZ + span * 0.72),
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+		}, folder)
+	end
+end
+
+local function makePad(i: number, z: number, folder: Instance): BasePart
+	local isFinish = i == Balance.Stages
+	local pad = part({
+		Name = "Pad" .. i,
+		Size = isFinish and Vector3.new(24, 1, 12) or Vector3.new(14, 1, 6),
+		Position = Vector3.new(0, 0, z),
+		Color = isFinish and Color3.fromRGB(255, 210, 90) or stageColor(i),
+		Material = isFinish and Enum.Material.Neon or Enum.Material.SmoothPlastic,
+	}, folder)
+	pad:SetAttribute("StageIndex", i)
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Top
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 20
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.Text = isFinish and "FINISH — REBIRTH!" or tostring(i)
+	label.TextColor3 = Color3.fromRGB(30, 26, 20)
+	label.TextScaled = true
+	label.Rotation = 180
+	label.Parent = gui
+	gui.Parent = pad
+	return pad
+end
+
+local function makeBoard(position: Vector3, title: string, parent: Instance): BasePart
+	local board = part({
+		Name = "Board_" .. title,
+		Size = Vector3.new(14, 12, 1),
+		CFrame = CFrame.lookAt(position, Vector3.new(0, position.Y, 20)),
+		Color = Color3.fromRGB(40, 40, 60),
+		Material = Enum.Material.SmoothPlastic,
+	}, parent)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "BoardGui"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, 0, 0, 70)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Font = Enum.Font.FredokaOne
+	titleLabel.Text = title
+	titleLabel.TextColor3 = Color3.fromRGB(255, 210, 90)
+	titleLabel.TextScaled = true
+	titleLabel.Parent = gui
+	local list = Instance.new("Frame")
+	list.Name = "List"
+	list.Position = UDim2.new(0, 10, 0, 80)
+	list.Size = UDim2.new(1, -20, 1, -90)
+	list.BackgroundTransparency = 1
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 2)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = list
+	list.Parent = gui
+	gui.Parent = board
+	return board
+end
+
+function CourseBuilder.Build(): CourseRefs
+	setLighting()
+	local folder = Instance.new("Folder")
+	folder.Name = "GeneratedCourse"
+
+	-- Start platform
+	local spawnPad = part({
+		Name = "StartPlatform",
+		Size = Vector3.new(30, 1, 20),
+		Position = Vector3.new(0, 0, -14),
+		Color = Color3.fromRGB(120, 220, 120),
+		Material = Enum.Material.SmoothPlastic,
+	}, folder)
+
+	local pads: { BasePart } = {}
+	for i = 1, Balance.Stages do
+		local z = i * Balance.StageLength
+		local stageRng = Random.new(rng:NextInteger(1, 2 ^ 30))
+		segmentPlatforms(stageRng, stageRng:NextInteger(1, 6), z - Balance.StageLength, z, folder, stageColor(i))
+		pads[i] = makePad(i, z, folder)
+	end
+
+	local boardStages = makeBoard(Vector3.new(-26, 7, -30), "Best Stage", folder)
+	local boardRebirths = makeBoard(Vector3.new(26, 7, -30), "Top Rebirths", folder)
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Size = Vector3.new(10, 1, 10)
+	spawn.Position = Vector3.new(0, 0.5, -14)
+	spawn.Anchored = true
+	spawn.Neutral = true
+	spawn.Color = Color3.fromRGB(120, 220, 120)
+	spawn.TopSurface = Enum.SurfaceType.Smooth
+	spawn.Duration = 0
+	spawn.Parent = folder
+
+	folder.Parent = Workspace
+
+	return {
+		Pads = pads,
+		SpawnPad = spawnPad,
+		BoardStages = boardStages,
+		BoardRebirths = boardRebirths,
+	}
+end
+
+return CourseBuilder
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="11">
+        <Properties>
+          <string name="Name">DataService</string>
+          <string name="Source"><![CDATA[--!strict
+-- Player profiles (ProfileStore, session-locked) + the StateSync snapshot loop.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local ProfileStore = require(script.Parent.Packages.ProfileStore)
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Monetization = require(Shared.Config.Monetization)
+local Remotes = require(Shared.Remotes)
+
+local TEMPLATE = {
+	Coins = 0,
+	TotalCoinsEarned = 0,
+	JumpBonus = 0,
+	Checkpoint = 0,
+	Rebirths = 0,
+	Trails = {} :: { [string]: boolean },
+	EquippedTrail = "",
+	Streak = { Count = 0, LastDay = 0, Best = 0 },
+	Purchases = {} :: { string },
+	OwnedPasses = {} :: { [string]: boolean },
+	Stats = { BestStage = 0, TotalStagesCleared = 0 },
+	Funnel = {} :: { [string]: boolean },
+	LastSeen = 0,
+}
+
+export type Profile = typeof(TEMPLATE)
+
+local DataService = {}
+DataService.Template = TEMPLATE
+
+local PlayerStore = ProfileStore.New("ObbyPlayerData_v1", TEMPLATE)
+local profiles: { [Player]: any } = {}
+local dirty: { [Player]: boolean } = {}
+local lastPush: { [Player]: number } = {}
+
+local ctx: any = nil
+
+function DataService.Get(player: Player): Profile?
+	local profile = profiles[player]
+	return profile and profile.Data or nil
+end
+
+function DataService.MarkDirty(player: Player)
+	dirty[player] = true
+end
+
+function DataService.CoinMult(player: Player, data: Profile): number
+	local mult = 1 + Balance.RebirthGainBonus * data.Rebirths
+	if ctx.Monetization.OwnsPass(player, "Coins2x") then
+		mult *= 2
+	end
+	if ctx.Monetization.OwnsPass(player, "Vip") then
+		mult *= 1 + Balance.VipCoinBonus
+	end
+	return mult
+end
+
+function DataService.JumpGainMult(player: Player, data: Profile): number
+	local mult = 1 + Balance.RebirthGainBonus * data.Rebirths
+	if ctx.Monetization.OwnsPass(player, "JumpGain2x") then
+		mult *= 2
+	end
+	return mult
+end
+
+function DataService.AddCoins(player: Player, amount: number, applyMult: boolean?)
+	local data = DataService.Get(player)
+	if not data or amount <= 0 then
+		return
+	end
+	local granted = amount
+	if applyMult then
+		granted = math.floor(amount * DataService.CoinMult(player, data) + 0.5)
+	end
+	data.Coins += granted
+	data.TotalCoinsEarned += granted
+	DataService.MarkDirty(player)
+end
+
+function DataService.JumpPower(player: Player, data: Profile): number
+	return math.min(Balance.BaseJumpPower + data.JumpBonus, Balance.BaseJumpPower + Balance.JumpBonusCap)
+end
+
+function DataService.WalkSpeed(player: Player, data: Profile): number
+	local speed = Balance.BaseWalkSpeed + data.JumpBonus * Balance.SpeedPerJumpBonus
+	if ctx.Monetization.OwnsPass(player, "SpeedCoil") then
+		speed += Balance.SpeedCoilBonus
+	end
+	return math.min(speed, Balance.WalkSpeedCap)
+end
+
+local function buildSnapshot(player: Player, data: Profile): { [string]: any }
+	local passes = {}
+	for key in Monetization.Gamepasses :: any do
+		passes[key] = ctx.Monetization.OwnsPass(player, key)
+	end
+	return {
+		Coins = data.Coins,
+		JumpPower = DataService.JumpPower(player, data),
+		WalkSpeed = DataService.WalkSpeed(player, data),
+		JumpBonus = data.JumpBonus,
+		Checkpoint = data.Checkpoint,
+		Rebirths = data.Rebirths,
+		RebirthReady = data.Checkpoint >= Balance.RebirthStage,
+		CoinMult = DataService.CoinMult(player, data),
+		JumpGainMult = DataService.JumpGainMult(player, data),
+		Trails = data.Trails,
+		EquippedTrail = data.EquippedTrail,
+		Streak = { Count = data.Streak.Count, Best = data.Streak.Best },
+		Passes = passes,
+		Stats = data.Stats,
+	}
+end
+
+function DataService.PushState(player: Player)
+	local data = DataService.Get(player)
+	if not data then
+		return
+	end
+	lastPush[player] = os.clock()
+	dirty[player] = nil
+	Remotes.Event("StateSync"):FireClient(player, buildSnapshot(player, data))
+end
+
+local function onPlayerAdded(player: Player)
+	local profile = PlayerStore:StartSessionAsync("Player_" .. player.UserId, {})
+	if profile == nil then
+		player:Kick("Your data is loaded on another server. Rejoin in a moment!")
+		return
+	end
+	profile:AddUserId(player.UserId)
+	profile:Reconcile()
+	profile.OnSessionEnd:Connect(function()
+		profiles[player] = nil
+		player:Kick("Data session ended. Please rejoin!")
+	end)
+	if not player:IsDescendantOf(Players) then
+		profile:EndSession()
+		return
+	end
+	profiles[player] = profile
+
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	local stage = Instance.new("IntValue")
+	stage.Name = "Stage"
+	stage.Value = profile.Data.Checkpoint
+	stage.Parent = leaderstats
+	local rebirths = Instance.new("IntValue")
+	rebirths.Name = "Rebirths"
+	rebirths.Value = profile.Data.Rebirths
+	rebirths.Parent = leaderstats
+	leaderstats.Parent = player
+
+	ctx.OnProfileLoaded(player, profile.Data)
+	DataService.PushState(player)
+end
+
+local function onPlayerRemoving(player: Player)
+	local profile = profiles[player]
+	if profile then
+		profile.Data.LastSeen = os.time()
+		ctx.OnProfileReleasing(player, profile.Data)
+		profile:EndSession()
+		profiles[player] = nil
+	end
+	dirty[player] = nil
+	lastPush[player] = nil
+end
+
+function DataService.Init(serviceCtx: any)
+	ctx = serviceCtx
+	Players.PlayerAdded:Connect(function(player)
+		task.spawn(onPlayerAdded, player)
+	end)
+	for _, player in Players:GetPlayers() do
+		task.spawn(onPlayerAdded, player)
+	end
+	Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+	RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		for player, profile in profiles do
+			local since = now - (lastPush[player] or 0)
+			if (dirty[player] and since > 0.25) or since > 2 then
+				DataService.PushState(player)
+				local stats = player:FindFirstChild("leaderstats")
+				if stats then
+					local stage = stats:FindFirstChild("Stage") :: IntValue?
+					local rebirths = stats:FindFirstChild("Rebirths") :: IntValue?
+					if stage then
+						stage.Value = profile.Data.Checkpoint
+					end
+					if rebirths then
+						rebirths.Value = profile.Data.Rebirths
+					end
+				end
+			end
+		end
+	end)
+end
+
+return DataService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="12">
+        <Properties>
+          <string name="Name">Leaderboards</string>
+          <string name="Source"><![CDATA[--!strict
+-- Global leaderboards: Best Stage + Top Rebirths on physical boards.
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+
+local Leaderboards = {}
+
+local ctx: any = nil
+local stageStore = nil :: OrderedDataStore?
+local rebirthStore = nil :: OrderedDataStore?
+local nameCache: { [number]: string } = {}
+local boardStages: BasePart? = nil
+local boardRebirths: BasePart? = nil
+
+local function store(name: string): OrderedDataStore?
+	local ok, result = pcall(function()
+		return DataStoreService:GetOrderedDataStore(name)
+	end)
+	return ok and result or nil
+end
+
+function Leaderboards.Save(player: Player, data: any)
+	if stageStore and data.Stats.BestStage > 0 then
+		pcall(function()
+			(stageStore :: OrderedDataStore):SetAsync(tostring(player.UserId), data.Stats.BestStage)
+		end)
+	end
+	if rebirthStore and data.Rebirths > 0 then
+		pcall(function()
+			(rebirthStore :: OrderedDataStore):SetAsync(tostring(player.UserId), data.Rebirths)
+		end)
+	end
+end
+
+local function userName(userId: number): string
+	if nameCache[userId] then
+		return nameCache[userId]
+	end
+	local ok, name = pcall(function()
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+	local resolved = ok and name or ("User " .. userId)
+	nameCache[userId] = resolved
+	return resolved
+end
+
+local function renderBoard(board: BasePart?, dataStore: OrderedDataStore?, formatValue: (number) -> string)
+	if not board or not dataStore then
+		return
+	end
+	local ok, pages = pcall(function()
+		return dataStore:GetSortedAsync(false, 15)
+	end)
+	if not ok then
+		return
+	end
+	local gui = board:FindFirstChild("BoardGui")
+	local list = gui and gui:FindFirstChild("List")
+	if not list then
+		return
+	end
+	for _, child in list:GetChildren() do
+		if child:IsA("TextLabel") then
+			child:Destroy()
+		end
+	end
+	local top = (pages :: DataStorePages):GetCurrentPage()
+	for rank, entry in top do
+		local row = Instance.new("TextLabel")
+		row.Size = UDim2.new(1, 0, 0, 26)
+		row.BackgroundTransparency = 1
+		row.Font = Enum.Font.GothamBold
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextScaled = true
+		row.TextColor3 = rank <= 3 and Color3.fromRGB(255, 210, 90) or Color3.fromRGB(220, 220, 235)
+		row.LayoutOrder = rank
+		row.Text = ("%d. %s — %s"):format(rank, userName(tonumber(entry.key) or 0), formatValue(entry.value))
+		row.Parent = list
+	end
+end
+
+function Leaderboards.Init(serviceCtx: any, stagesBoard: BasePart, rebirthsBoard: BasePart)
+	ctx = serviceCtx
+	boardStages = stagesBoard
+	boardRebirths = rebirthsBoard
+	stageStore = store("LB_ObbyStage_v1")
+	rebirthStore = store("LB_ObbyRebirths_v1")
+
+	task.spawn(function()
+		while true do
+			renderBoard(boardStages, stageStore, function(value)
+				return "stage " .. value
+			end)
+			renderBoard(boardRebirths, rebirthStore, function(value)
+				return tostring(value) .. " rebirths"
+			end)
+			for _, player in Players:GetPlayers() do
+				local data = ctx.Data.Get(player)
+				if data then
+					Leaderboards.Save(player, data)
+				end
+			end
+			task.wait(150)
+		end
+	end)
+end
+
+return Leaderboards
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
+        <Properties>
+          <string name="Name">MonetizationService</string>
+          <string name="Source"><![CDATA[--!strict
+-- Gamepass ownership (cached + persisted) and idempotent dev-product receipts.
+-- Skip-stage products are the obby revenue workhorse.
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Monetization = require(Shared.Config.Monetization)
+local Remotes = require(Shared.Remotes)
+
+local MonetizationService = {}
+
+local ctx: any = nil
+local passCache: { [Player]: { [string]: boolean } } = {}
+
+function MonetizationService.OwnsPass(player: Player, key: string): boolean
+	local id = Monetization.PassIdByKey(key)
+	if id == 0 then
+		return false
+	end
+	local cached = passCache[player]
+	if cached and cached[key] ~= nil then
+		return cached[key]
+	end
+	local data = ctx.Data.Get(player)
+	if data and data.OwnedPasses[key] then
+		return true
+	end
+	return false
+end
+
+function MonetizationService.PreloadPasses(player: Player, data: any)
+	local cached: { [string]: boolean } = {}
+	passCache[player] = cached
+	for key, def in Monetization.Gamepasses :: any do
+		if def.Id ~= 0 then
+			local ok, owns = pcall(function()
+				return MarketplaceService:UserOwnsGamePassAsync(player.UserId, def.Id)
+			end)
+			if ok then
+				cached[key] = owns == true
+				if owns then
+					data.OwnedPasses[key] = true
+				end
+			end
+		end
+	end
+	ctx.Data.MarkDirty(player)
+end
+
+local PRODUCT_GRANTS: { [string]: (Player, any) -> () } = {
+	Skip1 = function(player, data)
+		ctx.Stages.AdvanceTo(player, data.Checkpoint + 1)
+	end,
+	Skip10 = function(player, data)
+		ctx.Stages.AdvanceTo(player, data.Checkpoint + 10)
+	end,
+	JumpBoost50 = function(player, data)
+		data.JumpBonus = math.min(data.JumpBonus + 50, Balance.JumpBonusCap)
+		ctx.Stages.ApplyStats(player)
+		Remotes.Event("Notify"):FireClient(player, { Text = "+50 Jump Power!", Color = Color3.fromRGB(120, 255, 200) })
+	end,
+	InstantRebirth = function(player, _data)
+		ctx.Rebirth.Perform(player, true)
+	end,
+	Coins1k = function(player, data)
+		local def = Monetization.Products.Coins1k
+		data.Coins += def.Coins :: number
+		data.TotalCoinsEarned += def.Coins :: number
+		Remotes.Event("Notify"):FireClient(player, { Text = "+" .. tostring(def.Coins) .. " coins!", Color = Color3.fromRGB(255, 210, 90) })
+	end,
+	Coins5k = function(player, data)
+		local def = Monetization.Products.Coins5k
+		data.Coins += def.Coins :: number
+		data.TotalCoinsEarned += def.Coins :: number
+		Remotes.Event("Notify"):FireClient(player, { Text = "+" .. tostring(def.Coins) .. " coins!", Color = Color3.fromRGB(255, 210, 90) })
+	end,
+}
+
+local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseDecision
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	if not player then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	local data = ctx.Data.Get(player)
+	if not data then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local purchaseId = tostring(receipt.PurchaseId)
+	for _, processed in data.Purchases do
+		if processed == purchaseId then
+			return Enum.ProductPurchaseDecision.PurchaseGranted
+		end
+	end
+
+	local key = Monetization.ProductKeyById(receipt.ProductId)
+	local grant = key and PRODUCT_GRANTS[key]
+	if not grant then
+		warn("[Monetization] Receipt for unknown product id " .. tostring(receipt.ProductId))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local ok, err = (pcall :: any)(grant, player, data)
+	if not ok then
+		warn("[Monetization] Grant failed for " .. tostring(key) .. ": " .. tostring(err))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	table.insert(data.Purchases, purchaseId)
+	while #data.Purchases > 100 do
+		table.remove(data.Purchases, 1)
+	end
+	ctx.Data.MarkDirty(player)
+	ctx.Analytics.LogCustom(player, "ProductPurchased_" .. tostring(key))
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
+function MonetizationService.Init(serviceCtx: any)
+	ctx = serviceCtx
+	MarketplaceService.ProcessReceipt = processReceipt
+
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+		if not purchased then
+			return
+		end
+		for key, def in Monetization.Gamepasses :: any do
+			if def.Id == passId then
+				local cached = passCache[player]
+				if cached then
+					cached[key] = true
+				end
+				local data = ctx.Data.Get(player)
+				if data then
+					data.OwnedPasses[key] = true
+					ctx.Data.MarkDirty(player)
+				end
+				Remotes.Event("Notify"):FireClient(player, { Text = def.Title .. " unlocked!", Color = Color3.fromRGB(120, 255, 200) })
+				ctx.Analytics.LogCustom(player, "PassPurchased_" .. key)
+				ctx.Stages.ApplyStats(player) -- coil/jump passes take effect immediately
+				if key == "Vip" and player.Character then
+					ctx.Trails.Attach(player, player.Character)
+				end
+			end
+		end
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		passCache[player] = nil
+	end)
+end
+
+return MonetizationService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Folder" referent="14">
+        <Properties>
+          <string name="Name">Packages</string>
+        </Properties>
+        <Item class="ModuleScript" referent="15">
+          <Properties>
+            <string name="Name">ProfileStore</string>
+            <string name="Source">--[[
+MAD STUDIO (by loleris)
+
+-[ProfileStore]---------------------------------------
+
+	Periodic DataStore saving solution with session locking
+	
+	WARNINGS FOR "Profile.Data" VALUES:
+	 	! Do not create numeric tables with gaps - attempting to store such tables will result in an error.
+		! Do not create mixed tables (some values indexed by number and others by a string key)
+			- only numerically indexed  data will be stored.
+		! Do not index tables by anything other than numbers and strings.
+		! Do not reference Roblox Instances
+		! Do not reference userdata (Vector3, Color3, CFrame...) - Serialize userdata before referencing
+		! Do not reference functions
+		
+	Members:
+	
+		ProfileStore.IsClosing          [bool]
+			-- Set to true after a game:BindToClose() trigger
+			
+		ProfileStore.IsCriticalState    [bool]
+			-- Set to true when ProfileStore experiences too many consecutive errors
+		
+		ProfileStore.OnError            [Signal] (message, store_name, profile_key)
+			-- Most ProfileStore errors will be caught and passed to this signal
+			
+		ProfileStore.OnOverwrite        [Signal] (store_name, profile_key)
+			-- Triggered when a DataStore key was likely used to store data that wasn't
+			a ProfileStore profile or the ProfileStore structure was invalidly manually
+			altered for that DataStore key
+			
+		ProfileStore.OnCriticalToggle   [Signal] (is_critical)
+			-- Triggered when ProfileStore experiences too many consecutive errors
+		
+		ProfileStore.DataStoreState     [string] ("NotReady", "NoInternet", "NoAccess", "Access")
+			-- This value resembles ProfileStore's access to the DataStore; The value starts
+			as "NotReady" and will eventually change to one of the other 3 possible values.
+	
+	Functions:
+	
+		ProfileStore.New(store_name, template?) --&gt; [ProfileStore]
+			store_name   [string] -- DataStore name
+			template     [table] or nil -- Profiles will default to given table (hard-copy) when no data was saved previously
+			
+		ProfileStore.SetConstant(name, value)
+			name    [string]
+			value   [number]
+				
+	Members [ProfileStore]:
+	
+		ProfileStore.Mock   [ProfileStore]
+			-- Reflection of ProfileStore methods, but the methods will now query a mock
+			DataStore with no relation to the real DataStore
+			
+		ProfileStore.Name   [string]
+		
+	Methods [ProfileStore]:
+	
+		ProfileStore:StartSessionAsync(profile_key, params?) --&gt; [Profile] or nil
+			profile_key [string] -- DataStore key
+			params      nil or [table]: -- Custom params; E.g. {Steal = true}
+				{
+					Steal = true, -- Pass this to disregard an existing session lock
+					Cancel = fn() -&gt; (boolean), -- Pass this to create a request cancel condition.
+						-- If the cancel function returns true, ProfileStore will stop trying to
+						-- start the session and return nil
+				}
+			
+		ProfileStore:MessageAsync(profile_key, message) --&gt; is_success [bool]
+			profile_key [string] -- DataStore key
+			message     [table] -- Data to be messaged to the profile
+			
+		ProfileStore:GetAsync(profile_key, version?) --&gt; [Profile] or nil
+			-- Reads a profile without starting a session - will not autosave
+			profile_key   [string] -- DataStore key
+			version       nil or [string] -- DataStore key version
+
+		ProfileStore:VersionQuery(profile_key, sort_direction?, min_date?, max_date?) --&gt; [VersionQuery]
+			profile_key      [string]
+			sort_direction   nil or [Enum.SortDirection]
+			min_date         nil or [DateTime]
+			max_date         nil or [DateTime]
+			
+		ProfileStore:RemoveAsync(profile_key) --&gt; is_success [bool]
+			-- Completely removes profile data from the DataStore / mock DataStore with no way to recover it.
+
+	Methods [VersionQuery]:
+
+		VersionQuery:NextAsync() --&gt; [Profile] or nil -- (Yields)
+			-- Returned profile is similar to profiles returned by ProfileStore:GetAsync()
+		
+	Members [Profile]:
+	
+		Profile.Data               [table]
+			-- When the profile is active changes to this table are guaranteed to be saved
+		Profile.LastSavedData      [table] (Read-only)
+			-- Last snapshot of "Profile.Data" that has been successfully saved to the DataStore;
+			Useful for proper developer product purchase receipt handling
+		
+		Profile.FirstSessionTime   [number] (Read-only)
+			-- os.time() timestamp of the first profile session
+			
+		Profile.SessionLoadCount   [number] (Read-only) -- Amount of times a session was started for this profile
+			
+		Profile.Session            [table] (Read-only) {PlaceId = number, JobId = string} / nil
+			-- Set to a table if this profile is in use by a server; nil if released
+
+		Profile.RobloxMetaData     [table] -- Writable table that gets saved automatically and once the profile is released
+		Profile.UserIds            [table] -- (Read-only) -- {user_id [number], ...} -- User ids associated with this profile
+
+		Profile.KeyInfo            [DataStoreKeyInfo] -- Changes before OnAfterSave signal
+		
+		Profile.OnSave             [Signal] ()
+			-- Triggered right before changes to Profile.Data are saved to the DataStore
+			
+		Profile.OnLastSave         [Signal] (reason [string]: "Manual", "External", "Shutdown")
+			-- Triggered right before changes to Profile.Data are saved to the DataStore
+			for the last time; A reason is provided for the last save:
+				- "Manual"   - Profile:EndSession() was called
+				- "Shutdown" - The server that has ownership of this profile is shutting down
+				- "External" - Another server has started a session for this profile
+			Note that this event will not trigger for when a profile session is ended by
+			another server trying to take ownership of the session - this is impossible to
+			do without compromising on ProfileStore's speed.
+			
+		Profile.OnSessionEnd       [Signal] ()
+			-- Triggered when the profile session is terminated on this server
+		
+		Profile.OnAfterSave        [Signal] (last_saved_data)
+			-- Triggered after a successful save
+			last_saved_data [table] -- Profile.LastSavedData
+			
+		Profile.ProfileStore       [ProfileStore] -- ProfileStore object this profile belongs to
+		Profile.Key                [string] -- DataStore key
+		
+	Methods [Profile]:
+	
+		Profile:IsActive() --&gt; [bool] -- If "true" is returned, changes to Profile.Data are guaranteed to save;
+			This guarantee is only valid until code yields (e.g. task.wait() is used).
+			
+		Profile:Reconcile() -- Fills in missing (nil) [string_key] = [value] pairs to the Profile.Data structure
+			from the "template" argument that was passed to "ProfileStore.New()"
+			
+		Profile:EndSession() -- Call after the server has finished working with this profile
+			e.g., after the player leaves (Profile object will become inactive)
+
+		Profile:AddUserId(user_id) -- Associates user_id with profile (GDPR compliance)
+			user_id   [number]
+
+		Profile:RemoveUserId(user_id) -- Removes user_id association with profile (safe function)
+			user_id   [number]
+			
+		Profile:MessageHandler(fn) -- Sets a message handler for this profile
+			fn [function] (message [table], processed [function]())
+			-- The handler function receives a message table and a callback function;
+			The callback function is to be called when a message has been processed
+			- this will discard the message from the profile message cache; If the
+			callback function is not called, other message handlers will also be triggered
+			with unprocessed message data.
+			
+		Profile:Save() -- If the profile session is still active makes an UpdateAsync call
+			to the DataStore to immediately save profile data
+
+		Profile:SetAsync() -- Forcefully saves changes to the profile; Only for profiles
+			loaded with ProfileStore:GetAsync() or ProfileStore:VersionQuery()
+		
+--]]
+
+local AUTO_SAVE_PERIOD = 300 -- (Seconds) Time between when changes to a profile are saved to the DataStore
+local LOAD_REPEAT_PERIOD = 10 -- (Seconds) Time between successive profile reads when handling a session conflict
+local FIRST_LOAD_REPEAT = 5 -- (Seconds) Time between first and second profile read when handling a session conflict
+local SESSION_STEAL = 40 -- (Seconds) Time until a session conflict is resolved with the waiting server stealing the session
+local ASSUME_DEAD = 630 -- (Seconds) If a profile hasn't had updates for this long, quickly assume an active session belongs to a crashed server
+local START_SESSION_TIMEOUT = 120 -- (Seconds) If a session can't be started for a profile for this long, stop repeating calls to the DataStore
+
+local CRITICAL_STATE_ERROR_COUNT = 5 -- Assume critical state if this many issues happen in a short amount of time
+local CRITICAL_STATE_ERROR_EXPIRE = 120 -- (Seconds) Individual issue expiration
+local CRITICAL_STATE_EXPIRE = 120 -- (Seconds) Critical state expiration
+
+local MAX_MESSAGE_QUEUE = 1000 -- Max messages saved in a profile that were sent using "ProfileStore:MessageAsync()"
+
+----- Dependencies -----
+
+-- local Util = require(game.ReplicatedStorage.Shared.Util)
+-- local Signal = Util.Signal
+
+local Signal do
+
+	local FreeRunnerThread
+
+	--[[
+		Yield-safe coroutine reusing by stravant;
+		Sources:
+		https://devforum.roblox.com/t/lua-signal-class-comparison-optimal-goodsignal-class/1387063
+		https://gist.github.com/stravant/b75a322e0919d60dde8a0316d1f09d2f
+	--]]
+
+	local function AcquireRunnerThreadAndCallEventHandler(fn, ...)
+		local acquired_runner_thread = FreeRunnerThread
+		FreeRunnerThread = nil
+		fn(...)
+		-- The handler finished running, this runner thread is free again.
+		FreeRunnerThread = acquired_runner_thread
+	end
+
+	local function RunEventHandlerInFreeThread(...)
+		AcquireRunnerThreadAndCallEventHandler(...)
+		while true do
+			AcquireRunnerThreadAndCallEventHandler(coroutine.yield())
+		end
+	end
+
+	local Connection = {}
+	Connection.__index = Connection
+
+	local SignalClass = {}
+	SignalClass.__index = SignalClass
+
+	function Connection:Disconnect()
+
+		if self.is_connected == false then
+			return
+		end
+
+		local signal = self.signal
+		self.is_connected = false
+		signal.listener_count -= 1
+
+		if signal.head == self then
+			signal.head = self.next
+		else
+			local prev = signal.head
+			while prev ~= nil and prev.next ~= self do
+				prev = prev.next
+			end
+			if prev ~= nil then
+				prev.next = self.next
+			end
+		end
+
+	end
+
+	function SignalClass.New()
+
+		local self = {
+			head = nil,
+			listener_count = 0,
+		}
+		setmetatable(self, SignalClass)
+
+		return self
+
+	end
+
+	function SignalClass:Connect(listener: (...any) -&gt; ())
+
+		if type(listener) ~= "function" then
+			error(`[{script.Name}]: \"listener\" must be a function; Received {typeof(listener)}`)
+		end
+
+		local connection = {
+			listener = listener,
+			signal = self,
+			next = self.head,
+			is_connected = true,
+		}
+		setmetatable(connection, Connection)
+
+		self.head = connection
+		self.listener_count += 1
+
+		return connection
+
+	end
+
+	function SignalClass:GetListenerCount(): number
+		return self.listener_count
+	end
+
+	function SignalClass:Fire(...)
+		local item = self.head
+		while item ~= nil do
+			if item.is_connected == true then
+				if not FreeRunnerThread then
+					FreeRunnerThread = coroutine.create(RunEventHandlerInFreeThread)
+				end
+				task.spawn(FreeRunnerThread, item.listener, ...)
+			end
+			item = item.next
+		end
+	end
+
+	function SignalClass:Wait()
+		local co = coroutine.running()
+		local connection
+		connection = self:Connect(function(...)
+			connection:Disconnect()
+			task.spawn(co, ...)
+		end)
+		return coroutine.yield()
+	end
+
+	Signal = table.freeze({
+		New = SignalClass.New,
+	})
+
+end
+
+----- Private -----
+
+local ActiveSessionCheck = {} -- {[session_token] = profile, ...}
+local AutoSaveList = {} -- {profile, ...} -- Loaded profile table which will be circularly auto-saved
+local IssueQueue = {} -- {issue_time, ...}
+
+local DataStoreService = game:GetService("DataStoreService")
+local MessagingService = game:GetService("MessagingService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+
+local PlaceId = game.PlaceId
+local JobId = game.JobId
+
+local AutoSaveIndex = 1 -- Next profile to auto save
+local LastAutoSave = os.clock()
+
+local LoadIndex = 0
+
+local ActiveProfileLoadJobs = 0 -- Number of active threads that are loading in profiles
+local ActiveProfileSaveJobs = 0 -- Number of active threads that are saving profiles
+
+local CriticalStateStart = 0 -- os.clock()
+
+local IsStudio = RunService:IsStudio()
+local DataStoreState: "NotReady" | "NoInternet" | "NoAccess" | "Access" = "NotReady"
+
+local MockStore = {}
+local UserMockStore = {}
+local MockFlag = false
+
+local OnError = Signal.New() -- (message, store_name, profile_key)
+local OnOverwrite = Signal.New() -- (store_name, profile_key)
+
+local UpdateQueue = { -- For stability sake, we won't do UpdateAsync calls for the same key until all previous calls finish
+	--[[
+		[session_token] = {
+			coroutine, ...
+		},
+		...
+	--]]
+}
+
+local function WaitInUpdateQueue(session_token) --&gt; next_in_queue()
+
+	local is_first = false
+
+	if UpdateQueue[session_token] == nil then
+		is_first = true
+		UpdateQueue[session_token] = {}
+	end
+
+	local queue = UpdateQueue[session_token]
+
+	if is_first == false then
+		table.insert(queue, coroutine.running())
+		coroutine.yield()
+	end
+
+	return function()
+		local next_co = table.remove(queue, 1)
+		if next_co ~= nil then
+			coroutine.resume(next_co)
+		else
+			UpdateQueue[session_token] = nil
+		end
+	end
+
+end
+
+local function SessionToken(store_name, profile_key, is_mock)
+
+	local session_token = "L_" -- Live
+
+	if is_mock == true then
+		session_token = "U_" -- User mock
+	elseif DataStoreState ~= "Access" then
+		session_token = "M_" -- Mock, cause no DataStore access
+	end
+
+	session_token ..= store_name .. "\0" .. profile_key
+
+	return session_token
+
+end
+
+local function DeepCopyTable(t)
+	local copy = {}
+	for key, value in pairs(t) do
+		if type(value) == "table" then
+			copy[key] = DeepCopyTable(value)
+		else
+			copy[key] = value
+		end
+	end
+	return copy
+end
+
+local function ReconcileTable(target, template)
+	for k, v in pairs(template) do
+		if type(k) == "string" then -- Only string keys will be reconciled
+			if target[k] == nil then
+				if type(v) == "table" then
+					target[k] = DeepCopyTable(v)
+				else
+					target[k] = v
+				end
+			elseif type(target[k]) == "table" and type(v) == "table" then
+				ReconcileTable(target[k], v)
+			end
+		end
+	end
+end
+
+local function RegisterError(error_message, store_name, profile_key) -- Called when a DataStore API call errors
+	warn(`[{script.Name}]: DataStore API error (STORE:{store_name}; KEY:{profile_key}) - {tostring(error_message)}`)
+	table.insert(IssueQueue, os.clock()) -- Adding issue time to queue
+	OnError:Fire(tostring(error_message), store_name, profile_key)
+end
+
+local function RegisterOverwrite(store_name, profile_key) -- Called when a corrupted profile is loaded
+	warn(`[{script.Name}]: Invalid profile was overwritten (STORE:{store_name}; KEY:{profile_key})`)
+	OnOverwrite:Fire(store_name, profile_key)
+end
+
+local function NewMockDataStoreKeyInfo(params)
+
+	local version_id_string = tostring(params.VersionId or 0)
+	local meta_data = params.MetaData or {}
+	local user_ids = params.UserIds or {}
+
+	return {
+		CreatedTime = params.CreatedTime,
+		UpdatedTime = params.UpdatedTime,
+		Version = string.rep("0", 16) .. "."
+			.. string.rep("0", 10 - string.len(version_id_string)) .. version_id_string
+			.. "." .. string.rep("0", 16) .. "." .. "01",
+
+		GetMetadata = function()
+			return DeepCopyTable(meta_data)
+		end,
+
+		GetUserIds = function()
+			return DeepCopyTable(user_ids)
+		end,
+	}
+
+end
+
+local function MockUpdateAsync(mock_data_store, profile_store_name, key, transform_function, is_get_call) --&gt; loaded_data, key_info
+
+	local profile_store = mock_data_store[profile_store_name]
+
+	if profile_store == nil then
+		profile_store = {}
+		mock_data_store[profile_store_name] = profile_store
+	end
+
+	local epoch_time = math.floor(os.time() * 1000)
+	local mock_entry = profile_store[key]
+	local mock_entry_was_nil = false
+
+	if mock_entry == nil then
+		mock_entry_was_nil = true
+		if is_get_call ~= true then
+			mock_entry = {
+				Data = nil,
+				CreatedTime = epoch_time,
+				UpdatedTime = epoch_time,
+				VersionId = 0,
+				UserIds = {},
+				MetaData = {},
+			}
+			profile_store[key] = mock_entry
+		end
+	end
+
+	local mock_key_info = mock_entry_was_nil == false and NewMockDataStoreKeyInfo(mock_entry) or nil
+
+	local transform, user_ids, roblox_meta_data = transform_function(mock_entry and mock_entry.Data, mock_key_info)
+
+	if transform == nil then
+		return nil
+	else
+		if mock_entry ~= nil and is_get_call ~= true then
+			mock_entry.Data = DeepCopyTable(transform)
+			mock_entry.UserIds = DeepCopyTable(user_ids or {})
+			mock_entry.MetaData = DeepCopyTable(roblox_meta_data or {})
+			mock_entry.VersionId += 1
+			mock_entry.UpdatedTime = epoch_time
+		end
+
+		return DeepCopyTable(transform), mock_entry ~= nil and NewMockDataStoreKeyInfo(mock_entry) or nil
+	end
+
+end
+
+local function UpdateAsync(profile_store, profile_key, transform_params, is_user_mock, is_get_call, version) --&gt; loaded_data, key_info
+	--transform_params = {
+	--	ExistingProfileHandle = function(latest_data),
+	--	MissingProfileHandle = function(latest_data),
+	--	EditProfile = function(latest_data),
+	--}
+
+	local loaded_data, key_info
+	
+	local next_in_queue = WaitInUpdateQueue(SessionToken(profile_store.Name, profile_key, is_user_mock))
+
+	local success = true
+
+	local success, error_message = pcall(function()
+		local transform_function = function(latest_data)
+
+			local missing_profile = false
+			local overwritten = false
+			local global_updates = {0, {}}
+
+			if latest_data == nil then
+
+				missing_profile = true
+
+			elseif type(latest_data) ~= "table" then
+
+				missing_profile = true
+				overwritten = true
+
+			else
+
+				if type(latest_data.Data) == "table" and type(latest_data.MetaData) == "table" and type(latest_data.GlobalUpdates) == "table" then
+
+					-- Regular profile structure detected:
+
+					latest_data.WasOverwritten = false -- Must be set to false if set previously
+					global_updates = latest_data.GlobalUpdates
+
+					if transform_params.ExistingProfileHandle ~= nil then
+						transform_params.ExistingProfileHandle(latest_data)
+					end
+
+				elseif latest_data.Data == nil and latest_data.MetaData == nil and type(latest_data.GlobalUpdates) == "table" then
+
+					-- Regular structure not detected, but GlobalUpdate data exists:
+
+					latest_data.WasOverwritten = false -- Must be set to false if set previously
+					global_updates = latest_data.GlobalUpdates or global_updates
+					missing_profile = true
+
+				else
+
+					missing_profile = true
+					overwritten = true
+
+				end
+
+			end
+
+			-- Profile was not created or corrupted and no GlobalUpdate data exists:
+			if missing_profile == true then
+				latest_data = {
+					-- Data = nil,
+					-- MetaData = nil,
+					GlobalUpdates = global_updates,
+				}
+				if transform_params.MissingProfileHandle ~= nil then
+					transform_params.MissingProfileHandle(latest_data)
+				end
+			end
+
+			-- Editing profile:
+			if transform_params.EditProfile ~= nil then
+				transform_params.EditProfile(latest_data)
+			end
+
+			-- Invalid data handling (Silently override with empty profile)
+			if overwritten == true then
+				latest_data.WasOverwritten = true -- Temporary tag that will be removed on first save
+			end
+
+			return latest_data, latest_data.UserIds, latest_data.RobloxMetaData
+		end
+
+		if is_user_mock == true then -- Used when the profile is accessed through ProfileStore.Mock
+
+			loaded_data, key_info = MockUpdateAsync(UserMockStore, profile_store.Name, profile_key, transform_function, is_get_call)
+			task.wait() -- Simulate API call yield
+
+		elseif DataStoreState ~= "Access" then -- Used when API access is disabled
+
+			loaded_data, key_info = MockUpdateAsync(MockStore, profile_store.Name, profile_key, transform_function, is_get_call)
+			task.wait() -- Simulate API call yield
+
+		else
+
+			if is_get_call == true then
+
+				if version ~= nil then
+
+					local success, error_message = pcall(function()
+						loaded_data, key_info = profile_store.data_store:GetVersionAsync(profile_key, version)
+					end)
+
+					if success == false and type(error_message) == "string" and string.find(error_message, "not valid") ~= nil then
+						warn(`[{script.Name}]: Passed version argument is not valid; Traceback:\n` .. debug.traceback())
+					end
+
+				else
+
+					loaded_data, key_info = profile_store.data_store:GetAsync(profile_key)
+
+				end
+
+				loaded_data = transform_function(loaded_data)
+
+			else
+
+				loaded_data, key_info = profile_store.data_store:UpdateAsync(profile_key, transform_function)
+
+			end
+
+		end
+
+	end)
+
+	next_in_queue()
+
+	if success == true and type(loaded_data) == "table" then
+		-- Invalid data handling:
+		if loaded_data.WasOverwritten == true and is_get_call ~= true then
+			RegisterOverwrite(
+				profile_store.Name,
+				profile_key
+			)
+		end
+		-- Return loaded_data:
+		return loaded_data, key_info
+	else
+		-- Error handling:
+		RegisterError(
+			error_message or "Undefined error",
+			profile_store.Name,
+			profile_key
+		)
+		-- Return nothing:
+		return nil
+	end
+
+end
+
+local function IsThisSession(session_tag)
+	return session_tag[1] == PlaceId and session_tag[2] == JobId
+end
+
+local function ReadMockFlag(): boolean
+	local is_mock = MockFlag
+	MockFlag = false
+	return is_mock
+end
+
+local function WaitForStoreReady(profile_store)
+	while profile_store.is_ready == false do
+		task.wait()
+	end
+end
+
+local function AddProfileToAutoSave(profile)
+
+	ActiveSessionCheck[profile.session_token] = profile
+
+	-- Add at AutoSaveIndex and move AutoSaveIndex right:
+
+	table.insert(AutoSaveList, AutoSaveIndex, profile)
+
+	if #AutoSaveList &gt; 1 then
+		AutoSaveIndex = AutoSaveIndex + 1
+	elseif #AutoSaveList == 1 then
+		-- First profile created - make sure it doesn't get immediately auto saved:
+		LastAutoSave = os.clock()
+	end
+
+end
+
+local function RemoveProfileFromAutoSave(profile)
+
+	ActiveSessionCheck[profile.session_token] = nil
+
+	local auto_save_index = table.find(AutoSaveList, profile)
+
+	if auto_save_index ~= nil then
+		table.remove(AutoSaveList, auto_save_index)
+		if auto_save_index &lt; AutoSaveIndex then
+			AutoSaveIndex = AutoSaveIndex - 1 -- Table contents were moved left before AutoSaveIndex so move AutoSaveIndex left as well
+		end
+		if AutoSaveList[AutoSaveIndex] == nil then -- AutoSaveIndex was at the end of the AutoSaveList - reset to 1
+			AutoSaveIndex = 1
+		end
+	end
+
+end
+
+local function SaveProfileAsync(profile, is_ending_session, is_overwriting, last_save_reason)
+
+	if type(profile.Data) ~= "table" then
+		error(`[{script.Name}]: Developer code likely set "Profile.Data" to a non-table value! (STORE:{profile.ProfileStore.Name}; KEY:{profile.Key})`)
+	end
+
+	profile.OnSave:Fire()
+	if is_ending_session == true then
+		profile.OnLastSave:Fire(last_save_reason or "Manual")
+	end
+
+	if is_ending_session == true and is_overwriting ~= true then
+		if profile.roblox_message_subscription ~= nil then
+			profile.roblox_message_subscription:Disconnect()
+		end
+		RemoveProfileFromAutoSave(profile)
+		profile.OnSessionEnd:Fire()
+	end
+
+	ActiveProfileSaveJobs = ActiveProfileSaveJobs + 1
+
+	-- Compare "SessionLoadCount" when writing to profile to prevent a rare case of repeat last save when the profile is loaded on the same server again
+
+	local repeat_save_flag = true -- Released Profile save calls have to repeat until they succeed
+	local exp_backoff = 1
+
+	while repeat_save_flag == true do
+
+		if is_ending_session ~= true then
+			repeat_save_flag = false
+		end
+
+		local loaded_data, key_info = UpdateAsync(
+			profile.ProfileStore,
+			profile.Key,
+			{
+				ExistingProfileHandle = nil,
+				MissingProfileHandle = nil,
+				EditProfile = function(latest_data)
+					
+					-- Check if this session still owns the profile:
+
+					local session_owns_profile = false
+
+					if is_overwriting ~= true then
+
+						local active_session = latest_data.MetaData.ActiveSession
+						local session_load_count = latest_data.MetaData.SessionLoadCount
+
+						if type(active_session) == "table" then
+							session_owns_profile = IsThisSession(active_session) and session_load_count == profile.load_index
+						end
+
+					else
+						session_owns_profile = true
+					end
+
+					-- We may only edit the profile if this server has ownership of the profile:
+
+					if session_owns_profile == true then
+
+						-- Clear processed updates (messages):
+
+						local locked_updates = profile.locked_global_updates -- [index] = true, ...
+						local active_updates = latest_data.GlobalUpdates[2]
+						-- ProfileService module format: {{update_id, version_id, update_locked, update_data}, ...}
+						-- ProfileStore module format: {{update_id, update_data}, ...}
+
+						if next(locked_updates) ~= nil then
+							local i = 1
+							while i &lt;= #active_updates do
+								local update = active_updates[i]
+								if locked_updates[update[1]] == true then
+									table.remove(active_updates, i)
+								else
+									i += 1
+								end
+							end
+						end
+
+						-- Save profile data:
+
+						latest_data.Data = profile.Data
+						latest_data.RobloxMetaData = profile.RobloxMetaData
+						latest_data.UserIds = profile.UserIds
+
+						if is_overwriting ~= true then
+
+							latest_data.MetaData.LastUpdate = os.time()
+
+							if is_ending_session == true then
+								latest_data.MetaData.ActiveSession = nil
+							end
+
+						else
+
+							latest_data.MetaData.ActiveSession = nil
+							latest_data.MetaData.ForceLoadSession = nil
+
+						end
+
+					end
+
+				end,
+			},
+			profile.is_mock
+		)
+
+		if loaded_data ~= nil and key_info ~= nil then
+
+			if is_overwriting == true then
+				break
+			end
+			
+			repeat_save_flag = false
+			
+			local active_session = loaded_data.MetaData.ActiveSession
+			local session_load_count = loaded_data.MetaData.SessionLoadCount
+			local session_owns_profile = false
+
+			if type(active_session) == "table" then
+				session_owns_profile = IsThisSession(active_session) and session_load_count == profile.load_index
+			end
+			
+			local force_load_session = loaded_data.MetaData.ForceLoadSession
+			local force_load_pending = false
+			if type(force_load_session) == "table" then
+				force_load_pending = not IsThisSession(force_load_session)
+			end
+			
+			local is_active = profile:IsActive()
+			
+			-- If another server is trying to start a session for this profile - end the session:
+
+			if force_load_pending == true and session_owns_profile == true then
+				if is_active == true then
+					SaveProfileAsync(profile, true, false, "External")
+				end
+				break
+			end
+			
+			-- Clearing processed update list / Detecting new updates:
+
+			local locked_updates = profile.locked_global_updates -- [index] = true, ...
+			local received_updates = profile.received_global_updates -- [index] = true, ...
+			local active_updates = loaded_data.GlobalUpdates[2]
+
+			local new_updates = {} -- {}, ...
+			local still_pending = {} -- [index] = true, ...
+
+			for _, update in ipairs(active_updates) do
+				if locked_updates[update[1]] == true then
+					still_pending[update[1]] = true
+				elseif received_updates[update[1]] ~= true then
+					received_updates[update[1]] = true
+					table.insert(new_updates, update)
+				end
+			end
+
+			for index in pairs(locked_updates) do
+				if still_pending[index] ~= true then
+					locked_updates[index] = nil
+				end
+			end
+
+			-- Updating profile values:
+
+			profile.KeyInfo = key_info
+			profile.LastSavedData = loaded_data.Data
+			profile.global_updates = loaded_data.GlobalUpdates and loaded_data.GlobalUpdates[2] or {}
+
+			if session_owns_profile == true then
+				if is_active == true and is_ending_session ~= true then
+
+					-- Processing new global updates (messages):
+
+					for _, update in ipairs(new_updates) do
+
+						local index = update[1]
+						local update_data = update[#update] -- Backwards compatibility with ProfileService
+
+						for _, handler in ipairs(profile.message_handlers) do
+
+							local is_processed = false
+							local processed_callback = function()
+								is_processed = true
+								locked_updates[index] = true
+							end
+							
+							local send_update_data = DeepCopyTable(update_data)
+
+							task.spawn(handler, send_update_data, processed_callback)
+
+							if is_processed == true then
+								break
+							end
+
+						end
+
+					end
+
+				end
+			else
+				
+				if profile.roblox_message_subscription ~= nil then
+					profile.roblox_message_subscription:Disconnect()
+				end
+
+				if is_active == true then
+					RemoveProfileFromAutoSave(profile)
+					profile.OnSessionEnd:Fire()
+				end
+
+			end
+
+			profile.OnAfterSave:Fire(profile.LastSavedData)
+
+		elseif repeat_save_flag == true then
+			
+			-- DataStore call likely resulted in an error; Repeat the DataStore call shortly
+			task.wait(exp_backoff)
+			exp_backoff = math.min(if last_save_reason == "Shutdown" then 8 else 20, exp_backoff * 2)
+
+		end
+
+	end
+
+	ActiveProfileSaveJobs = ActiveProfileSaveJobs - 1
+
+end
+
+----- Public -----
+
+--[[
+	Saved profile structure:
+	
+	{
+		Data = {},
+		
+		MetaData = {
+			ProfileCreateTime = 0,
+			SessionLoadCount = 0,
+			ActiveSession = {place_id, game_job_id, unique_session_id} / nil,
+			ForceLoadSession = {place_id, game_job_id} / nil,
+			LastUpdate = 0, -- os.time()
+			MetaTags = {}, -- Backwards compatibility with ProfileService
+		},
+		
+		RobloxMetaData = {},
+		UserIds = {},
+		
+		GlobalUpdates = {
+			update_index,
+			{
+				{update_index, data}, ...
+			},
+		},
+	}
+
+--]]
+
+export type JSONAcceptable = { JSONAcceptable } | { [string]: JSONAcceptable } | number | string | boolean | buffer
+
+export type Profile&lt;T&gt; = {
+	Data: T &amp; JSONAcceptable,
+	LastSavedData: T &amp; JSONAcceptable,
+	FirstSessionTime: number,
+	SessionLoadCount: number,
+	Session: {PlaceId: number, JobId: string}?,
+	RobloxMetaData: JSONAcceptable,
+	UserIds: {number},
+	KeyInfo: DataStoreKeyInfo,
+	OnSave: {Connect: (self: any, listener: () -&gt; ()) -&gt; ({Disconnect: (self: any) -&gt; ()})},
+	OnLastSave: {Connect: (self: any, listener: (reason: "Manual" | "External" | "Shutdown") -&gt; ()) -&gt; ({Disconnect: (self: any) -&gt; ()})},
+	OnSessionEnd: {Connect: (self: any, listener: () -&gt; ()) -&gt; ({Disconnect: (self: any) -&gt; ()})},
+	OnAfterSave: {Connect: (self: any, listener: (last_saved_data: T &amp; JSONAcceptable) -&gt; ()) -&gt; ({Disconnect: (self: any) -&gt; ()})},
+	ProfileStore: JSONAcceptable,
+	Key: string,
+
+	IsActive: (self: any) -&gt; (boolean),
+	Reconcile: (self: any) -&gt; (),
+	EndSession: (self: any) -&gt; (),
+	AddUserId: (self: any, user_id: number) -&gt; (),
+	RemoveUserId: (self: any, user_id: number) -&gt; (),
+	MessageHandler: (self: any, fn: (message: JSONAcceptable, processed: () -&gt; ()) -&gt; ()) -&gt; (),
+	Save: (self: any) -&gt; (),
+	SetAsync: (self: any) -&gt; (),
+}
+
+export type VersionQuery&lt;T&gt; = {
+	NextAsync: (self: any) -&gt; (Profile&lt;T&gt;?),
+}
+
+type ProfileStoreStandard&lt;T&gt; = {
+	Name: string,
+	StartSessionAsync: (self: any, profile_key: string, params: {Steal: boolean?}) -&gt; (Profile&lt;T&gt;?),
+	MessageAsync: (self: any, profile_key: string, message: JSONAcceptable) -&gt; (boolean),
+	GetAsync: (self: any, profile_key: string, version: string?) -&gt; (Profile&lt;T&gt;?),
+	VersionQuery: (self: any, profile_key: string, sort_direction: Enum.SortDirection?, min_date: DateTime | number | nil, max_date: DateTime | number | nil) -&gt; (VersionQuery&lt;T&gt;),
+	RemoveAsync: (self: any, profile_key: string) -&gt; (boolean),
+}
+
+export type ProfileStore&lt;T&gt; = {
+	Mock: ProfileStoreStandard&lt;T&gt;,
+} &amp; ProfileStoreStandard&lt;T&gt;
+
+type ConstantName = "AUTO_SAVE_PERIOD" | "LOAD_REPEAT_PERIOD" | "FIRST_LOAD_REPEAT" | "SESSION_STEAL"
+| "ASSUME_DEAD" | "START_SESSION_TIMEOUT" | "CRITICAL_STATE_ERROR_COUNT" | "CRITICAL_STATE_ERROR_EXPIRE"
+| "CRITICAL_STATE_EXPIRE" | "MAX_MESSAGE_QUEUE"
+
+export type ProfileStoreModule = {
+	IsClosing: boolean,
+	IsCriticalState: boolean,
+	OnError: {Connect: (self: any, listener: (message: string, store_name: string, profile_key: string) -&gt; ()) -&gt; ({Disconnect: (self: any) -&gt; ()})},
+	OnOverwrite: {Connect: (self: any, listener: (store_name: string, profile_key: string) -&gt; ()) -&gt; ({Disconnect: (self: any) -&gt; ()})},
+	OnCriticalToggle: {Connect: (self: any, listener: (is_critical: boolean) -&gt; ()) -&gt; ({Disconnect: (self: any) -&gt; ()})},
+	DataStoreState: "NotReady" | "NoInternet" | "NoAccess" | "Access",
+	New: &lt;T&gt;(store_name: string, template: (T &amp; JSONAcceptable)?) -&gt; (ProfileStore&lt;T&gt;),
+	SetConstant: (name: ConstantName, value: number) -&gt; ()
+}
+
+local Profile = {}
+Profile.__index = Profile
+
+function Profile.New(raw_data, key_info, profile_store, key, is_mock, session_token)
+
+	local data = raw_data.Data or {}
+	local session = raw_data.MetaData and raw_data.MetaData.ActiveSession or nil
+
+	local global_updates = raw_data.GlobalUpdates and raw_data.GlobalUpdates[2] or {}
+	local received_global_updates = {}
+
+	for _, update in ipairs(global_updates) do
+		received_global_updates[update[1]] = true
+	end
+
+	local self = {
+
+		Data = data,
+		LastSavedData = DeepCopyTable(data),
+
+		FirstSessionTime = raw_data.MetaData and raw_data.MetaData.ProfileCreateTime or 0,
+		SessionLoadCount = raw_data.MetaData and raw_data.MetaData.SessionLoadCount or 0,
+		Session = session and {PlaceId = session[1], JobId = session[2]},
+
+		RobloxMetaData = raw_data.RobloxMetaData or {},
+		UserIds = raw_data.UserIds or {},
+		KeyInfo = key_info,
+
+		OnAfterSave = Signal.New(),
+		OnSave = Signal.New(),
+		OnLastSave = Signal.New(),
+		OnSessionEnd = Signal.New(),
+
+		ProfileStore = profile_store,
+		Key = key,
+
+		load_timestamp = os.clock(),
+		is_mock = is_mock,
+		session_token = session_token or "",
+		load_index = raw_data.MetaData and raw_data.MetaData.SessionLoadCount or 0,
+		locked_global_updates = {},
+		received_global_updates = received_global_updates,
+		message_handlers = {},
+		global_updates = global_updates,
+
+	}
+	setmetatable(self, Profile)
+
+	return self
+
+end
+
+function Profile:IsActive()
+	return ActiveSessionCheck[self.session_token] == self
+end
+
+function Profile:Reconcile()
+	ReconcileTable(self.Data, self.ProfileStore.template)
+end
+
+function Profile:EndSession()
+	if self:IsActive() == true then
+		task.spawn(SaveProfileAsync, self, true, nil, "Manual") -- Call save function in a new thread with release_from_session = true
+	end
+end
+
+function Profile:AddUserId(user_id) -- Associates user_id with profile (GDPR compliance)
+
+	if type(user_id) ~= "number" or user_id % 1 ~= 0 then
+		warn(`[{script.Name}]: Invalid UserId argument for :AddUserId() ({tostring(user_id)}); Traceback:\n` .. debug.traceback())
+		return
+	end
+
+	if user_id &lt; 0 and self.is_mock ~= true and DataStoreState == "Access" then
+		return -- Avoid giving real Roblox APIs negative UserId's
+	end
+
+	if table.find(self.UserIds, user_id) == nil then
+		table.insert(self.UserIds, user_id)
+	end
+
+end
+
+function Profile:RemoveUserId(user_id) -- Removes user_id association with profile (safe function)
+
+	if type(user_id) ~= "number" or user_id % 1 ~= 0 then
+		warn(`[{script.Name}]: Invalid UserId argument for :RemoveUserId() ({tostring(user_id)}); Traceback:\n` .. debug.traceback())
+		return
+	end
+
+	local index = table.find(self.UserIds, user_id)
+
+	if index ~= nil then
+		table.remove(self.UserIds, index)
+	end
+
+end
+
+function Profile:SetAsync() -- Saves the profile to the DataStore and removes the session lock
+
+	if self.view_mode ~= true then
+		error(`[{script.Name}]: :SetAsync() can only be used in view mode`)
+	end
+
+	SaveProfileAsync(self, nil, true)
+
+end
+
+function Profile:MessageHandler(fn)
+
+	if type(fn) ~= "function" then
+		error(`[{script.Name}]: fn argument is not a function`)
+	end
+
+	if self.view_mode ~= true and self:IsActive() ~= true then
+		return -- Don't process messages if the profile session was ended
+	end
+
+	local locked_updates = self.locked_global_updates
+	table.insert(self.message_handlers, fn)
+
+	for _, update in ipairs(self.global_updates) do
+
+		local index = update[1]
+		local update_data = update[#update] -- Backwards compatibility with ProfileService
+
+		if locked_updates[index] ~= true then
+
+			local processed_callback = function()
+				locked_updates[index] = true
+			end
+			
+			local send_update_data = DeepCopyTable(update_data)
+
+			task.spawn(fn, send_update_data, processed_callback)
+
+		end
+
+	end
+
+end
+
+function Profile:Save()
+	
+	if self.view_mode == true then
+		error(`[{script.Name}]: Can't save profile in view mode; Should you be calling :SetAsync() instead?`)
+	end
+	
+	if self:IsActive() == false then
+		warn(`[{script.Name}]: Attempted saving an inactive profile (STORE:{self.ProfileStore.Name}; KEY:{self.Key});`
+			.. ` Traceback:\n` .. debug.traceback())
+		return
+	end
+	
+	-- Move the profile right behind the auto save index to delay the next auto save for it:
+	RemoveProfileFromAutoSave(self)
+	AddProfileToAutoSave(self)
+	
+	-- Perform save in new thread:
+	task.spawn(SaveProfileAsync, self)
+
+end
+
+local ProfileStore: ProfileStoreModule = {
+
+	IsClosing = false,
+	IsCriticalState = false,
+	OnError = OnError, -- (message, store_name, profile_key)
+	OnOverwrite = OnOverwrite, -- (store_name, profile_key)
+	OnCriticalToggle = Signal.New(), -- (is_critical)
+	DataStoreState = "NotReady", -- ("NotReady", "NoInternet", "NoAccess", "Access")
+
+}
+ProfileStore.__index = ProfileStore
+
+function ProfileStore.SetConstant(name, value)
+
+	if type(value) ~= "number" then
+		error(`[{script.Name}]: Invalid value type`)
+	end
+
+	if name == "AUTO_SAVE_PERIOD" then
+		AUTO_SAVE_PERIOD = value
+	elseif name == "LOAD_REPEAT_PERIOD" then
+		LOAD_REPEAT_PERIOD = value
+	elseif name == "FIRST_LOAD_REPEAT" then
+		FIRST_LOAD_REPEAT = value
+	elseif name == "SESSION_STEAL" then
+		SESSION_STEAL = value
+	elseif name == "ASSUME_DEAD" then
+		ASSUME_DEAD = value
+	elseif name == "START_SESSION_TIMEOUT" then
+		START_SESSION_TIMEOUT = value
+	elseif name == "CRITICAL_STATE_ERROR_COUNT" then
+		CRITICAL_STATE_ERROR_COUNT = value
+	elseif name == "CRITICAL_STATE_ERROR_EXPIRE" then
+		CRITICAL_STATE_ERROR_EXPIRE = value
+	elseif name == "CRITICAL_STATE_EXPIRE" then
+		CRITICAL_STATE_EXPIRE = value
+	elseif name == "MAX_MESSAGE_QUEUE" then
+		MAX_MESSAGE_QUEUE = value
+	else
+		error(`[{script.Name}]: Invalid constant name was provided`)
+	end
+
+end
+
+function ProfileStore.Test()
+	return {
+		ActiveSessionCheck = ActiveSessionCheck,
+		AutoSaveList = AutoSaveList,
+		ActiveProfileLoadJobs = ActiveProfileLoadJobs,
+		ActiveProfileSaveJobs = ActiveProfileSaveJobs,
+		MockStore = MockStore,
+		UserMockStore = UserMockStore,
+		UpdateQueue = UpdateQueue,
+	}
+end
+
+function ProfileStore.New(store_name, template)
+
+	template = template or {}
+
+	if type(store_name) ~= "string" then
+		error(`[{script.Name}]: Invalid or missing "store_name"`)
+	elseif string.len(store_name) == 0 then
+		error(`[{script.Name}]: store_name cannot be an empty string`)
+	elseif string.len(store_name) &gt; 50 then
+		error(`[{script.Name}]: store_name is too long`)
+	end
+
+	if type(template) ~= "table" then
+		error(`[{script.Name}]: Invalid template argument`)
+	end
+
+	local self
+	self = {
+
+		Mock = {
+
+			Name = store_name,
+
+			StartSessionAsync = function(_, profile_key)
+				MockFlag = true
+				return self:StartSessionAsync(profile_key)
+			end,
+			MessageAsync = function(_, profile_key, message)
+				MockFlag = true
+				return self:MessageAsync(profile_key, message)
+			end,
+			GetAsync = function(_, profile_key, version)
+				MockFlag = true
+				return self:GetAsync(profile_key, version)
+			end,
+			VersionQuery = function(_, profile_key, sort_direction, min_date, max_date)
+				MockFlag = true
+				return self:VersionQuery(profile_key, sort_direction, min_date, max_date)
+			end,
+			RemoveAsync = function(_, profile_key)
+				MockFlag = true
+				return self:RemoveAsync(profile_key)
+			end
+		},
+
+		Name = store_name,
+
+		template = template,
+		data_store = nil,
+		load_jobs = {},
+		mock_load_jobs = {},
+		is_ready = true,
+
+	}
+	setmetatable(self, ProfileStore)
+
+	local options = Instance.new("DataStoreOptions")
+	options:SetExperimentalFeatures({v2 = true})
+
+	if DataStoreState == "NotReady" then
+
+		-- The module is not sure whether DataStores are accessible yet:
+
+		self.is_ready = false
+
+		task.spawn(function()
+
+			repeat task.wait() until DataStoreState ~= "NotReady"
+
+			if DataStoreState == "Access" then
+				self.data_store = DataStoreService:GetDataStore(store_name, nil, options)
+			end
+
+			self.is_ready = true
+
+		end)
+
+	elseif DataStoreState == "Access" then
+
+		self.data_store = DataStoreService:GetDataStore(store_name, nil, options)
+
+	end
+
+	return self
+
+end
+
+local function RobloxMessageSubscription(profile, unique_session_id)
+
+	local last_roblox_message = 0
+	
+	local roblox_message_subscription = MessagingService:SubscribeAsync("PS_" .. unique_session_id, function(message)
+		if type(message.Data) == "table" and message.Data.LoadCount == profile.SessionLoadCount then
+			-- High reaction rate, based on numPlayers × 10 DataStore budget as of writing
+			if os.clock() - last_roblox_message &gt; 6 then 
+				last_roblox_message = os.clock()
+				if profile:IsActive() == true then
+					if message.Data.EndSession == true then
+						SaveProfileAsync(profile, true, false, "External")
+					else
+						profile:Save()
+					end
+				end
+			end
+		end
+	end)
+
+	if profile:IsActive() == true then
+		profile.roblox_message_subscription = roblox_message_subscription
+	else
+		roblox_message_subscription:Disconnect()
+	end
+
+end
+
+function ProfileStore:StartSessionAsync(profile_key, params)
+
+	local is_mock = ReadMockFlag()
+
+	if type(profile_key) ~= "string" then
+		error(`[{script.Name}]: profile_key must be a string`)
+	elseif string.len(profile_key) == 0 then
+		error(`[{script.Name}]: Invalid profile_key`)
+	elseif string.len(profile_key) &gt; 50 then
+		error(`[{script.Name}]: profile_key is too long`)
+	end
+	
+	if params ~= nil and type(params) ~= "table" then
+		error(`[{script.Name}]: Invalid params`)
+	end
+	
+	params = params or {}
+
+	if ProfileStore.IsClosing == true then
+		return nil
+	end
+	
+	WaitForStoreReady(self)
+
+	local session_token = SessionToken(self.Name, profile_key, is_mock)
+
+	if ActiveSessionCheck[session_token] ~= nil then
+		error(`[{script.Name}]: Profile (STORE:{self.Name}; KEY:{profile_key}) is already loaded in this session`)
+	end
+
+	ActiveProfileLoadJobs = ActiveProfileLoadJobs + 1
+	
+	local is_user_cancel = false
+	
+	local function cancel_condition()
+		if is_user_cancel == false then
+			if params.Cancel ~= nil then
+				is_user_cancel = params.Cancel() == true
+			end
+			return is_user_cancel
+		end
+		return true
+	end
+	
+	local user_steal = params.Steal == true
+
+	local force_load_steps = 0 -- Session conflict handling values
+	local request_force_load = true
+	local steal_session = false
+
+	local start = os.clock()
+	local exp_backoff = 1
+
+	while ProfileStore.IsClosing == false and cancel_condition() == false do
+
+		-- Load profile:
+
+		-- SPECIAL CASE - If StartSessionAsync is called for the same key again before another StartSessionAsync finishes,
+		-- grab the DataStore return for the new call. The early call will return nil. This is supposed to retain
+		-- expected and efficient behavior in cases where a player would quickly rejoin the same server.
+
+		LoadIndex += 1
+		local load_id = LoadIndex
+		local profile_load_jobs = is_mock == true and self.mock_load_jobs or self.load_jobs
+		local profile_load_job = profile_load_jobs[profile_key] -- {load_id, {loaded_data, key_info} or nil}
+
+		local loaded_data, key_info
+		local unique_session_id = HttpService:GenerateGUID(false)
+
+		if profile_load_job ~= nil then
+
+			profile_load_job[1] = load_id -- Steal load job
+			while profile_load_job[2] == nil do -- Wait for job to finish
+				task.wait()
+			end
+			if profile_load_job[1] == load_id then -- Load job hasn't been double-stolen
+				loaded_data, key_info = table.unpack(profile_load_job[2])
+				profile_load_jobs[profile_key] = nil
+			else
+				ActiveProfileLoadJobs = ActiveProfileLoadJobs - 1
+				return nil
+			end
+
+		else
+
+			profile_load_job = {load_id, nil}
+			profile_load_jobs[profile_key] = profile_load_job
+
+			profile_load_job[2] = table.pack(UpdateAsync(
+				self,
+				profile_key,
+				{
+					ExistingProfileHandle = function(latest_data)
+
+						if ProfileStore.IsClosing == true or cancel_condition() == true then
+							return
+						end
+
+						local active_session = latest_data.MetaData.ActiveSession
+						local force_load_session = latest_data.MetaData.ForceLoadSession
+
+						if active_session == nil then
+							latest_data.MetaData.ActiveSession = {PlaceId, JobId, unique_session_id}
+							latest_data.MetaData.ForceLoadSession = nil
+						elseif type(active_session) == "table" then
+							if IsThisSession(active_session) == false then
+								local last_update = latest_data.MetaData.LastUpdate
+								if last_update ~= nil then
+									if os.time() - last_update &gt; ASSUME_DEAD then
+										latest_data.MetaData.ActiveSession = {PlaceId, JobId, unique_session_id}
+										latest_data.MetaData.ForceLoadSession = nil
+										return
+									end
+								end
+								if steal_session == true or user_steal == true then
+									local force_load_interrupted = if force_load_session ~= nil then not IsThisSession(force_load_session) else true
+									if force_load_interrupted == false or user_steal == true then
+										latest_data.MetaData.ActiveSession = {PlaceId, JobId, unique_session_id}
+										latest_data.MetaData.ForceLoadSession = nil
+									end
+								elseif request_force_load == true then
+									latest_data.MetaData.ForceLoadSession = {PlaceId, JobId}
+								end
+							else
+								latest_data.MetaData.ForceLoadSession = nil
+							end
+						end
+
+					end,
+					MissingProfileHandle = function(latest_data)
+						
+						local is_cancel = ProfileStore.IsClosing == true or cancel_condition() == true
+
+						latest_data.Data = DeepCopyTable(self.template)
+						latest_data.MetaData = {
+							ProfileCreateTime = os.time(),
+							SessionLoadCount = 0,
+							ActiveSession = if is_cancel == false then {PlaceId, JobId, unique_session_id} else nil,
+							ForceLoadSession = nil,
+							MetaTags = {}, -- Backwards compatibility with ProfileService
+						}
+
+					end,
+					EditProfile = function(latest_data)
+
+						if ProfileStore.IsClosing == true or cancel_condition() == true then
+							return
+						end
+
+						local active_session = latest_data.MetaData.ActiveSession
+						if active_session ~= nil and IsThisSession(active_session) == true then
+							latest_data.MetaData.SessionLoadCount = latest_data.MetaData.SessionLoadCount + 1
+							latest_data.MetaData.LastUpdate = os.time()
+						end
+
+					end,
+				},
+				is_mock
+				))
+			if profile_load_job[1] == load_id then -- Load job hasn't been stolen
+				loaded_data, key_info = table.unpack(profile_load_job[2])
+				profile_load_jobs[profile_key] = nil
+			else
+				ActiveProfileLoadJobs = ActiveProfileLoadJobs - 1
+				return nil -- Load job stolen
+			end
+		end
+
+		-- Handle load_data:
+
+		if loaded_data ~= nil and key_info ~= nil then
+			local active_session = loaded_data.MetaData.ActiveSession
+			if type(active_session) == "table" then
+
+				if IsThisSession(active_session) == true then
+
+					-- Profile is now taken by this session:
+
+					local profile = Profile.New(loaded_data, key_info, self, profile_key, is_mock, session_token)
+					AddProfileToAutoSave(profile)
+					
+					if is_mock ~= true and DataStoreState == "Access" then
+						
+						-- Use MessagingService to quickly detect session conflicts and resolve them quickly:
+						task.spawn(RobloxMessageSubscription, profile, unique_session_id) -- Blocking prevention
+						
+					end
+
+					if ProfileStore.IsClosing == true or cancel_condition() == true then
+						-- The server has initiated a shutdown by the time this profile was loaded
+						SaveProfileAsync(profile, true) -- Release profile and yield until the DataStore call is finished
+						profile = nil -- Don't return the profile object
+					end
+
+					ActiveProfileLoadJobs = ActiveProfileLoadJobs - 1
+					return profile
+
+				else
+					
+					if ProfileStore.IsClosing == true or cancel_condition() == true then
+						ActiveProfileLoadJobs = ActiveProfileLoadJobs - 1
+						return nil
+					end
+
+					-- Profile is taken by some other session:
+
+					local force_load_session = loaded_data.MetaData.ForceLoadSession
+					local force_load_interrupted = if force_load_session ~= nil then not IsThisSession(force_load_session) else true
+
+					if force_load_interrupted == false then
+
+						if request_force_load == false then
+							force_load_steps = force_load_steps + 1
+							if force_load_steps &gt;= math.ceil(SESSION_STEAL / LOAD_REPEAT_PERIOD) then
+								steal_session = true
+							end
+						end
+						
+						-- Request the remote server to end its session:
+						if type(active_session[3]) == "string" then
+							local session_load_count = loaded_data.MetaData.SessionLoadCount or 0
+							task.spawn(MessagingService.PublishAsync, MessagingService, "PS_" .. active_session[3], {LoadCount = session_load_count, EndSession = true})
+						end
+						
+						-- Attempt to load the profile again after a delay
+						local wait_until = os.clock() + if request_force_load == true then FIRST_LOAD_REPEAT else LOAD_REPEAT_PERIOD
+						repeat task.wait() until os.clock() &gt;= wait_until or ProfileStore.IsClosing == true
+
+					else
+						-- Another session tried to load this profile:
+						ActiveProfileLoadJobs = ActiveProfileLoadJobs - 1
+						return nil
+					end
+
+					request_force_load = false -- Only request a force load once
+
+				end
+
+			else
+				ActiveProfileLoadJobs = ActiveProfileLoadJobs - 1
+				return nil -- In this scenario it is likely that this server started shutting down
+			end
+		else
+			
+			-- A DataStore call has likely ended in an error:
+
+			local default_timeout = false
+
+			if params.Cancel == nil then
+				default_timeout = os.clock() - start &gt;= START_SESSION_TIMEOUT
+			end
+			
+			if default_timeout == true or ProfileStore.IsClosing == true or cancel_condition() == true then
+				ActiveProfileLoadJobs = ActiveProfileLoadJobs - 1
+				return nil
+			end
+			
+			task.wait(exp_backoff)  -- Repeat the call shortly
+			exp_backoff = math.min(20, exp_backoff * 2)
+			
+		end
+
+	end
+
+	ActiveProfileLoadJobs = ActiveProfileLoadJobs - 1
+	return nil -- Game started shutting down or the request was cancelled - don't return the profile
+
+end
+
+function ProfileStore:MessageAsync(profile_key, message)
+
+	local is_mock = ReadMockFlag()
+
+	if type(profile_key) ~= "string" then
+		error(`[{script.Name}]: profile_key must be a string`)
+	elseif string.len(profile_key) == 0 then
+		error(`[{script.Name}]: Invalid profile_key`)
+	elseif string.len(profile_key) &gt; 50 then
+		error(`[{script.Name}]: profile_key is too long`)
+	end
+
+	if type(message) ~= "table" then
+		error(`[{script.Name}]: message must be a table`)
+	end
+
+	if ProfileStore.IsClosing == true then
+		return false
+	end
+
+	WaitForStoreReady(self)
+
+	local exp_backoff = 1
+
+	while ProfileStore.IsClosing == false do
+
+		-- Updating profile:
+
+		local loaded_data = UpdateAsync(
+			self,
+			profile_key,
+			{
+				ExistingProfileHandle = nil,
+				MissingProfileHandle = nil,
+				EditProfile = function(latest_data)
+
+					local global_updates = latest_data.GlobalUpdates
+					local update_list = global_updates[2]
+					--{
+					--	update_index,
+					--	{
+					--		{update_index, data}, ...
+					--	},
+					--},
+
+					global_updates[1] += 1
+					table.insert(update_list, {global_updates[1], message})
+
+					-- Clearing queue if above limit:
+
+					while #update_list &gt; MAX_MESSAGE_QUEUE do
+						table.remove(update_list, 1)
+					end
+
+				end,
+			},
+			is_mock
+		)
+
+		if loaded_data ~= nil then
+			
+			local session_token = SessionToken(self.Name, profile_key, is_mock)
+			
+			local profile = ActiveSessionCheck[session_token]
+			
+			if profile ~= nil then
+				
+				-- The message was sent to a profile that is active in this server:
+				profile:Save()
+				
+			else
+				
+				local meta_data = loaded_data.MetaData or {}
+				local active_session = meta_data.ActiveSession
+				local session_load_count = meta_data.SessionLoadCount or 0
+				
+				if type(active_session) == "table" and type(active_session[3]) == "string" then
+					-- Request the remote server to auto-save sooner and receive the message:
+					task.spawn(MessagingService.PublishAsync, MessagingService, "PS_" .. active_session[3], {LoadCount = session_load_count})
+				end
+				
+			end
+
+			return true
+
+		else
+
+			task.wait(exp_backoff) -- A DataStore call has likely ended in an error - repeat the call shortly
+			exp_backoff = math.min(20, exp_backoff * 2)
+
+		end
+
+	end
+
+	return false
+
+end
+
+function ProfileStore:GetAsync(profile_key, version)
+
+	local is_mock = ReadMockFlag()
+
+	if type(profile_key) ~= "string" then
+		error(`[{script.Name}]: profile_key must be a string`)
+	elseif string.len(profile_key) == 0 then
+		error(`[{script.Name}]: Invalid profile_key`)
+	elseif string.len(profile_key) &gt; 50 then
+		error(`[{script.Name}]: profile_key is too long`)
+	end
+
+	if ProfileStore.IsClosing == true then
+		return nil
+	end
+
+	WaitForStoreReady(self)
+
+	if version ~= nil and (is_mock or DataStoreState ~= "Access") then
+		return nil -- No version support in mock mode
+	end
+
+	local exp_backoff = 1
+
+	while ProfileStore.IsClosing == false do
+
+		-- Load profile:
+
+		local loaded_data, key_info = UpdateAsync(
+			self,
+			profile_key,
+			{
+				ExistingProfileHandle = nil,
+				MissingProfileHandle = function(latest_data)
+
+					latest_data.Data = DeepCopyTable(self.template)
+					latest_data.MetaData = {
+						ProfileCreateTime = os.time(),
+						SessionLoadCount = 0,
+						ActiveSession = nil,
+						ForceLoadSession = nil,
+						MetaTags = {}, -- Backwards compatibility with ProfileService
+					}
+
+				end,
+				EditProfile = nil,
+			},
+			is_mock,
+			true, -- Use :GetAsync()
+			version -- DataStore key version
+		)
+
+		-- Handle load_data:
+
+		if loaded_data ~= nil then
+
+			if key_info == nil then
+				return nil -- Load was successful, but the key was empty - return no profile object
+			end
+
+			local profile = Profile.New(loaded_data, key_info, self, profile_key, is_mock)
+			profile.view_mode = true
+
+			return profile
+
+		else
+
+			task.wait(exp_backoff) -- A DataStore call has likely ended in an error - repeat the call shortly
+			exp_backoff = math.min(20, exp_backoff * 2)
+
+		end
+
+	end
+
+	return nil -- Game started shutting down - don't return the profile
+
+end
+
+function ProfileStore:RemoveAsync(profile_key)
+
+	local is_mock = ReadMockFlag()
+
+	if type(profile_key) ~= "string" or string.len(profile_key) == 0 then
+		error(`[{script.Name}]: Invalid profile_key`)
+	end
+
+	if ProfileStore.IsClosing == true then
+		return false
+	end
+
+	WaitForStoreReady(self)
+
+	local wipe_status = false
+	
+	local next_in_queue = WaitInUpdateQueue(SessionToken(self.Name, profile_key, is_mock))
+
+	if is_mock == true then -- Used when the profile is accessed through ProfileStore.Mock
+
+		local mock_data_store = UserMockStore[self.Name]
+
+		if mock_data_store ~= nil then
+			mock_data_store[profile_key] = nil
+			if next(mock_data_store) == nil then
+				UserMockStore[self.Name] = nil
+			end
+		end
+
+		wipe_status = true
+		task.wait() -- Simulate API call yield
+
+	elseif DataStoreState ~= "Access" then -- Used when API access is disabled
+
+		local mock_data_store = MockStore[self.Name]
+
+		if mock_data_store ~= nil then
+			mock_data_store[profile_key] = nil
+			if next(mock_data_store) == nil then
+				MockStore[self.Name] = nil
+			end
+		end
+
+		wipe_status = true
+		task.wait() -- Simulate API call yield
+
+	else -- Live DataStore
+
+		wipe_status = pcall(function()
+			self.data_store:RemoveAsync(profile_key)
+		end)
+
+	end
+	
+	next_in_queue()
+
+	return wipe_status
+
+end
+
+local ProfileVersionQuery = {}
+ProfileVersionQuery.__index = ProfileVersionQuery
+
+function ProfileVersionQuery.New(profile_store, profile_key, sort_direction, min_date, max_date, is_mock)
+
+	local self = {
+		profile_store = profile_store,
+		profile_key = profile_key,
+		sort_direction = sort_direction,
+		min_date = min_date,
+		max_date = max_date,
+
+		query_pages = nil,
+		query_index = 0,
+		query_failure = false,
+
+		is_query_yielded = false,
+		query_queue = {},
+
+		is_mock = is_mock,
+	}
+	setmetatable(self, ProfileVersionQuery)
+
+	return self
+
+end
+
+function MoveVersionQueryQueue(self) -- Hidden ProfileVersionQuery method
+	while #self.query_queue &gt; 0 do
+
+		local queue_entry = table.remove(self.query_queue, 1)
+
+		task.spawn(queue_entry)
+
+		if self.is_query_yielded == true then
+			break
+		end
+
+	end
+end
+
+local VersionQueryNextAsyncStackingFlag = false
+local WarnAboutVersionQueryOnce = false
+
+function ProfileVersionQuery:NextAsync()
+
+	local is_stacking = VersionQueryNextAsyncStackingFlag == true
+	VersionQueryNextAsyncStackingFlag = false
+
+	WaitForStoreReady(self.profile_store)
+
+	if ProfileStore.IsClosing == true then
+		return nil -- Silently fail :NextAsync() requests
+	end
+
+	if self.is_mock == true or DataStoreState ~= "Access" then
+		if IsStudio == true and WarnAboutVersionQueryOnce == false then
+			WarnAboutVersionQueryOnce = true
+			warn(`[{script.Name}]: :VersionQuery() is not supported in mock mode!`)
+		end
+		return nil -- Silently fail :NextAsync() requests
+	end
+
+	local profile
+	local is_finished = false
+
+	local function query_job()
+
+		if self.query_failure == true then
+			is_finished = true
+			return
+		end
+
+		-- First "next" call loads version pages:
+
+		if self.query_pages == nil then
+
+			self.is_query_yielded = true
+
+			task.spawn(function()
+				VersionQueryNextAsyncStackingFlag = true
+				profile = self:NextAsync()
+				is_finished = true
+			end)
+
+			local list_success, error_message = pcall(function()
+				self.query_pages = self.profile_store.data_store:ListVersionsAsync(
+					self.profile_key,
+					self.sort_direction,
+					self.min_date,
+					self.max_date
+				)
+				self.query_index = 0
+			end)
+
+			if list_success == false or self.query_pages == nil then
+				warn(`[{script.Name}]: Version query fail - {tostring(error_message)}`)
+				self.query_failure = true
+			end
+
+			self.is_query_yielded = false
+
+			MoveVersionQueryQueue(self)
+
+			return
+
+		end
+
+		local current_page = self.query_pages:GetCurrentPage()
+		local next_item = current_page[self.query_index + 1]
+
+		-- No more entries:
+
+		if self.query_pages.IsFinished == true and next_item == nil then
+			is_finished = true
+			return
+		end
+
+		-- Load next page when this page is over:
+
+		if next_item == nil then
+
+			self.is_query_yielded = true
+			task.spawn(function()
+				VersionQueryNextAsyncStackingFlag = true
+				profile = self:NextAsync()
+				is_finished = true
+			end)
+
+			local success, error_message = pcall(function()
+				self.query_pages:AdvanceToNextPageAsync()
+				self.query_index = 0
+			end)
+
+			if success == false or #self.query_pages:GetCurrentPage() == 0 then
+				self.query_failure = true
+			end
+
+			self.is_query_yielded = false
+			MoveVersionQueryQueue(self)
+
+			return
+
+		end
+
+		-- Next page item:
+
+		self.query_index += 1
+		profile = self.profile_store:GetAsync(self.profile_key, next_item.Version)
+		is_finished = true
+
+	end
+
+	if self.is_query_yielded == false then
+		query_job()
+	else
+		if is_stacking == true then
+			table.insert(self.query_queue, 1, query_job)
+		else
+			table.insert(self.query_queue, query_job)
+		end
+	end
+
+	while is_finished == false do
+		task.wait()
+	end
+
+	return profile
+
+end
+
+function ProfileStore:VersionQuery(profile_key, sort_direction, min_date, max_date)
+
+	local is_mock = ReadMockFlag()
+
+	if type(profile_key) ~= "string" or string.len(profile_key) == 0 then
+		error(`[{script.Name}]: Invalid profile_key`)
+	end
+
+	-- Type check:
+
+	if sort_direction ~= nil and (typeof(sort_direction) ~= "EnumItem"
+		or sort_direction.EnumType ~= Enum.SortDirection) then
+		error(`[{script.Name}]: Invalid sort_direction ({tostring(sort_direction)})`)
+	end
+
+	if min_date ~= nil and typeof(min_date) ~= "DateTime" and typeof(min_date) ~= "number" then
+		error(`[{script.Name}]: Invalid min_date ({tostring(min_date)})`)
+	end
+
+	if max_date ~= nil and typeof(max_date) ~= "DateTime" and typeof(max_date) ~= "number" then
+		error(`[{script.Name}]: Invalid max_date ({tostring(max_date)})`)
+	end
+
+	min_date = typeof(min_date) == "DateTime" and min_date.UnixTimestampMillis or min_date
+	max_date = typeof(max_date) == "DateTime" and max_date.UnixTimestampMillis or max_date
+
+	return ProfileVersionQuery.New(self, profile_key, sort_direction, min_date, max_date, is_mock)
+
+end
+
+-- DataStore API access check:
+
+if IsStudio == true then
+
+	task.spawn(function()
+
+		local new_state = "NoAccess"
+
+		local status, message = pcall(function()
+			-- This will error if current instance has no Studio API access:
+			DataStoreService:GetDataStore("____PS"):SetAsync("____PS", os.time())
+		end)
+
+		local no_internet_access = status == false and string.find(message, "ConnectFail", 1, true) ~= nil
+
+		if no_internet_access == true then
+			warn(`[{script.Name}]: No internet access - check your network connection`)
+		end
+
+		if status == false and
+			(string.find(message, "403", 1, true) ~= nil or -- Cannot write to DataStore from studio if API access is not enabled
+				string.find(message, "must publish", 1, true) ~= nil or -- Game must be published to access live keys
+				no_internet_access == true) then -- No internet access
+
+			new_state = if no_internet_access == true then "NoInternet" else "NoAccess"
+			print(`[{script.Name}]: Roblox API services unavailable - data will not be saved`)
+		else
+			new_state = "Access"
+			print(`[{script.Name}]: Roblox API services available - data will be saved`)
+		end
+
+		DataStoreState = new_state
+		ProfileStore.DataStoreState = new_state
+
+	end)
+
+else
+	
+	DataStoreState = "Access"
+	ProfileStore.DataStoreState = "Access"
+	
+end
+
+-- Update loop:
+
+RunService.Heartbeat:Connect(function()
+
+	-- Auto saving:
+
+	local auto_save_list_length = #AutoSaveList
+	if auto_save_list_length &gt; 0 then
+		local auto_save_index_speed = AUTO_SAVE_PERIOD / auto_save_list_length
+		local os_clock = os.clock()
+		while os_clock - LastAutoSave &gt; auto_save_index_speed do
+			LastAutoSave = LastAutoSave + auto_save_index_speed
+			local profile = AutoSaveList[AutoSaveIndex]
+			if os_clock - profile.load_timestamp &lt; AUTO_SAVE_PERIOD / 2 then
+				-- This profile is freshly loaded - auto saving immediately is not necessary:
+				profile = nil
+				for _ = 1, auto_save_list_length - 1 do
+					-- Move auto save index to the right:
+					AutoSaveIndex = AutoSaveIndex + 1
+					if AutoSaveIndex &gt; auto_save_list_length then
+						AutoSaveIndex = 1
+					end
+					profile = AutoSaveList[AutoSaveIndex]
+					if os_clock - profile.load_timestamp &gt;= AUTO_SAVE_PERIOD / 2 then
+						break
+					else
+						profile = nil
+					end
+				end
+			end
+			-- Move auto save index to the right:
+			AutoSaveIndex = AutoSaveIndex + 1
+			if AutoSaveIndex &gt; auto_save_list_length then
+				AutoSaveIndex = 1
+			end
+			-- Perform save call:
+			if profile ~= nil then
+				task.spawn(SaveProfileAsync, profile) -- Auto save profile in new thread
+			end
+		end
+	end
+
+	-- Critical state handling:
+
+	if ProfileStore.IsCriticalState == false then
+		if #IssueQueue &gt;= CRITICAL_STATE_ERROR_COUNT then
+			ProfileStore.IsCriticalState = true
+			ProfileStore.OnCriticalToggle:Fire(true)
+			CriticalStateStart = os.clock()
+			warn(`[{script.Name}]: Entered critical state`)
+		end
+	else
+		if #IssueQueue &gt;= CRITICAL_STATE_ERROR_COUNT then
+			CriticalStateStart = os.clock()
+		elseif os.clock() - CriticalStateStart &gt; CRITICAL_STATE_EXPIRE then
+			ProfileStore.IsCriticalState = false
+			ProfileStore.OnCriticalToggle:Fire(false)
+			warn(`[{script.Name}]: Critical state ended`)
+		end
+	end
+
+	-- Issue queue:
+
+	while true do
+		local issue_time = IssueQueue[1]
+		if issue_time == nil then
+			break
+		elseif os.clock() - issue_time &gt; CRITICAL_STATE_ERROR_EXPIRE then
+			table.remove(IssueQueue, 1)
+		else
+			break
+		end
+	end
+
+end)
+
+-- Release all loaded profiles when the server is shutting down:
+
+task.spawn(function()
+
+	while DataStoreState == "NotReady" do
+		task.wait()
+	end
+
+	if DataStoreState ~= "Access" then
+
+		game:BindToClose(function()
+			ProfileStore.IsClosing = true
+			task.wait() -- Mock shutdown delay
+		end)
+
+		return -- Don't wait for profiles to properly save in mock mode so studio could end the simulation faster
+
+	end
+
+	game:BindToClose(function()
+
+		ProfileStore.IsClosing = true
+
+		-- Release all active profiles:
+		-- (Clone AutoSaveList to a new table because AutoSaveList changes when profiles are released)
+
+		local on_close_save_job_count = 0
+		local active_profiles = {}
+		for index, profile in ipairs(AutoSaveList) do
+			active_profiles[index] = profile
+		end
+
+		-- Release the profiles; Releasing profiles can trigger listeners that release other profiles, so check active state:
+		for _, profile in ipairs(active_profiles) do
+			if profile:IsActive() == true then
+				on_close_save_job_count = on_close_save_job_count + 1
+				task.spawn(function() -- Save profile on new thread
+					SaveProfileAsync(profile, true, nil, "Shutdown")
+					on_close_save_job_count = on_close_save_job_count - 1
+				end)
+			end
+		end
+
+		-- Yield until all active profile jobs are finished:
+		while on_close_save_job_count &gt; 0 or ActiveProfileLoadJobs &gt; 0 or ActiveProfileSaveJobs &gt; 0 do
+			task.wait()
+		end
+
+		return -- We're done!
+
+	end)
+
+end)
+
+return ProfileStore</string>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="ModuleScript" referent="16">
+        <Properties>
+          <string name="Name">RebirthService</string>
+          <string name="Source"><![CDATA[--!strict
+-- Rebirth: reach the Finish pad, reset jump/checkpoint, keep coins and trails,
+-- bank a permanent +25% jump-gain & coin multiplier. Infinite ladder.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Remotes = require(Shared.Remotes)
+
+local RebirthService = {}
+
+local ctx: any = nil
+
+function RebirthService.Perform(player: Player, free: boolean): (boolean, string?)
+	local data = ctx.Data.Get(player)
+	if not data then
+		return false, "Loading..."
+	end
+	if not free and data.Checkpoint < Balance.RebirthStage then
+		return false, ("Reach stage %d to Rebirth!"):format(Balance.RebirthStage)
+	end
+
+	data.Rebirths += 1
+	data.Checkpoint = 0
+	data.JumpBonus = if ctx.Monetization.OwnsPass(player, "MegaStart") then Balance.MegaStartJump else 0
+	ctx.Data.MarkDirty(player)
+	ctx.Analytics.FunnelStep(player, data, 5, "FirstRebirth")
+	ctx.Stages.ApplyStats(player)
+
+	-- back to the start
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		root.CFrame = CFrame.new(0, 4, -14)
+	end
+
+	Remotes.Event("Notify"):FireClient(player, {
+		Text = ("REBIRTH %d! Jump gain and coins now x%.2f. The tower awaits!"):format(
+			data.Rebirths,
+			1 + Balance.RebirthGainBonus * data.Rebirths
+		),
+		Color = Color3.fromRGB(255, 120, 255),
+	})
+	return true, nil
+end
+
+function RebirthService.Init(serviceCtx: any)
+	ctx = serviceCtx
+	Remotes.Function("Rebirth").OnServerInvoke = function(player)
+		return RebirthService.Perform(player, false)
+	end
+end
+
+return RebirthService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="17">
+        <Properties>
+          <string name="Name">StageService</string>
+          <string name="Source"><![CDATA[--!strict
+-- The +1 loop: touching pad N past your checkpoint grants +1 Jump Power and
+-- coins PER STAGE ADVANCED — so soaring over 10 stages pays for all 10 (the
+-- clip moment). Also owns character setup: jump/speed stats, respawn at
+-- checkpoint, trail attach.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Remotes = require(Shared.Remotes)
+
+local StageService = {}
+
+local ctx: any = nil
+local pads: { BasePart } = {}
+
+function StageService.ApplyStats(player: Player)
+	local data = ctx.Data.Get(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not data or not humanoid then
+		return
+	end
+	humanoid.UseJumpPower = true
+	humanoid.JumpPower = ctx.Data.JumpPower(player, data)
+	humanoid.WalkSpeed = ctx.Data.WalkSpeed(player, data)
+end
+
+local function coinsForStage(index: number): number
+	return math.floor(Balance.CoinsPerStage * (1 + index * Balance.CoinsStageScale) + 0.5)
+end
+
+-- Advance to `target` stage, granting all per-stage rewards along the way.
+-- Used by pad touches AND by Skip products.
+function StageService.AdvanceTo(player: Player, target: number)
+	local data = ctx.Data.Get(player)
+	if not data then
+		return
+	end
+	target = math.clamp(target, 0, Balance.Stages)
+	local delta = target - data.Checkpoint
+	if delta <= 0 then
+		return
+	end
+
+	local jumpGain = math.floor(delta * Balance.JumpPerStage * ctx.Data.JumpGainMult(player, data) + 0.5)
+	data.JumpBonus = math.min(data.JumpBonus + jumpGain, Balance.JumpBonusCap)
+
+	local coins = 0
+	for i = data.Checkpoint + 1, target do
+		coins += coinsForStage(i)
+	end
+	data.Checkpoint = target
+	data.Stats.TotalStagesCleared += delta
+	data.Stats.BestStage = math.max(data.Stats.BestStage, target)
+	ctx.Data.AddCoins(player, coins, true)
+	ctx.Data.MarkDirty(player)
+	StageService.ApplyStats(player)
+
+	ctx.Analytics.FunnelStep(player, data, 1, "FirstStage")
+	if target >= 10 then
+		ctx.Analytics.FunnelStep(player, data, 2, "Stage10")
+	end
+	if target >= 50 then
+		ctx.Analytics.FunnelStep(player, data, 3, "Stage50")
+	end
+	if target >= Balance.Stages then
+		ctx.Analytics.FunnelStep(player, data, 4, "Finish")
+		Remotes.Event("Notify"):FireClient(player, {
+			Text = "FINISH! Open the Rebirth menu to bank a permanent bonus!",
+			Color = Color3.fromRGB(255, 210, 90),
+		})
+	end
+	if delta > 1 then
+		Remotes.Event("Notify"):FireClient(player, {
+			Text = ("MEGA LEAP! +%d stages, +%d Jump Power!"):format(delta, jumpGain),
+			Color = Color3.fromRGB(120, 255, 200),
+		})
+	end
+end
+
+function StageService.TeleportToStage(player: Player, index: number): (boolean, string?)
+	local data = ctx.Data.Get(player)
+	if not data then
+		return false, "Loading..."
+	end
+	if not ctx.Monetization.OwnsPass(player, "Vip") then
+		return false, "Stage teleport is a VIP perk!"
+	end
+	index = math.clamp(index, 0, data.Checkpoint)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return false, "No character."
+	end
+	local pad = if index == 0 then nil else pads[index]
+	local position = if pad then pad.Position else Vector3.new(0, 0, -14)
+	root.CFrame = CFrame.new(position + Vector3.new(0, 4, 0))
+	return true, nil
+end
+
+local function onCharacterAdded(player: Player, character: Model)
+	local data = ctx.Data.Get(player)
+	if not data then
+		task.delay(1, function()
+			if player.Character == character then
+				onCharacterAdded(player, character)
+			end
+		end)
+		return
+	end
+	StageService.ApplyStats(player)
+	ctx.Trails.Attach(player, character)
+	-- respawn at checkpoint
+	local root = character:WaitForChild("HumanoidRootPart", 5) :: BasePart?
+	if root then
+		local pad = data.Checkpoint > 0 and pads[data.Checkpoint] or nil
+		local position = pad and pad.Position or Vector3.new(0, 0, -14)
+		root.CFrame = CFrame.new(position + Vector3.new(0, 4, 0))
+	end
+end
+
+function StageService.Init(serviceCtx: any, coursePads: { BasePart })
+	ctx = serviceCtx
+	pads = coursePads
+	Players.RespawnTime = Balance.RespawnSeconds
+
+	for index, pad in pads do
+		pad.Touched:Connect(function(hit)
+			local character = hit.Parent
+			local player = character and Players:GetPlayerFromCharacter(character :: any)
+			if player then
+				StageService.AdvanceTo(player, index)
+			end
+		end)
+	end
+
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function(character)
+			onCharacterAdded(player, character)
+		end)
+	end)
+	for _, player in Players:GetPlayers() do
+		player.CharacterAdded:Connect(function(character)
+			onCharacterAdded(player, character)
+		end)
+		if player.Character then
+			onCharacterAdded(player, player.Character)
+		end
+	end
+
+	Remotes.Function("TeleportStage").OnServerInvoke = function(player, index)
+		local n = tonumber(index)
+		if not n then
+			return false, "Bad request."
+		end
+		return StageService.TeleportToStage(player, n)
+	end
+end
+
+return StageService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="18">
+        <Properties>
+          <string name="Name">StreakService</string>
+          <string name="Source"><![CDATA[--!strict
+-- Daily login streaks with 7/14/30 milestones, one grace day, and a 2x bonus
+-- for joining the group (converts players into an owned audience).
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Monetization = require(Shared.Config.Monetization)
+
+local StreakService = {}
+
+local ctx: any = nil
+
+export type StreakReport = {
+	Count: number,
+	Reward: number,
+	Milestone: boolean,
+	GroupBonus: boolean,
+	StreakLost: boolean,
+}
+
+function StreakService.HandleJoin(player: Player, data: any): StreakReport?
+	local today = os.time() // 86400
+	local streak = data.Streak
+	if streak.LastDay == today then
+		return nil -- already claimed today
+	end
+
+	local lost = false
+	if streak.LastDay == 0 then
+		streak.Count = 1
+	elseif today - streak.LastDay <= 1 + Balance.StreakGraceDays then
+		streak.Count += 1
+	else
+		streak.Count = 1
+		lost = true
+	end
+	streak.LastDay = today
+	streak.Best = math.max(streak.Best, streak.Count)
+
+	local day = math.min(streak.Count, Balance.StreakDayCap)
+	local reward = Balance.StreakBaseReward * day
+	local milestoneMult = Balance.StreakMilestones[streak.Count]
+	if milestoneMult then
+		reward *= milestoneMult
+	end
+
+	local inGroup = false
+	if Monetization.GroupId ~= 0 then
+		local ok, result = pcall(function()
+			return player:IsInGroupAsync(Monetization.GroupId)
+		end)
+		inGroup = ok and result == true
+	end
+	if inGroup then
+		reward *= 2
+	end
+
+	data.Coins += reward
+	data.TotalCoinsEarned += reward
+	ctx.Data.MarkDirty(player)
+
+	return {
+		Count = streak.Count,
+		Reward = reward,
+		Milestone = milestoneMult ~= nil,
+		GroupBonus = inGroup,
+		StreakLost = lost,
+	}
+end
+
+function StreakService.Init(serviceCtx: any)
+	ctx = serviceCtx
+end
+
+return StreakService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="19">
+        <Properties>
+          <string name="Name">TrailService</string>
+          <string name="Source"><![CDATA[--!strict
+-- Trail cosmetics: the coin sink. "Rainbow" is the VIP-exclusive flex.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Remotes = require(Shared.Remotes)
+
+local TrailService = {}
+
+local ctx: any = nil
+
+local function ownsTrail(player: Player, data: any, name: string): boolean
+	if name == "Rainbow" then
+		return ctx.Monetization.OwnsPass(player, "Vip")
+	end
+	return data.Trails[name] == true
+end
+
+function TrailService.Attach(player: Player, character: Model)
+	local data = ctx.Data.Get(player)
+	if not data then
+		return
+	end
+	local existing = character:FindFirstChild("PlayerTrail", true)
+	if existing then
+		existing:Destroy()
+	end
+	local name = data.EquippedTrail
+	if name == "" or not ownsTrail(player, data, name) then
+		return
+	end
+
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+	local top = Instance.new("Attachment")
+	top.Name = "TrailTop"
+	top.Position = Vector3.new(0, 1, 0)
+	top.Parent = root
+	local bottom = Instance.new("Attachment")
+	bottom.Name = "TrailBottom"
+	bottom.Position = Vector3.new(0, -1, 0)
+	bottom.Parent = root
+
+	local trail = Instance.new("Trail")
+	trail.Name = "PlayerTrail"
+	trail.Attachment0 = top
+	trail.Attachment1 = bottom
+	trail.Lifetime = 0.5
+	trail.WidthScale = NumberSequence.new(1, 0)
+	trail.Transparency = NumberSequence.new(0.2, 1)
+	if name == "Rainbow" then
+		trail.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 80)),
+			ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 210, 90)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 255, 160)),
+			ColorSequenceKeypoint.new(0.75, Color3.fromRGB(120, 200, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 120, 255)),
+		})
+	else
+		local def = Balance.GetTrail(name)
+		trail.Color = ColorSequence.new(def and def.Color or Color3.new(1, 1, 1))
+	end
+	trail.Parent = root
+end
+
+function TrailService.Buy(player: Player, name: string): (boolean, string?)
+	local data = ctx.Data.Get(player)
+	if not data then
+		return false, "Loading..."
+	end
+	local def = Balance.GetTrail(name)
+	if not def then
+		return false, "Unknown trail."
+	end
+	if data.Trails[name] then
+		return false, "Already owned!"
+	end
+	if data.Coins < def.Cost then
+		return false, "Not enough coins."
+	end
+	data.Coins -= def.Cost
+	data.Trails[name] = true
+	ctx.Data.MarkDirty(player)
+	return true, nil
+end
+
+function TrailService.Equip(player: Player, name: string): (boolean, string?)
+	local data = ctx.Data.Get(player)
+	if not data then
+		return false, "Loading..."
+	end
+	if name ~= "" and not ownsTrail(player, data, name) then
+		return false, "You don't own that trail."
+	end
+	data.EquippedTrail = name
+	ctx.Data.MarkDirty(player)
+	if player.Character then
+		TrailService.Attach(player, player.Character)
+	end
+	return true, nil
+end
+
+function TrailService.Init(serviceCtx: any)
+	ctx = serviceCtx
+	Remotes.Function("BuyTrail").OnServerInvoke = function(player, name)
+		if typeof(name) ~= "string" then
+			return false, "Bad request."
+		end
+		return TrailService.Buy(player, name)
+	end
+	Remotes.Function("EquipTrail").OnServerInvoke = function(player, name)
+		if typeof(name) ~= "string" then
+			return false, "Bad request."
+		end
+		return TrailService.Equip(player, name)
+	end
+end
+
+return TrailService
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="20">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+      <float name="CharacterJumpPower">50</float>
+      <bool name="CharacterUseJumpPower">true</bool>
+      <float name="CharacterWalkSpeed">16</float>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="21">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="22">
+        <Properties>
+          <string name="Name">Client</string>
+          <string name="Source"><![CDATA[--!strict
+-- Client bootstrap: state replica, HUD, screens.
+
+local Players = game:GetService("Players")
+
+local State = require(script.State)
+local Toasts = require(script.Toasts)
+local Hud = require(script.Hud)
+local TrailsScreen = require(script.Screens.TrailsScreen)
+local TeleportScreen = require(script.Screens.TeleportScreen)
+local RebirthScreen = require(script.Screens.RebirthScreen)
+local StoreScreen = require(script.Screens.StoreScreen)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "EasyObbyGui"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 10
+gui.Parent = playerGui
+
+State.Init()
+Toasts.Init(gui)
+Hud.Init(gui)
+TrailsScreen.Init(gui)
+TeleportScreen.Init(gui)
+RebirthScreen.Init(gui)
+StoreScreen.Init(gui)
+]]></string>
+        </Properties>
+        <Item class="ModuleScript" referent="23">
+          <Properties>
+            <string name="Name">Hud</string>
+            <string name="Source"><![CDATA[--!strict
+-- HUD: coins/jump/stage pills, screen buttons, and the Skip Stage quick-buy.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Format = require(Shared.Format)
+local Monetization = require(Shared.Config.Monetization)
+local Purchase = require(script.Parent.Purchase)
+local ScreenManager = require(script.Parent.ScreenManager)
+local State = require(script.Parent.State)
+local UiKit = require(script.Parent.UiKit)
+
+local Hud = {}
+
+local coinsLabel: TextLabel? = nil
+local jumpLabel: TextLabel? = nil
+local stageLabel: TextLabel? = nil
+local streakLabel: TextLabel? = nil
+
+local function pill(parent: Instance, position: UDim2, color: Color3): TextLabel
+	local frame = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(190, 40),
+		Position = position,
+		BackgroundColor3 = UiKit.Colors.Bg,
+		BackgroundTransparency = 0.15,
+		Parent = parent,
+	})
+	UiKit.Corner(12).Parent = frame
+	UiKit.Stroke(color, 2).Parent = frame
+	local label = UiKit.Label({
+		Text = "",
+		TextColor3 = color,
+		Size = UDim2.new(1, -16, 1, -8),
+		Position = UDim2.fromOffset(8, 4),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	return label :: TextLabel
+end
+
+function Hud.Init(gui: ScreenGui)
+	coinsLabel = pill(gui, UDim2.fromOffset(12, 12), UiKit.Colors.Accent)
+	jumpLabel = pill(gui, UDim2.fromOffset(12, 58), Color3.fromRGB(120, 200, 255))
+	stageLabel = pill(gui, UDim2.fromOffset(12, 104), Color3.fromRGB(255, 150, 220))
+	streakLabel = pill(gui, UDim2.fromOffset(12, 150), UiKit.Colors.Good)
+
+	-- Bottom button row
+	local row = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(560, 56),
+		Position = UDim2.new(0.5, -280, 1, -70),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.Padding = UDim.new(0, 8)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.Parent = row
+	local buttons = {
+		{ Label = "Trails", Screen = "Trails", Color = Color3.fromRGB(120, 255, 200) },
+		{ Label = "Teleport", Screen = "Teleport", Color = Color3.fromRGB(120, 200, 255) },
+		{ Label = "Rebirth", Screen = "Rebirth", Color = Color3.fromRGB(255, 120, 255) },
+		{ Label = "Store", Screen = "Store", Color = UiKit.Colors.Accent },
+	}
+	for i, def in buttons do
+		local button = UiKit.Create("TextButton", {
+			Text = def.Label,
+			Font = Enum.Font.FredokaOne,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(28, 24, 20),
+			BackgroundColor3 = def.Color,
+			Size = UDim2.fromOffset(122, 52),
+			LayoutOrder = i,
+			Parent = row,
+		})
+		UiKit.Corner(12).Parent = button
+		UiKit.Pad(8).Parent = button
+		local screenName = def.Screen
+		button.Activated:Connect(function()
+			ScreenManager.Toggle(screenName)
+		end)
+	end
+
+	-- Skip Stage quick-buy (the obby revenue workhorse — always one tap away)
+	local skip = UiKit.Create("TextButton", {
+		Text = "Skip Stage  R$" .. Monetization.Products.Skip1.Price,
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(28, 24, 20),
+		BackgroundColor3 = UiKit.Colors.Robux,
+		Size = UDim2.fromOffset(200, 46),
+		Position = UDim2.new(1, -212, 1, -60),
+		Parent = gui,
+	}) :: TextButton
+	UiKit.Corner(12).Parent = skip
+	UiKit.Pad(6).Parent = skip
+	skip.Visible = Monetization.Products.Skip1.Id ~= 0
+	skip.Activated:Connect(function()
+		Purchase.PromptProduct("Skip1")
+	end)
+
+	State.Changed:Connect(function(state)
+		if coinsLabel then
+			coinsLabel.Text = "Coins: " .. Format.Number(state.Coins) .. "  (x" .. string.format("%.2f", state.CoinMult) .. ")"
+		end
+		if jumpLabel then
+			jumpLabel.Text = "Jump Power: " .. state.JumpPower
+		end
+		if stageLabel then
+			stageLabel.Text = ("Stage %d  (best %d)"):format(state.Checkpoint, state.Stats.BestStage)
+		end
+		if streakLabel then
+			streakLabel.Text = "Streak: Day " .. state.Streak.Count .. "  •  Rebirth " .. state.Rebirths
+		end
+	end)
+end
+
+return Hud
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="24">
+          <Properties>
+            <string name="Name">Purchase</string>
+            <string name="Source"><![CDATA[--!strict
+-- Client-side purchase prompts, driven by the Monetization config. Offers with
+-- an unconfigured (0) ID show a friendly toast instead of erroring.
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Monetization = require(Shared.Config.Monetization)
+local Toasts = require(script.Parent.Toasts)
+
+local Purchase = {}
+
+function Purchase.PromptPass(key: string)
+	local def = (Monetization.Gamepasses :: any)[key]
+	if not def or def.Id == 0 then
+		Toasts.Push("This offer isn't set up yet!", Color3.fromRGB(255, 200, 90))
+		return
+	end
+	MarketplaceService:PromptGamePassPurchase(Players.LocalPlayer, def.Id)
+end
+
+function Purchase.PromptProduct(key: string)
+	local def = (Monetization.Products :: any)[key]
+	if not def or def.Id == 0 then
+		Toasts.Push("This offer isn't set up yet!", Color3.fromRGB(255, 200, 90))
+		return
+	end
+	MarketplaceService:PromptProductPurchase(Players.LocalPlayer, def.Id)
+end
+
+return Purchase
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="25">
+          <Properties>
+            <string name="Name">ScreenManager</string>
+            <string name="Source"><![CDATA[--!strict
+-- One modal screen open at a time; screens register a panel + optional OnOpen.
+
+local ScreenManager = {}
+
+type Entry = { Panel: Frame, OnOpen: (() -> ())? }
+
+local screens: { [string]: Entry } = {}
+local openName: string? = nil
+
+function ScreenManager.Register(name: string, panel: Frame, closeButton: TextButton, onOpen: (() -> ())?)
+	screens[name] = { Panel = panel, OnOpen = onOpen }
+	closeButton.Activated:Connect(function()
+		ScreenManager.Close()
+	end)
+end
+
+function ScreenManager.Open(name: string)
+	local entry = screens[name]
+	if not entry then
+		return
+	end
+	for otherName, other in screens do
+		other.Panel.Visible = otherName == name
+	end
+	openName = name
+	if entry.OnOpen then
+		entry.OnOpen()
+	end
+end
+
+function ScreenManager.Close()
+	for _, entry in screens do
+		entry.Panel.Visible = false
+	end
+	openName = nil
+end
+
+function ScreenManager.Toggle(name: string)
+	if openName == name then
+		ScreenManager.Close()
+	else
+		ScreenManager.Open(name)
+	end
+end
+
+function ScreenManager.IsOpen(name: string): boolean
+	return openName == name
+end
+
+return ScreenManager
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="Folder" referent="26">
+          <Properties>
+            <string name="Name">Screens</string>
+          </Properties>
+          <Item class="ModuleScript" referent="27">
+            <Properties>
+              <string name="Name">RebirthScreen</string>
+              <string name="Source"><![CDATA[--!strict
+-- Rebirth: reach the Finish, bank a permanent multiplier, reshuffled fun.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Remotes = require(Shared.Remotes)
+local Purchase = require(script.Parent.Parent.Purchase)
+local ScreenManager = require(script.Parent.Parent.ScreenManager)
+local State = require(script.Parent.Parent.State)
+local Toasts = require(script.Parent.Parent.Toasts)
+local UiKit = require(script.Parent.Parent.UiKit)
+
+local RebirthScreen = {}
+
+local infoLabel: TextLabel? = nil
+local rebirthButtonRef: TextButton? = nil
+
+local function render()
+	local state = State.Get()
+	if not state or not infoLabel or not rebirthButtonRef then
+		return
+	end
+	local currentMult = 1 + Balance.RebirthGainBonus * state.Rebirths
+	local nextMult = 1 + Balance.RebirthGainBonus * (state.Rebirths + 1)
+	infoLabel.Text = table.concat({
+		("Rebirths: %d   •   Stage %d / %d"):format(state.Rebirths, state.Checkpoint, Balance.RebirthStage),
+		("Jump gain & coins: x%.2f  ->  x%.2f"):format(currentMult, nextMult),
+		"",
+		"Resets: Jump Power and your stage.",
+		"Keeps: coins, trails, gamepasses, streak.",
+		state.RebirthReady and "READY! Bank your multiplier!" or ("Reach stage %d to Rebirth."):format(Balance.RebirthStage),
+	}, "\n")
+	rebirthButtonRef.BackgroundColor3 = state.RebirthReady and Color3.fromRGB(255, 120, 255) or UiKit.Colors.BgLighter
+	rebirthButtonRef.TextColor3 = state.RebirthReady and Color3.fromRGB(40, 20, 40) or UiKit.Colors.TextDim
+end
+
+function RebirthScreen.Init(gui: ScreenGui)
+	local panel, content, close = UiKit.Panel(gui, "Rebirth", UDim2.fromScale(0.5, 0.66))
+
+	infoLabel = UiKit.Create("TextLabel", {
+		Text = "",
+		Font = Enum.Font.GothamBold,
+		TextColor3 = UiKit.Colors.Text,
+		TextSize = 20,
+		TextWrapped = true,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0.58, 0),
+		Parent = content,
+	}) :: TextLabel
+
+	local rebirthButton = UiKit.Button({
+		Text = "REBIRTH!",
+		BackgroundColor3 = Color3.fromRGB(255, 120, 255),
+		Size = UDim2.new(0.9, 0, 0, 54),
+		Position = UDim2.fromScale(0.05, 0.64),
+		Parent = content,
+	}) :: TextButton
+	rebirthButtonRef = rebirthButton
+	rebirthButton.Activated:Connect(function()
+		local ok, err = Remotes.Function("Rebirth"):InvokeServer()
+		if not ok and typeof(err) == "string" then
+			Toasts.Push(err, UiKit.Colors.Bad)
+		end
+	end)
+
+	local instant = UiKit.Button({
+		Text = "Instant Rebirth (R$)",
+		BackgroundColor3 = UiKit.Colors.Robux,
+		Size = UDim2.new(0.9, 0, 0, 44),
+		Position = UDim2.fromScale(0.05, 0.82),
+		Parent = content,
+	})
+	instant.Activated:Connect(function()
+		Purchase.PromptProduct("InstantRebirth")
+	end)
+
+	State.Changed:Connect(function()
+		if panel.Visible then
+			render()
+		end
+	end)
+
+	ScreenManager.Register("Rebirth", panel, close, render)
+end
+
+return RebirthScreen
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="28">
+            <Properties>
+              <string name="Name">StoreScreen</string>
+              <string name="Source"><![CDATA[--!strict
+-- Robux store: the 6-pass ladder + repeatable dev products. Offers whose IDs
+-- aren't configured yet (0) are hidden.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Monetization = require(Shared.Config.Monetization)
+local Purchase = require(script.Parent.Parent.Purchase)
+local ScreenManager = require(script.Parent.Parent.ScreenManager)
+local State = require(script.Parent.Parent.State)
+local UiKit = require(script.Parent.Parent.UiKit)
+
+local StoreScreen = {}
+
+local list: ScrollingFrame? = nil
+
+local PASS_ORDER = { "SpeedCoil", "Coins2x", "JumpGain2x", "Vip", "MegaStart" }
+local PRODUCT_ORDER = { "Skip1", "Skip10", "JumpBoost50", "InstantRebirth", "Coins1k", "Coins5k" }
+
+local function addCard(order: number, title: string, desc: string, price: number, owned: boolean, onBuy: () -> ()): number
+	if not list then
+		return order
+	end
+	order += 1
+	local card = UiKit.Create("Frame", {
+		Size = UDim2.new(1, -6, 0, 66),
+		BackgroundColor3 = UiKit.Colors.BgLighter,
+		LayoutOrder = order,
+		Parent = list,
+	})
+	UiKit.Corner(10).Parent = card
+	UiKit.Label({
+		Text = title,
+		TextColor3 = UiKit.Colors.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, -150, 0, 28),
+		Position = UDim2.fromOffset(10, 4),
+		Parent = card,
+	})
+	UiKit.Label({
+		Text = desc,
+		Font = Enum.Font.Gotham,
+		TextColor3 = UiKit.Colors.TextDim,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, -150, 0, 30),
+		Position = UDim2.fromOffset(10, 32),
+		Parent = card,
+	})
+	local buy = UiKit.Create("TextButton", {
+		Text = owned and "OWNED" or ("R$ " .. price),
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = owned and UiKit.Colors.Good or Color3.fromRGB(25, 22, 18),
+		BackgroundColor3 = owned and UiKit.Colors.Bg or UiKit.Colors.Robux,
+		AutoButtonColor = not owned,
+		Size = UDim2.fromOffset(130, 42),
+		Position = UDim2.new(1, -140, 0, 12),
+		Parent = card,
+	})
+	UiKit.Corner(8).Parent = buy
+	if not owned then
+		buy.Activated:Connect(onBuy)
+	end
+	return order
+end
+
+local function addHeader(order: number, text: string): number
+	if not list then
+		return order
+	end
+	order += 1
+	UiKit.Create("TextLabel", {
+		Text = text,
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Accent,
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -6, 0, 30),
+		LayoutOrder = order,
+		Parent = list,
+	})
+	return order
+end
+
+local function render()
+	local state = State.Get()
+	if not list then
+		return
+	end
+	UiKit.Clear(list)
+	local order = 0
+	local anyConfigured = false
+
+	order = addHeader(order, "Gamepasses")
+	for _, key in PASS_ORDER do
+		local def = (Monetization.Gamepasses :: any)[key]
+		if def.Id ~= 0 then
+			anyConfigured = true
+			local owned = state and state.Passes and state.Passes[key] == true
+			local passKey = key
+			order = addCard(order, def.Title, def.Desc or "", def.Price, owned or false, function()
+				Purchase.PromptPass(passKey)
+			end)
+		end
+	end
+
+	order = addHeader(order, "Skips & Coins")
+	for _, key in PRODUCT_ORDER do
+		local def = (Monetization.Products :: any)[key]
+		if def.Id ~= 0 then
+			if key == "StarterPack" and state and state.StarterPackOwned then
+				continue
+			end
+			anyConfigured = true
+			local desc = def.Desc or (def.Coins and ("+" .. def.Coins .. " coins") or "")
+			local productKey = key
+			order = addCard(order, def.Title, desc, def.Price, false, function()
+				Purchase.PromptProduct(productKey)
+			end)
+		end
+	end
+
+	if not anyConfigured then
+		order += 1
+		UiKit.Create("TextLabel", {
+			Text = "Store offers appear once gamepass/product IDs are set in Config/Monetization.luau (see SETUP.md).",
+			Font = Enum.Font.Gotham,
+			TextColor3 = UiKit.Colors.TextDim,
+			TextWrapped = true,
+			TextScaled = false,
+			TextSize = 18,
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -6, 0, 60),
+			LayoutOrder = order,
+			Parent = list,
+		})
+	end
+
+	local layout = list:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		list.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 10)
+	end
+end
+
+function StoreScreen.Init(gui: ScreenGui)
+	local panel, content, close = UiKit.Panel(gui, "Store", UDim2.fromScale(0.58, 0.78))
+
+	local scroll = UiKit.Create("ScrollingFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = UiKit.Colors.BgLight,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		Parent = content,
+	}) :: ScrollingFrame
+	UiKit.Corner(10).Parent = scroll
+	UiKit.Pad(6).Parent = scroll
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = scroll
+	list = scroll
+
+	State.Changed:Connect(function()
+		if panel.Visible then
+			render()
+		end
+	end)
+
+	ScreenManager.Register("Store", panel, close, render)
+end
+
+return StoreScreen
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="29">
+            <Properties>
+              <string name="Name">TeleportScreen</string>
+              <string name="Source"><![CDATA[--!strict
+-- VIP stage teleport: buttons for every 10th cleared stage. Non-VIP players
+-- see the grid too — tapping upsells the pass.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Remotes = require(Shared.Remotes)
+local Purchase = require(script.Parent.Parent.Purchase)
+local ScreenManager = require(script.Parent.Parent.ScreenManager)
+local State = require(script.Parent.Parent.State)
+local Toasts = require(script.Parent.Parent.Toasts)
+local UiKit = require(script.Parent.Parent.UiKit)
+
+local TeleportScreen = {}
+
+local grid: ScrollingFrame? = nil
+
+local function render()
+	local state = State.Get()
+	if not state or not grid then
+		return
+	end
+	UiKit.Clear(grid)
+	local isVip = state.Passes and state.Passes.Vip == true
+	local order = 0
+	for stage = 0, Balance.Stages, 10 do
+		order += 1
+		local reachable = stage <= state.Checkpoint
+		local button = UiKit.Create("TextButton", {
+			Text = stage == 0 and "Start" or tostring(stage),
+			Font = Enum.Font.FredokaOne,
+			TextScaled = true,
+			TextColor3 = reachable and Color3.fromRGB(28, 24, 20) or UiKit.Colors.TextDim,
+			BackgroundColor3 = reachable and (isVip and UiKit.Colors.Good or UiKit.Colors.Robux) or UiKit.Colors.BgLighter,
+			AutoButtonColor = reachable,
+			LayoutOrder = order,
+			Parent = grid,
+		})
+		UiKit.Corner(10).Parent = button
+		if reachable then
+			local target = stage
+			button.Activated:Connect(function()
+				if not isVip then
+					Purchase.PromptPass("Vip")
+					return
+				end
+				local ok, err = Remotes.Function("TeleportStage"):InvokeServer(target)
+				if not ok and typeof(err) == "string" then
+					Toasts.Push(err, UiKit.Colors.Bad)
+				end
+			end)
+		end
+	end
+	local layout = grid:FindFirstChildOfClass("UIGridLayout")
+	if layout then
+		grid.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 10)
+	end
+end
+
+function TeleportScreen.Init(gui: ScreenGui)
+	local panel, content, close = UiKit.Panel(gui, "Teleport (VIP)", UDim2.fromScale(0.5, 0.62))
+
+	local scroll = UiKit.Create("ScrollingFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = UiKit.Colors.BgLight,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		Parent = content,
+	}) :: ScrollingFrame
+	UiKit.Corner(10).Parent = scroll
+	UiKit.Pad(6).Parent = scroll
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(0.25, -8, 0, 52)
+	layout.CellPadding = UDim2.fromOffset(6, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = scroll
+	grid = scroll
+
+	State.Changed:Connect(function()
+		if panel.Visible then
+			render()
+		end
+	end)
+
+	ScreenManager.Register("Teleport", panel, close, render)
+end
+
+return TeleportScreen
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="30">
+            <Properties>
+              <string name="Name">TrailsScreen</string>
+              <string name="Source"><![CDATA[--!strict
+-- Trail shop: the coin sink. Rainbow is VIP-only and upsells the pass.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Format = require(Shared.Format)
+local Remotes = require(Shared.Remotes)
+local Purchase = require(script.Parent.Parent.Purchase)
+local ScreenManager = require(script.Parent.Parent.ScreenManager)
+local State = require(script.Parent.Parent.State)
+local Toasts = require(script.Parent.Parent.Toasts)
+local UiKit = require(script.Parent.Parent.UiKit)
+
+local TrailsScreen = {}
+
+local list: ScrollingFrame? = nil
+
+local function invoke(name: string, ...: any)
+	local ok, err = Remotes.Function(name):InvokeServer(...)
+	if not ok and typeof(err) == "string" then
+		Toasts.Push(err, UiKit.Colors.Bad)
+	end
+	return ok
+end
+
+local function render()
+	local state = State.Get()
+	if not state or not list then
+		return
+	end
+	UiKit.Clear(list)
+	local order = 0
+
+	local function addCard(name: string, color: Color3, costText: string, owned: boolean, equipped: boolean, onAction: () -> ())
+		order += 1
+		local card = UiKit.Create("Frame", {
+			Size = UDim2.new(1, -6, 0, 56),
+			BackgroundColor3 = UiKit.Colors.BgLighter,
+			LayoutOrder = order,
+			Parent = list,
+		})
+		UiKit.Corner(10).Parent = card
+		local swatch = UiKit.Create("Frame", {
+			Size = UDim2.fromOffset(36, 36),
+			Position = UDim2.fromOffset(10, 10),
+			BackgroundColor3 = color,
+			Parent = card,
+		})
+		UiKit.Corner(8).Parent = swatch
+		UiKit.Label({
+			Text = name,
+			TextColor3 = UiKit.Colors.Text,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Size = UDim2.new(1, -200, 1, -16),
+			Position = UDim2.fromOffset(56, 8),
+			Parent = card,
+		})
+		local action = UiKit.Create("TextButton", {
+			Text = equipped and "EQUIPPED" or (owned and "Equip" or costText),
+			Font = Enum.Font.FredokaOne,
+			TextScaled = true,
+			TextColor3 = equipped and UiKit.Colors.Good or Color3.fromRGB(25, 22, 18),
+			BackgroundColor3 = equipped and UiKit.Colors.Bg or (owned and UiKit.Colors.Good or UiKit.Colors.Accent),
+			AutoButtonColor = not equipped,
+			Size = UDim2.fromOffset(130, 38),
+			Position = UDim2.new(1, -140, 0, 9),
+			Parent = card,
+		})
+		UiKit.Corner(8).Parent = action
+		if not equipped then
+			action.Activated:Connect(onAction)
+		end
+	end
+
+	-- VIP Rainbow at the top
+	local isVip = state.Passes and state.Passes.Vip
+	addCard(
+		"Rainbow (VIP)",
+		Color3.fromRGB(255, 170, 220),
+		"VIP",
+		isVip == true,
+		state.EquippedTrail == "Rainbow",
+		function()
+			if isVip then
+				invoke("EquipTrail", "Rainbow")
+			else
+				Purchase.PromptPass("Vip")
+			end
+		end
+	)
+
+	for _, trail in Balance.Trails do
+		local owned = state.Trails[trail.Name] == true
+		local trailName = trail.Name
+		addCard(
+			trail.Name,
+			trail.Color,
+			Format.Number(trail.Cost) .. " coins",
+			owned,
+			state.EquippedTrail == trail.Name,
+			function()
+				if owned then
+					invoke("EquipTrail", trailName)
+				else
+					if invoke("BuyTrail", trailName) then
+						Toasts.Push(trailName .. " trail unlocked!", UiKit.Colors.Good)
+						invoke("EquipTrail", trailName)
+					end
+				end
+			end
+		)
+	end
+
+	-- Unequip row
+	if state.EquippedTrail ~= "" then
+		order += 1
+		local clear = UiKit.Button({
+			Text = "Remove trail",
+			BackgroundColor3 = UiKit.Colors.BgLight,
+			TextColor3 = UiKit.Colors.TextDim,
+			Size = UDim2.new(1, -6, 0, 40),
+			Parent = list,
+		})
+		clear.LayoutOrder = order
+		clear.Activated:Connect(function()
+			invoke("EquipTrail", "")
+		end)
+	end
+
+	local layout = list:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		list.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 10)
+	end
+end
+
+function TrailsScreen.Init(gui: ScreenGui)
+	local panel, content, close = UiKit.Panel(gui, "Trails", UDim2.fromScale(0.52, 0.78))
+
+	local scroll = UiKit.Create("ScrollingFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = UiKit.Colors.BgLight,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		Parent = content,
+	}) :: ScrollingFrame
+	UiKit.Corner(10).Parent = scroll
+	UiKit.Pad(6).Parent = scroll
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = scroll
+	list = scroll
+
+	State.Changed:Connect(function()
+		if panel.Visible then
+			render()
+		end
+	end)
+
+	ScreenManager.Register("Trails", panel, close, render)
+end
+
+return TrailsScreen
+]]></string>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="ModuleScript" referent="31">
+          <Properties>
+            <string name="Name">State</string>
+            <string name="Source"><![CDATA[--!strict
+-- Client replica of the server snapshot (StateSync).
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Remotes = require(Shared.Remotes)
+
+local State = {}
+
+local snapshot: { [string]: any }? = nil
+local changed = Instance.new("BindableEvent")
+
+State.Changed = changed.Event :: RBXScriptSignal
+
+function State.Get(): { [string]: any }?
+	return snapshot
+end
+
+function State.Init()
+	Remotes.Event("StateSync").OnClientEvent:Connect(function(newSnapshot)
+		snapshot = newSnapshot
+		changed:Fire(newSnapshot)
+	end)
+end
+
+return State
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="32">
+          <Properties>
+            <string name="Name">Toasts</string>
+            <string name="Source"><![CDATA[--!strict
+-- Toast notifications (Notify) and the welcome-back popup (streak + offline
+-- Jump Charge earnings).
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Format = require(Shared.Format)
+local Remotes = require(Shared.Remotes)
+local UiKit = require(script.Parent.UiKit)
+
+local Toasts = {}
+
+local container: Frame? = nil
+local gui: ScreenGui? = nil
+
+local function pushToast(text: string, color: Color3?)
+	if not container then
+		return
+	end
+	local toast = UiKit.Create("TextLabel", {
+		Text = text,
+		Font = Enum.Font.GothamBold,
+		TextColor3 = color or UiKit.Colors.Text,
+		TextScaled = true,
+		BackgroundColor3 = UiKit.Colors.Bg,
+		BackgroundTransparency = 0.15,
+		Size = UDim2.new(1, 0, 0, 34),
+		Parent = container,
+	})
+	UiKit.Corner(8).Parent = toast
+	UiKit.Stroke(color or UiKit.Colors.BgLighter, 1).Parent = toast
+	UiKit.Pad(6).Parent = toast
+	task.delay(3.2, function()
+		local tween = TweenService:Create(toast, TweenInfo.new(0.4), { TextTransparency = 1, BackgroundTransparency = 1 })
+		tween:Play()
+		tween.Completed:Wait()
+		toast:Destroy()
+	end)
+end
+
+Toasts.Push = pushToast
+
+local function showWelcome(report: { [string]: any })
+	if not gui then
+		return
+	end
+	local lines = {}
+	local streak = report.Streak
+	if streak then
+		local streakLine = ("Day %d streak! +%s coins"):format(streak.Count, Format.Number(streak.Reward))
+		if streak.Milestone then
+			streakLine ..= "  (MILESTONE!)"
+		end
+		if streak.GroupBonus then
+			streakLine ..= "  (2x group bonus)"
+		end
+		table.insert(lines, streakLine)
+		if streak.StreakLost then
+			table.insert(lines, "Your old streak expired — new streak started!")
+		end
+	end
+	local offline = report.Offline
+	if offline and offline.PendingCoins > 0 then
+		table.insert(
+			lines,
+			("While you were away (%s): your Jump Charge earned +%s coins!"):format(
+				Format.Duration(offline.OfflineSeconds),
+				Format.Number(offline.PendingCoins)
+			)
+		)
+	end
+	if #lines == 0 then
+		return
+	end
+
+	local popup = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(420, 90 + #lines * 34),
+		Position = UDim2.fromScale(0.5, 0.32),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		Parent = gui,
+	})
+	UiKit.Corner(14).Parent = popup
+	UiKit.Stroke(UiKit.Colors.Accent, 3).Parent = popup
+	UiKit.Label({
+		Text = "Welcome back!",
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Accent,
+		Size = UDim2.new(1, 0, 0, 40),
+		Position = UDim2.fromOffset(0, 8),
+		Parent = popup,
+	})
+	for i, line in lines do
+		UiKit.Label({
+			Text = line,
+			TextColor3 = UiKit.Colors.Text,
+			Font = Enum.Font.GothamBold,
+			TextWrapped = true,
+			Size = UDim2.new(1, -24, 0, 30),
+			Position = UDim2.fromOffset(12, 48 + (i - 1) * 34),
+			Parent = popup,
+		})
+	end
+	local okButton = UiKit.Button({
+		Text = "Let's jump!",
+		Size = UDim2.fromOffset(160, 38),
+		Position = UDim2.new(0.5, -80, 1, -46),
+		Parent = popup,
+	})
+	okButton.Activated:Connect(function()
+		popup:Destroy()
+	end)
+	task.delay(12, function()
+		if popup.Parent then
+			popup:Destroy()
+		end
+	end)
+end
+
+function Toasts.Init(screenGui: ScreenGui)
+	gui = screenGui
+	container = UiKit.Create("Frame", {
+		Name = "Toasts",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(360, 220),
+		Position = UDim2.new(0.5, -180, 0, 8),
+		Parent = screenGui,
+	}) :: Frame
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 4)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.VerticalAlignment = Enum.VerticalAlignment.Top
+	layout.Parent = container
+
+	Remotes.Event("Notify").OnClientEvent:Connect(function(payload)
+		if typeof(payload) == "table" and typeof(payload.Text) == "string" then
+			pushToast(payload.Text, payload.Color)
+		end
+	end)
+
+	Remotes.Event("WelcomeReport").OnClientEvent:Connect(function(report)
+		if typeof(report) == "table" then
+			showWelcome(report)
+		end
+	end)
+end
+
+return Toasts
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="33">
+          <Properties>
+            <string name="Name">UiKit</string>
+            <string name="Source"><![CDATA[--!strict
+-- Tiny UI toolkit: dark cave theme, gold accents, mobile-first sizing.
+
+local UiKit = {}
+
+UiKit.Colors = {
+	Bg = Color3.fromRGB(24, 22, 38),
+	BgLight = Color3.fromRGB(36, 33, 56),
+	BgLighter = Color3.fromRGB(48, 44, 74),
+	Accent = Color3.fromRGB(255, 210, 90),
+	Text = Color3.fromRGB(235, 233, 245),
+	TextDim = Color3.fromRGB(160, 156, 185),
+	Good = Color3.fromRGB(120, 255, 200),
+	Bad = Color3.fromRGB(255, 120, 120),
+	Buy = Color3.fromRGB(80, 200, 120),
+	Robux = Color3.fromRGB(120, 170, 255),
+}
+
+function UiKit.Create(className: string, props: { [string]: any }, children: { Instance }?): any
+	local instance = Instance.new(className)
+	for key, value in props do
+		if key == "Parent" then
+			continue
+		end
+		(instance :: any)[key] = value
+	end
+	if children then
+		for _, child in children do
+			child.Parent = instance
+		end
+	end
+	if props.Parent then
+		instance.Parent = props.Parent
+	end
+	return instance
+end
+
+function UiKit.Corner(radius: number?): UICorner
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius or 10)
+	return corner
+end
+
+function UiKit.Stroke(color: Color3?, thickness: number?): UIStroke
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color or UiKit.Colors.BgLighter
+	stroke.Thickness = thickness or 2
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	return stroke
+end
+
+function UiKit.Pad(pixels: number): UIPadding
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, pixels)
+	padding.PaddingBottom = UDim.new(0, pixels)
+	padding.PaddingLeft = UDim.new(0, pixels)
+	padding.PaddingRight = UDim.new(0, pixels)
+	return padding
+end
+
+function UiKit.Label(props: { [string]: any }): TextLabel
+	local defaults = {
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		TextColor3 = UiKit.Colors.Text,
+		TextScaled = true,
+		Size = UDim2.fromScale(1, 1),
+	}
+	for key, value in props do
+		defaults[key] = value
+	end
+	return UiKit.Create("TextLabel", defaults)
+end
+
+function UiKit.Button(props: { [string]: any }): TextButton
+	local defaults = {
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = Color3.fromRGB(30, 26, 20),
+		TextScaled = true,
+		BackgroundColor3 = UiKit.Colors.Accent,
+		AutoButtonColor = true,
+		Size = UDim2.fromOffset(140, 44),
+	}
+	for key, value in props do
+		defaults[key] = value
+	end
+	local button = UiKit.Create("TextButton", defaults)
+	UiKit.Corner(10).Parent = button
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 6)
+	pad.PaddingBottom = UDim.new(0, 6)
+	pad.PaddingLeft = UDim.new(0, 10)
+	pad.PaddingRight = UDim.new(0, 10)
+	pad.Parent = button
+	return button
+end
+
+-- Standard modal panel with a title bar and close button. Returns panel + content.
+function UiKit.Panel(parent: Instance, title: string, size: UDim2): (Frame, Frame, TextButton)
+	local panel = UiKit.Create("Frame", {
+		Name = title .. "Panel",
+		Size = size,
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		Visible = false,
+		Parent = parent,
+	})
+	UiKit.Corner(14).Parent = panel
+	UiKit.Stroke(UiKit.Colors.BgLighter, 3).Parent = panel
+
+	UiKit.Label({
+		Name = "Title",
+		Text = title,
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Accent,
+		Size = UDim2.new(1, -60, 0, 40),
+		Position = UDim2.fromOffset(14, 6),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = panel,
+	})
+
+	local close = UiKit.Create("TextButton", {
+		Name = "Close",
+		Text = "X",
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = UiKit.Colors.Text,
+		BackgroundColor3 = UiKit.Colors.Bad,
+		Size = UDim2.fromOffset(36, 36),
+		Position = UDim2.new(1, -44, 0, 8),
+		Parent = panel,
+	})
+	UiKit.Corner(10).Parent = close
+
+	local content = UiKit.Create("Frame", {
+		Name = "Content",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -20, 1, -60),
+		Position = UDim2.fromOffset(10, 50),
+		Parent = panel,
+	})
+	return panel, content, close
+end
+
+function UiKit.Clear(container: Instance)
+	for _, child in container:GetChildren() do
+		if not child:IsA("UIListLayout") and not child:IsA("UIGridLayout") and not child:IsA("UIPadding") then
+			child:Destroy()
+		end
+	end
+end
+
+return UiKit
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="34">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <float name="FallenPartsDestroyHeight">-30</float>
+      <bool name="NeedsPivotMigration">false</bool>
+    </Properties>
+  </Item>
+</roblox>

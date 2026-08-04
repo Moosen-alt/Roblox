@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  GAMES: ". games/reel-a-relic games/easy-obby"
+
 jobs:
   check-and-build:
     runs-on: ubuntu-latest
@@ -27,36 +30,48 @@ jobs:
           chmod +x rojo luau luau-lsp
           echo "/tmp/tools" >> "$GITHUB_PATH"
 
-      - name: Static analysis (strict Luau, Roblox API definitions)
+      - name: Static analysis (strict Luau, Roblox API definitions, all games)
         run: |
-          rojo sourcemap default.project.json -o sourcemap.json
-          luau-lsp analyze --sourcemap sourcemap.json \
-            --definitions /tmp/tools/globalTypes.d.luau \
-            --ignore "src/server/Packages/**" src
+          for dir in $GAMES; do
+            echo "=== analyzing $dir ==="
+            (cd "$dir" \
+              && rojo sourcemap default.project.json -o sourcemap.json \
+              && luau-lsp analyze --sourcemap sourcemap.json \
+                   --definitions /tmp/tools/globalTypes.d.luau \
+                   --ignore "src/server/Packages/**" src)
+          done
 
       - name: Math tests
-        run: LUAU=luau sh tests/run.sh
+        run: |
+          LUAU=luau sh tests/run.sh
+          LUAU=luau sh tests/run.sh games/reel-a-relic tests/invariants.luau
 
-      - name: Build place file
-        run: rojo build default.project.json -o build/game.rbxlx
+      - name: Build place files
+        run: |
+          for dir in $GAMES; do
+            echo "=== building $dir ==="
+            (cd "$dir" && mkdir -p build && rojo build default.project.json -o build/game.rbxlx)
+          done
 
       # Rojo builds are deterministic, so this only fires when src/ actually
-      # changed the output. [skip ci] prevents a rebuild loop.
-      - name: Commit rebuilt place file
+      # changed an output. [skip ci] prevents a rebuild loop.
+      - name: Commit rebuilt place files
         if: github.event_name == 'push'
         run: |
-          if ! git diff --quiet -- build/game.rbxlx; then
+          git add -- build/game.rbxlx games/*/build/game.rbxlx
+          if ! git diff --cached --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add build/game.rbxlx
-            git commit -m "ci: rebuild game.rbxlx [skip ci]"
+            git commit -m "ci: rebuild place files [skip ci]"
             git push
           else
-            echo "Place file unchanged."
+            echo "Place files unchanged."
           fi
 
-      - name: Upload place file artifact
+      - name: Upload place file artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: game-rbxlx
-          path: build/game.rbxlx
+          name: place-files
+          path: |
+            build/game.rbxlx
+            games/*/build/game.rbxlx

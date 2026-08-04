@@ -1,13 +1,25 @@
-# Crack a Geode! [Mining Simulator]
+# Roblox Passive-Income Portfolio
 
-A complete, market-researched Roblox idle-collection game built for **semi-passive income**:
-mine geodes, crack them in a slow-mo rarity reveal, grow crystals on racks **while offline**,
-and Recrystallize into ever-deeper cave layers. All replayability is systemic (procedural shop
-rotation, random luck events, infinite rebirth ladder, 48-entry collection matrix) — no weekly
-content treadmill.
+**Three complete, market-researched games** built on one verified engine, each targeting a
+different discovery lane — strategy and the honest revenue math live in
+[`PORTFOLIO.md`](PORTFOLIO.md):
+
+1. **Crack a Geode! [Mining Simulator]** (this folder) — collection idle: mine geodes, crack
+   them in a slow-mo rarity reveal, grow crystals on racks **while offline**, rebirth into
+   deeper layers. → [`SETUP.md`](SETUP.md)
+2. **Reel a Relic! [Fishing Simulator]** (`games/reel-a-relic/`) — the engine re-themed into
+   the hot fishing lane with a bite-timing catch mechanic. → [`games/reel-a-relic/SETUP.md`](games/reel-a-relic/SETUP.md)
+3. **Easy Obby: +1 Jump** (`games/easy-obby/`) — search-evergreen obby where every stage adds
+   +1 jump power until you leap whole sections; zero paid RNG. → [`games/easy-obby/SETUP.md`](games/easy-obby/SETUP.md)
+
+Each game is self-contained with its own ready-to-open `build/game.rbxlx`.
+
+## About the root game (Crack a Geode)
+
+All replayability is systemic (procedural shop rotation, random luck events, infinite rebirth
+ladder, 48-entry collection matrix) — no weekly content treadmill.
 
 **Start here → [`SETUP.md`](SETUP.md)** — publish, monetize, and launch, step by step.
-The design rationale, market research, and revenue math live in the project plan.
 
 ## What's in the box
 
