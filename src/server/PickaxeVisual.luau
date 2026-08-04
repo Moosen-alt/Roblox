@@ -17,9 +17,11 @@ local ctx: any = nil
 local grips: { [Player]: Motor6D } = {}
 local swinging: { [Player]: boolean } = {}
 
-local GRIP_C0 = CFrame.new(0, -0.35, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-local GRIP_C1 = CFrame.new(0, -0.9, 0)
-local SWING_C0 = GRIP_C0 * CFrame.Angles(math.rad(-75), 0, 0)
+-- Grip: handle stands in the palm (tilted ~20 degrees forward), head above the
+-- hand spanning forward/back — reads as "holding a pickaxe" in idle animations.
+local GRIP_C0 = CFrame.Angles(math.rad(-20), 0, 0) * CFrame.Angles(0, math.rad(90), 0)
+local GRIP_C1 = CFrame.new(0, -0.5, 0)
+local SWING_C0 = CFrame.Angles(math.rad(-80), 0, 0) * GRIP_C0
 
 local function buildModel(tier: { [string]: any }): (Model, BasePart)
 	local model = Instance.new("Model")

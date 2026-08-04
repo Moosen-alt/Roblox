@@ -9,7 +9,7 @@
 local Monetization = {}
 
 -- Your Roblox group ID (players who join the group get 2x daily streak rewards).
-Monetization.GroupId = 0
+Monetization.GroupId = 346261815
 
 Monetization.Gamepasses = {
 	SpeedCoil = { Id = 0, Price = 49, Title = "Speed Coil", Desc = "+8 walkspeed, forever. The classic." },

@@ -9,7 +9,7 @@
 local Monetization = {}
 
 -- Your Roblox group ID (players who join the group get 2x daily streak rewards).
-Monetization.GroupId = 0
+Monetization.GroupId = 346261815
 
 -- Gamepasses: { id, suggested price in Robux }
 Monetization.Gamepasses = {
