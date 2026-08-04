@@ -5213,6 +5213,7 @@ local geodesLabel: TextLabel? = nil
 local streakLabel: TextLabel? = nil
 local eventBanner: TextLabel? = nil
 local starterButton: TextButton? = nil
+local starterOffer: Frame? = nil
 
 local function pill(parent: Instance, position: UDim2, color: Color3): TextLabel
 	local frame = UiKit.Create("Frame", {
@@ -5313,9 +5314,72 @@ function Hud.Init(gui: ScreenGui)
 	starterButton = starter
 	UiKit.Corner(12).Parent = starter
 	UiKit.Pad(6).Parent = starter
-	starter.Activated:Connect(function()
+
+	-- Offer page: show exactly what's inside BEFORE the Roblox purchase prompt.
+	local offer = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(360, 320),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		Visible = false,
+		Parent = gui,
+	})
+	UiKit.Corner(16).Parent = offer
+	UiKit.Stroke(UiKit.Colors.Accent, 3).Parent = offer
+	UiKit.Label({
+		Text = "STARTER PACK",
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Accent,
+		Size = UDim2.new(1, -60, 0, 42),
+		Position = UDim2.fromOffset(16, 10),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = offer,
+	})
+	local offerClose = UiKit.Create("TextButton", {
+		Text = "X",
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = UiKit.Colors.Text,
+		BackgroundColor3 = UiKit.Colors.Bad,
+		Size = UDim2.fromOffset(36, 36),
+		Position = UDim2.new(1, -46, 0, 10),
+		Parent = offer,
+	})
+	UiKit.Corner(10).Parent = offerClose
+	local offerLines = {
+		{ Text = "💰  2,500 Coins", Color = UiKit.Colors.Accent },
+		{ Text = "💎  A guaranteed EMERALD crystal", Color = Color3.fromRGB(60, 220, 130) },
+		{ Text = "⚡  24 hours of 2x Coins", Color = Color3.fromRGB(120, 200, 255) },
+		{ Text = "One-time offer — best value in the game!", Color = UiKit.Colors.TextDim },
+	}
+	for i, line in offerLines do
+		UiKit.Label({
+			Text = line.Text,
+			Font = Enum.Font.GothamBold,
+			TextColor3 = line.Color,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Size = UDim2.new(1, -32, 0, 34),
+			Position = UDim2.fromOffset(16, 56 + (i - 1) * 42),
+			Parent = offer,
+		})
+	end
+	local offerBuy = UiKit.Button({
+		Text = "Buy  R$" .. Monetization.Products.StarterPack.Price,
+		BackgroundColor3 = UiKit.Colors.Robux,
+		Size = UDim2.new(1, -32, 0, 52),
+		Position = UDim2.new(0, 16, 1, -66),
+		Parent = offer,
+	})
+	offerBuy.Activated:Connect(function()
 		Purchase.PromptProduct("StarterPack")
 	end)
+	offerClose.Activated:Connect(function()
+		offer.Visible = false
+	end)
+	starter.Activated:Connect(function()
+		offer.Visible = not offer.Visible
+	end)
+	starterOffer = offer
 
 	State.Changed:Connect(function(state)
 		if coinsLabel then
@@ -5327,8 +5391,12 @@ function Hud.Init(gui: ScreenGui)
 		if streakLabel then
 			streakLabel.Text = "Streak: Day " .. state.Streak.Count
 		end
+		local packAvailable = not state.StarterPackOwned and Monetization.Products.StarterPack.Id ~= 0
 		if starterButton then
-			starterButton.Visible = not state.StarterPackOwned and Monetization.Products.StarterPack.Id ~= 0
+			starterButton.Visible = packAvailable
+		end
+		if starterOffer and not packAvailable then
+			starterOffer.Visible = false
 		end
 	end)
 
