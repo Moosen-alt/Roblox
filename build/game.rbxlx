@@ -4286,10 +4286,10 @@ local ctx: any = nil
 local grips: { [Player]: Motor6D } = {}
 local swinging: { [Player]: boolean } = {}
 
--- Grip: handle stands in the palm (tilted ~20 degrees forward), head above the
--- hand spanning forward/back — reads as "holding a pickaxe" in idle animations.
-local GRIP_C0 = CFrame.Angles(math.rad(-20), 0, 0) * CFrame.Angles(0, math.rad(90), 0)
-local GRIP_C1 = CFrame.new(0, -0.6, 0)
+-- Grip: handle straight up in the palm, gripped low so the head carries at
+-- chest height beside the body — upright carry even with arms-down idles.
+local GRIP_C0 = CFrame.Angles(0, math.rad(90), 0)
+local GRIP_C1 = CFrame.new(0, -0.95, 0)
 local SWING_C0 = CFrame.Angles(math.rad(-80), 0, 0) * GRIP_C0
 
 local function toolPart(name: string, size: Vector3, color: Color3, material: Enum.Material, parent: Instance): Part
