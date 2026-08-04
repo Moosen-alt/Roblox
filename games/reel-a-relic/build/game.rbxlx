@@ -5916,6 +5916,7 @@ local CrackScreen = {}
 local oddsList: ScrollingFrame? = nil
 local geodeLabel: TextLabel? = nil
 local revealGui: ScreenGui? = nil
+local currentOverlay: Frame? = nil
 local cracking = false
 
 -- Suspense seconds by best tier in the batch (rarer = longer shake)
@@ -6128,12 +6129,20 @@ local function showReveal(results: { { [string]: any } })
 	if not revealGui then
 		return
 	end
+	-- One reveal at a time: close any previous overlay, and make this one
+	-- Active so clicks can't pass through to CRACK!/mining behind it —
+	-- overlays stacking from through-clicks was the double-render bug.
+	if currentOverlay and currentOverlay.Parent then
+		currentOverlay:Destroy()
+	end
 	local overlay = UiKit.Create("Frame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(0, 0, 0),
 		BackgroundTransparency = 0.35,
+		Active = true,
 		Parent = revealGui,
 	})
+	currentOverlay = overlay
 
 	local bestTier = "Common"
 	local bestIndex = 1
