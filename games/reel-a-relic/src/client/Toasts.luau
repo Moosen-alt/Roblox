@@ -23,6 +23,13 @@ local gui: ScreenGui? = nil
 -- "YOU FOUND" banner was arriving at 35% brightness underneath their reveal —
 -- and ZIndex means nothing across ScreenGuis.
 local announceGui: ScreenGui? = nil
+-- A reveal overlay covers the middle of the screen, and on a phone the card
+-- block plus its button row leaves no band a banner could occupy. Rather than
+-- fight for space, hold the finder's OWN callout until their reveal closes —
+-- they are watching the celebration that callout is about. Everyone else, who
+-- is the actual audience for social proof, sees it immediately.
+local revealOpen = false
+local deferred: { { [string]: any } } = {}
 
 local function pushToast(text: string, color: Color3?)
 	if not container then
@@ -65,11 +72,14 @@ local function showRareFind(payload: { [string]: any })
 	-- stranger's Mythic could render as "YOU FOUND" on your screen.
 	local mine = payload.UserId == Players.LocalPlayer.UserId
 	local rank = tonumber(payload.Rank) or 5
+	if mine and revealOpen then
+		table.insert(deferred, payload)
+		return
+	end
 
 	local banner = UiKit.Create("Frame", {
 		Size = UDim2.fromOffset(0, 62),
-		-- Below the five-deep toast column (which ends at y=194), not through it
-		Position = UDim2.new(0.5, 0, 0, 300),
+		Position = UDim2.new(0.5, 0, 0, 96),
 		AnchorPoint = Vector2.new(0.5, 0),
 		BackgroundColor3 = UiKit.Colors.Bg,
 		BackgroundTransparency = 0.08,
@@ -132,6 +142,21 @@ local function showRareFind(payload: { [string]: any })
 		fade.Completed:Wait()
 		banner:Destroy()
 	end)
+end
+
+-- CrackScreen tells us when its modal is up so the callout can wait its turn.
+function Toasts.SetRevealOpen(open: boolean)
+	revealOpen = open
+	if open then
+		return
+	end
+	local queued = deferred
+	deferred = {}
+	for i, payload in queued do
+		task.delay(0.35 * i, function()
+			showRareFind(payload)
+		end)
+	end
 end
 
 local function showWelcome(report: { [string]: any })

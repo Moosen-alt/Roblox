@@ -253,16 +253,23 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		play(overlay, THUD_SOUND, 0.75, 0.8)
 		tick(overlay, 0.6)
 
-		-- Sideways: both hemispheres tumble away. Hinged: the lid swings up and
-		-- back while the base only settles.
+		-- Sideways: both hemispheres fly apart. Hinged: the lid lifts up and back
+		-- while the base only settles.
+		--
+		-- Position only, no spin. Each half is a clipped frame showing one half of
+		-- a circle, and Roblox stops clipping any subtree that carries a rotation —
+		-- so rotating a half mid-flight turned it back into a whole circle. Waiting
+		-- until it had faded to rotate it just made the spin invisible, which is
+		-- worse than not having it: the Back-eased fling, the flash and the shards
+		-- already sell the break.
 		local splitInfo = TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		local firstTarget, firstSpin, secondTarget, secondSpin
+		local firstTarget, secondTarget
 		if RevealFx.SplitVertical then
-			firstTarget, firstSpin = UDim2.fromOffset(-20, -210), -34
-			secondTarget, secondSpin = UDim2.fromOffset(10, 110), 12
+			firstTarget = UDim2.fromOffset(-20, -210)
+			secondTarget = UDim2.fromOffset(10, 110)
 		else
-			firstTarget, firstSpin = UDim2.fromOffset(-260, 90), -55
-			secondTarget, secondSpin = UDim2.fromOffset(260, 70), 55
+			firstTarget = UDim2.fromOffset(-260, 90)
+			secondTarget = UDim2.fromOffset(260, 70)
 		end
 		TweenService:Create(firstHalf, splitInfo, {
 			Position = UDim2.fromScale(0.5, 0.5) + firstTarget,
@@ -270,18 +277,6 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		TweenService:Create(secondHalf, splitInfo, {
 			Position = UDim2.fromScale(0.5, 0.5) + secondTarget,
 		}):Play()
-		-- Rotation is held back a beat on purpose. Roblox skips ClipsDescendants
-		-- for any subtree carrying a rotation, so spinning a half the moment it
-		-- leaves would un-clip it and each "hemisphere" would tumble away as a
-		-- whole circle. By 0.3s the rocks are nearly faded and the white flash is
-		-- still over them, so the spin lands without exposing the seam.
-		task.delay(0.3, function()
-			if not firstHalf.Parent then
-				return
-			end
-			TweenService:Create(firstHalf, TweenInfo.new(0.3), { Rotation = firstSpin }):Play()
-			TweenService:Create(secondHalf, TweenInfo.new(0.3), { Rotation = secondSpin }):Play()
-		end)
 		for _, half in { firstHalf, secondHalf } do
 			local rock = half:FindFirstChild("Rock")
 			if rock and rock:IsA("Frame") then

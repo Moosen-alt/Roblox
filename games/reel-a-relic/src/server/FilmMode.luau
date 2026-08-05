@@ -90,11 +90,14 @@ function FilmMode.Apply(data: any)
 		{ Base = Crystals.Bases[math.max(#Crystals.Bases - 2, 1)].Name, Mut = "Normal", Size = 1.5 },
 		{ Base = Crystals.Bases[math.max(#Crystals.Bases - 3, 1)].Name, Mut = "Normal", Size = 1.2 },
 	}
-	-- The best staged piece is also the record, so FlexAura.Apply dresses the
-	-- character with it on join instead of leaving the head bare on camera.
-	local showpiece = staged[1]
-	data.Stats.RarestName = showpiece.Mut .. " " .. showpiece.Base
-	data.Stats.RarestValue = RarityMath.ComputeValue(showpiece.Base, showpiece.Mut, showpiece.Size, layer)
+	-- The record comes from the SECOND piece, not the showpiece. A rolled crystal
+	-- maxes out at size 1.2, so making a rack-grown 2.4 the record would put the
+	-- bar above anything a crack could beat — freezing the aura and killing the
+	-- "NEW PERSONAL BEST" line, which are two of the shots this mode exists for.
+	-- A Legendary record still dresses the character and still leaves headroom.
+	local record = staged[2]
+	data.Stats.RarestName = (record.Mut ~= "Normal" and (record.Mut .. " ") or "") .. record.Base
+	data.Stats.RarestValue = RarityMath.ComputeValue(record.Base, record.Mut, record.Size, layer)
 
 	local socketedAt = os.time() - Balance.OfflineCapSeconds
 	for slot, entry in staged do
@@ -107,6 +110,14 @@ function FilmMode.Apply(data: any)
 			Layer = layer,
 		}
 		data.Racks[tostring(slot)] = { CrystalId = id, LastTick = socketedAt }
+		-- ...and mark them found. The fill loop above deliberately leaves the
+		-- rarest entries unowned, which is exactly where these are drawn from —
+		-- a pan from the racks to the index would otherwise contradict itself.
+		local key = Crystals.IndexKey(entry.Base, entry.Mut)
+		if not data.Collection[key] then
+			data.Collection[key] = true
+			data.CollectionCount += 1
+		end
 	end
 end
 

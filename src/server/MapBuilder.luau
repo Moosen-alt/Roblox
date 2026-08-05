@@ -363,8 +363,12 @@ function MapBuilder.Build(): MapRefs
 		-- from x = -82, but only twelve of them — a plain modulo invents phantom
 		-- columns past each end and throws away perfectly good spots out at the
 		-- wall edges, so snap to the actual column index and clamp it.
+		-- 9 studs, not 4: a deposit's rock and lumps reach ~5 studs and a buried
+		-- one reaches ~5 more, with no z separation between them, so a smaller
+		-- gap let dull scenery sit inside the bright tappable geode and muddy the
+		-- one cue the wall depends on. 9 still leaves a 6-stud band per column.
 		local column = math.clamp(math.floor((x + 82) / 15 + 0.5), 0, 11)
-		if math.abs(x - (column * 15 - 82)) < 4 then
+		if math.abs(x - (column * 15 - 82)) < 9 then
 			continue -- too close to a real deposit; would read as tappable
 		end
 		GeodeNode.Buried(

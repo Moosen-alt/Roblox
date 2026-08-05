@@ -162,6 +162,10 @@ function ShopService.Buy(player: Player, itemIndex: number): (boolean, string?)
 		data.NextCrystalId += 1
 		local layer = ctx.Data.Layer(data)
 		data.Crystals[id] = { Base = item.Base :: string, Mut = item.Mut :: string, Size = 1.1, Layer = layer }
+		-- This branch grants a crystal outright rather than rolling one, so it has
+		-- to record a personal best itself — otherwise a shop-bought Mythic never
+		-- becomes the aura, the leaderboard entry, or the rarest-find board name.
+		ctx.Crack.RecordRarest(player, data, item.Base :: string, item.Mut :: string, ctx.Data.CrystalValue(data, data.Crystals[id]))
 		local indexKey = Crystals.IndexKey(item.Base :: string, item.Mut :: string)
 		if not data.Collection[indexKey] then
 			data.Collection[indexKey] = true

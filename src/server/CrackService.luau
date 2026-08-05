@@ -46,6 +46,9 @@ local function recordRarest(player: Player, data: any, baseName: string, mutName
 	ctx.Flex.Set(player, baseName, mutName, value)
 end
 
+-- Exposed because the shop grants crystals without going through any roll here.
+CrackService.RecordRarest = recordRarest
+
 local function tierRank(tier: string): number
 	for i, name in Crystals.Tiers do
 		if name == tier then

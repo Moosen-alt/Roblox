@@ -899,6 +899,9 @@ local function recordRarest(player: Player, data: any, baseName: string, mutName
 	ctx.Flex.Set(player, baseName, mutName, value)
 end
 
+-- Exposed because the shop grants crystals without going through any roll here.
+CrackService.RecordRarest = recordRarest
+
 local function tierRank(tier: string): number
 	for i, name in Crystals.Tiers do
 		if name == tier then
@@ -1629,11 +1632,14 @@ function FilmMode.Apply(data: any)
 		{ Base = Crystals.Bases[math.max(#Crystals.Bases - 2, 1)].Name, Mut = "Normal", Size = 1.5 },
 		{ Base = Crystals.Bases[math.max(#Crystals.Bases - 3, 1)].Name, Mut = "Normal", Size = 1.2 },
 	}
-	-- The best staged piece is also the record, so FlexAura.Apply dresses the
-	-- character with it on join instead of leaving the head bare on camera.
-	local showpiece = staged[1]
-	data.Stats.RarestName = showpiece.Mut .. " " .. showpiece.Base
-	data.Stats.RarestValue = RarityMath.ComputeValue(showpiece.Base, showpiece.Mut, showpiece.Size, layer)
+	-- The record comes from the SECOND piece, not the showpiece. A rolled crystal
+	-- maxes out at size 1.2, so making a rack-grown 2.4 the record would put the
+	-- bar above anything a crack could beat — freezing the aura and killing the
+	-- "NEW PERSONAL BEST" line, which are two of the shots this mode exists for.
+	-- A Legendary record still dresses the character and still leaves headroom.
+	local record = staged[2]
+	data.Stats.RarestName = (record.Mut ~= "Normal" and (record.Mut .. " ") or "") .. record.Base
+	data.Stats.RarestValue = RarityMath.ComputeValue(record.Base, record.Mut, record.Size, layer)
 
 	local socketedAt = os.time() - Balance.OfflineCapSeconds
 	for slot, entry in staged do
@@ -1646,6 +1652,14 @@ function FilmMode.Apply(data: any)
 			Layer = layer,
 		}
 		data.Racks[tostring(slot)] = { CrystalId = id, LastTick = socketedAt }
+		-- ...and mark them found. The fill loop above deliberately leaves the
+		-- rarest entries unowned, which is exactly where these are drawn from —
+		-- a pan from the racks to the index would otherwise contradict itself.
+		local key = Crystals.IndexKey(entry.Base, entry.Mut)
+		if not data.Collection[key] then
+			data.Collection[key] = true
+			data.CollectionCount += 1
+		end
 	end
 end
 
@@ -5476,6 +5490,10 @@ function ShopService.Buy(player: Player, itemIndex: number): (boolean, string?)
 		data.NextCrystalId += 1
 		local layer = ctx.Data.Layer(data)
 		data.Crystals[id] = { Base = item.Base :: string, Mut = item.Mut :: string, Size = 1.1, Layer = layer }
+		-- This branch grants a crystal outright rather than rolling one, so it has
+		-- to record a personal best itself — otherwise a shop-bought Mythic never
+		-- becomes the aura, the leaderboard entry, or the rarest-find board name.
+		ctx.Crack.RecordRarest(player, data, item.Base :: string, item.Mut :: string, ctx.Data.CrystalValue(data, data.Crystals[id]))
 		local indexKey = Crystals.IndexKey(item.Base :: string, item.Mut :: string)
 		if not data.Collection[indexKey] then
 			data.Collection[indexKey] = true
@@ -6137,16 +6155,15 @@ local function coinGainPopup(anchor: Frame, amount: number)
 		TextColor3 = UiKit.Colors.Good,
 		TextStrokeTransparency = 0.4,
 		Size = UDim2.fromOffset(150, 30),
-		-- Rises from inside the pill's right edge rather than out past it. Spawning
-		-- outside overlapped the centred toast column at 812 wide, and the old
-		-- rise to -22 carried it off the top of the screen; -10 keeps every pixel
-		-- on screen (the pill's own top edge is at y=12).
-		Position = UDim2.new(1, -150, 0, 6),
-		TextXAlignment = Enum.TextXAlignment.Right,
+		-- Just outside the pill's right edge, rising. Inside the pill it covered
+		-- the very number it is annotating; the original rise to -22 ran off the
+		-- top of the screen, so -10 is the ceiling (the pill's top edge is y=12).
+		Position = UDim2.new(1, 6, 0, 6),
+		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = anchor,
 	})
 	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.new(1, -150, 0, -10),
+		Position = UDim2.new(1, 6, 0, -10),
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 	}):Play()
@@ -7094,16 +7111,23 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		play(overlay, THUD_SOUND, 0.75, 0.8)
 		tick(overlay, 0.6)
 
-		-- Sideways: both hemispheres tumble away. Hinged: the lid swings up and
-		-- back while the base only settles.
+		-- Sideways: both hemispheres fly apart. Hinged: the lid lifts up and back
+		-- while the base only settles.
+		--
+		-- Position only, no spin. Each half is a clipped frame showing one half of
+		-- a circle, and Roblox stops clipping any subtree that carries a rotation —
+		-- so rotating a half mid-flight turned it back into a whole circle. Waiting
+		-- until it had faded to rotate it just made the spin invisible, which is
+		-- worse than not having it: the Back-eased fling, the flash and the shards
+		-- already sell the break.
 		local splitInfo = TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		local firstTarget, firstSpin, secondTarget, secondSpin
+		local firstTarget, secondTarget
 		if RevealFx.SplitVertical then
-			firstTarget, firstSpin = UDim2.fromOffset(-20, -210), -34
-			secondTarget, secondSpin = UDim2.fromOffset(10, 110), 12
+			firstTarget = UDim2.fromOffset(-20, -210)
+			secondTarget = UDim2.fromOffset(10, 110)
 		else
-			firstTarget, firstSpin = UDim2.fromOffset(-260, 90), -55
-			secondTarget, secondSpin = UDim2.fromOffset(260, 70), 55
+			firstTarget = UDim2.fromOffset(-260, 90)
+			secondTarget = UDim2.fromOffset(260, 70)
 		end
 		TweenService:Create(firstHalf, splitInfo, {
 			Position = UDim2.fromScale(0.5, 0.5) + firstTarget,
@@ -7111,18 +7135,6 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		TweenService:Create(secondHalf, splitInfo, {
 			Position = UDim2.fromScale(0.5, 0.5) + secondTarget,
 		}):Play()
-		-- Rotation is held back a beat on purpose. Roblox skips ClipsDescendants
-		-- for any subtree carrying a rotation, so spinning a half the moment it
-		-- leaves would un-clip it and each "hemisphere" would tumble away as a
-		-- whole circle. By 0.3s the rocks are nearly faded and the white flash is
-		-- still over them, so the spin lands without exposing the seam.
-		task.delay(0.3, function()
-			if not firstHalf.Parent then
-				return
-			end
-			TweenService:Create(firstHalf, TweenInfo.new(0.3), { Rotation = firstSpin }):Play()
-			TweenService:Create(secondHalf, TweenInfo.new(0.3), { Rotation = secondSpin }):Play()
-		end)
 		for _, half in { firstHalf, secondHalf } do
 			local rock = half:FindFirstChild("Rock")
 			if rock and rock:IsA("Frame") then
@@ -7671,6 +7683,15 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 		Parent = revealGui,
 	})
 	currentOverlay = overlay
+	-- Hold any rare-find callout addressed to us until this closes: on a phone
+	-- there is no band that clears both the card block and its button row.
+	Toasts.SetRevealOpen(true)
+	overlay.Destroying:Once(function()
+		if currentOverlay == overlay then
+			currentOverlay = nil
+		end
+		Toasts.SetRevealOpen(false)
+	end)
 
 	local bestTier = "Common"
 	local bestIndex = 1
@@ -7750,17 +7771,16 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 			if not overlay.Parent then
 				return
 			end
+			-- Below the cards, but never off the bottom of the screen. Cards are
+			-- 292 tall centred at 0.42, so 0.42H+162 clears them — except on a
+			-- short phone, where that offset falls past the viewport entirely.
+			local height = overlay.AbsoluteSize.Y
+			local rowY = if height > 0 then math.min(0.42 * height + 162, height - 58) else 0
 			local sellAll = UiKit.Button({
 				Text = "Sell All",
 				BackgroundColor3 = UiKit.Colors.Buy,
 				Size = UDim2.fromOffset(220, 48),
-				-- Anchored to the card block, not to an independent 0.72 of the
-				-- screen: cards are 292 tall centred at 0.42, so anything below
-				-- 0.42H + 146 clears them at any height. At 0.72 scale this row
-				-- landed ON TOP of the per-card Sell/Socket buttons on every phone
-				-- in landscape (H < 447) and, being the higher ZIndex, won the tap —
-				-- so aiming at Socket sold the whole batch instead.
-				Position = UDim2.new(0.5, -232, 0.42, 162),
+				Position = UDim2.new(0.5, -232, 0, rowY),
 				Parent = overlay,
 			})
 			sellAll.ZIndex = 4
@@ -7771,7 +7791,7 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 				BackgroundColor3 = UiKit.Colors.BgLighter,
 				TextColor3 = UiKit.Colors.Text,
 				Size = UDim2.fromOffset(160, 48),
-				Position = UDim2.new(0.5, 12, 0.42, 162),
+				Position = UDim2.new(0.5, 12, 0, rowY),
 				Parent = overlay,
 			})
 			keepAll.ZIndex = 4
@@ -8959,6 +8979,13 @@ local gui: ScreenGui? = nil
 -- "YOU FOUND" banner was arriving at 35% brightness underneath their reveal —
 -- and ZIndex means nothing across ScreenGuis.
 local announceGui: ScreenGui? = nil
+-- A reveal overlay covers the middle of the screen, and on a phone the card
+-- block plus its button row leaves no band a banner could occupy. Rather than
+-- fight for space, hold the finder's OWN callout until their reveal closes —
+-- they are watching the celebration that callout is about. Everyone else, who
+-- is the actual audience for social proof, sees it immediately.
+local revealOpen = false
+local deferred: { { [string]: any } } = {}
 
 local function pushToast(text: string, color: Color3?)
 	if not container then
@@ -9001,11 +9028,14 @@ local function showRareFind(payload: { [string]: any })
 	-- stranger's Mythic could render as "YOU FOUND" on your screen.
 	local mine = payload.UserId == Players.LocalPlayer.UserId
 	local rank = tonumber(payload.Rank) or 5
+	if mine and revealOpen then
+		table.insert(deferred, payload)
+		return
+	end
 
 	local banner = UiKit.Create("Frame", {
 		Size = UDim2.fromOffset(0, 62),
-		-- Below the five-deep toast column (which ends at y=194), not through it
-		Position = UDim2.new(0.5, 0, 0, 300),
+		Position = UDim2.new(0.5, 0, 0, 96),
 		AnchorPoint = Vector2.new(0.5, 0),
 		BackgroundColor3 = UiKit.Colors.Bg,
 		BackgroundTransparency = 0.08,
@@ -9068,6 +9098,21 @@ local function showRareFind(payload: { [string]: any })
 		fade.Completed:Wait()
 		banner:Destroy()
 	end)
+end
+
+-- CrackScreen tells us when its modal is up so the callout can wait its turn.
+function Toasts.SetRevealOpen(open: boolean)
+	revealOpen = open
+	if open then
+		return
+	end
+	local queued = deferred
+	deferred = {}
+	for i, payload in queued do
+		task.delay(0.35 * i, function()
+			showRareFind(payload)
+		end)
+	end
 end
 
 local function showWelcome(report: { [string]: any })

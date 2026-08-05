@@ -349,6 +349,15 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 		Parent = revealGui,
 	})
 	currentOverlay = overlay
+	-- Hold any rare-find callout addressed to us until this closes: on a phone
+	-- there is no band that clears both the card block and its button row.
+	Toasts.SetRevealOpen(true)
+	overlay.Destroying:Once(function()
+		if currentOverlay == overlay then
+			currentOverlay = nil
+		end
+		Toasts.SetRevealOpen(false)
+	end)
 
 	local bestTier = "Common"
 	local bestIndex = 1
@@ -428,17 +437,16 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 			if not overlay.Parent then
 				return
 			end
+			-- Below the cards, but never off the bottom of the screen. Cards are
+			-- 292 tall centred at 0.42, so 0.42H+162 clears them — except on a
+			-- short phone, where that offset falls past the viewport entirely.
+			local height = overlay.AbsoluteSize.Y
+			local rowY = if height > 0 then math.min(0.42 * height + 162, height - 58) else 0
 			local sellAll = UiKit.Button({
 				Text = "Sell All",
 				BackgroundColor3 = UiKit.Colors.Buy,
 				Size = UDim2.fromOffset(220, 48),
-				-- Anchored to the card block, not to an independent 0.72 of the
-				-- screen: cards are 292 tall centred at 0.42, so anything below
-				-- 0.42H + 146 clears them at any height. At 0.72 scale this row
-				-- landed ON TOP of the per-card Sell/Socket buttons on every phone
-				-- in landscape (H < 447) and, being the higher ZIndex, won the tap —
-				-- so aiming at Socket sold the whole batch instead.
-				Position = UDim2.new(0.5, -232, 0.42, 162),
+				Position = UDim2.new(0.5, -232, 0, rowY),
 				Parent = overlay,
 			})
 			sellAll.ZIndex = 4
@@ -449,7 +457,7 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 				BackgroundColor3 = UiKit.Colors.BgLighter,
 				TextColor3 = UiKit.Colors.Text,
 				Size = UDim2.fromOffset(160, 48),
-				Position = UDim2.new(0.5, 12, 0.42, 162),
+				Position = UDim2.new(0.5, 12, 0, rowY),
 				Parent = overlay,
 			})
 			keepAll.ZIndex = 4

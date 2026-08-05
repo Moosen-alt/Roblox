@@ -34,16 +34,15 @@ local function coinGainPopup(anchor: Frame, amount: number)
 		TextColor3 = UiKit.Colors.Good,
 		TextStrokeTransparency = 0.4,
 		Size = UDim2.fromOffset(150, 30),
-		-- Rises from inside the pill's right edge rather than out past it. Spawning
-		-- outside overlapped the centred toast column at 812 wide, and the old
-		-- rise to -22 carried it off the top of the screen; -10 keeps every pixel
-		-- on screen (the pill's own top edge is at y=12).
-		Position = UDim2.new(1, -150, 0, 6),
-		TextXAlignment = Enum.TextXAlignment.Right,
+		-- Just outside the pill's right edge, rising. Inside the pill it covered
+		-- the very number it is annotating; the original rise to -22 ran off the
+		-- top of the screen, so -10 is the ceiling (the pill's top edge is y=12).
+		Position = UDim2.new(1, 6, 0, 6),
+		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = anchor,
 	})
 	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.new(1, -150, 0, -10),
+		Position = UDim2.new(1, 6, 0, -10),
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 	}):Play()
