@@ -297,12 +297,19 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 			end)
 		end
 
-		-- The open cavity blooms for a beat, then clears for the cards
+		-- The open cavity blooms for a beat, then clears for the cards. Fade
+		-- every piece rather than shrinking the container: the teeth and cracks
+		-- are sized in offsets, so they would hang around at full size while
+		-- their parent collapsed to nothing.
 		TweenService:Create(interior, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			Size = UDim2.fromOffset(GEODE_SIZE + 40, GEODE_SIZE + 40),
 		}):Play()
 		task.delay(0.3, function()
-			TweenService:Create(geode, TweenInfo.new(0.35), { Size = UDim2.fromOffset(0, 0) }):Play()
+			for _, descendant in geode:GetDescendants() do
+				if descendant:IsA("Frame") then
+					TweenService:Create(descendant, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
+				end
+			end
 			task.delay(0.4, function()
 				geode:Destroy()
 			end)
