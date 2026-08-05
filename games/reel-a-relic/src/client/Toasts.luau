@@ -2,6 +2,7 @@
 -- Toast notifications (Notify), auto-crack result toasts, and the welcome-back
 -- popup (streak + offline earnings) — the daily dopamine moment.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -11,6 +12,7 @@ local Crystals = require(Shared.Config.Crystals)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local UiKit = require(script.Parent.UiKit)
+local WorldFx = require(script.Parent.WorldFx)
 
 local Toasts = {}
 
@@ -43,6 +45,85 @@ local function pushToast(text: string, color: Color3?)
 end
 
 Toasts.Push = pushToast
+
+-- Server-wide rare-find callout. This is the game's status economy: pulling a
+-- Mythic in front of 14 other people is worth more than the coins are, and
+-- seeing someone else's callout is the most convincing possible proof that the
+-- rare stuff is really in there.
+local function showRareFind(payload: { [string]: any })
+	if not gui then
+		return
+	end
+	local color = typeof(payload.Color) == "Color3" and payload.Color or UiKit.Colors.Accent
+	local mine = payload.Player == Players.LocalPlayer.DisplayName
+	local rank = tonumber(payload.Rank) or 5
+
+	local banner = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(0, 62),
+		Position = UDim2.new(0.5, 0, 0, 96),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		BackgroundTransparency = 0.08,
+		ZIndex = 20,
+		Parent = gui,
+	})
+	UiKit.Corner(14).Parent = banner
+	local stroke = UiKit.Stroke(color, 3)
+	stroke.Parent = banner
+	UiKit.Label({
+		Text = mine and "★  YOU REELED IN A " .. string.upper(payload.Label or "") .. "!  ★"
+			or ((payload.Player or "Someone") .. " reeled in a " .. (payload.Label or "relic") .. "!"),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = color,
+		Size = UDim2.new(1, -20, 0, 34),
+		Position = UDim2.fromOffset(10, 6),
+		ZIndex = 21,
+		Parent = banner,
+	})
+	UiKit.Label({
+		Text = (payload.Tier or "Legendary") .. "  •  worth " .. Format.Number(tonumber(payload.Value) or 0),
+		Font = Enum.Font.GothamBold,
+		TextColor3 = UiKit.Colors.TextDim,
+		Size = UDim2.new(1, -20, 0, 18),
+		Position = UDim2.fromOffset(10, 38),
+		ZIndex = 21,
+		Parent = banner,
+	})
+
+	TweenService:Create(banner, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(mine and 560 or 480, 62),
+	}):Play()
+	TweenService:Create(
+		stroke,
+		TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 6, true),
+		{ Thickness = 7 }
+	):Play()
+	WorldFx.Shake(mine and 1.6 or 0.5)
+
+	for i, pitch in { 0.7, 1.05, 1.4, 1.85 } do
+		task.delay((i - 1) * 0.09, function()
+			if not banner.Parent then
+				return
+			end
+			local sting = Instance.new("Sound")
+			sting.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+			sting.PlaybackSpeed = pitch
+			sting.Volume = rank >= 6 and 0.8 or 0.55
+			sting.Parent = banner
+			sting:Play()
+		end)
+	end
+
+	task.delay(mine and 6 or 4.5, function()
+		if not banner.Parent then
+			return
+		end
+		local fade = TweenService:Create(banner, TweenInfo.new(0.35), { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 62) })
+		fade:Play()
+		fade.Completed:Wait()
+		banner:Destroy()
+	end)
+end
 
 local function showWelcome(report: { [string]: any })
 	if not gui then
@@ -197,6 +278,12 @@ function Toasts.Init(screenGui: ScreenGui)
 			local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
 			local label = isAuto and "Auto-Open: " or "Caught: "
 			pushToast(label .. mutPrefix .. crystal.Base .. " (+" .. Format.Number(crystal.Value) .. ")", tierColor)
+		end
+	end)
+
+	Remotes.Event("RareFind").OnClientEvent:Connect(function(payload)
+		if typeof(payload) == "table" then
+			showRareFind(payload)
 		end
 	end)
 

@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 
 local State = require(script.Parent.State)
 local UiKit = require(script.Parent.UiKit)
+local WorldFx = require(script.Parent.WorldFx)
 
 local LeapFx = {}
 
@@ -75,6 +76,8 @@ local function celebrate(delta: number)
 
 	LeapFx.Banner(("MEGA LEAP!  +%d"):format(delta), UiKit.Colors.Accent)
 	LeapFx.Confetti(math.min(10 + delta * 2, 34))
+	-- The screen kicks harder the further you flew
+	WorldFx.Shake(math.min(0.6 + delta * 0.2, 2))
 	LeapFx.Chime({ { 0, 1.0, 0.55 }, { 0.08, 1.26, 0.6 }, { 0.16, 1.5, 0.65 } })
 end
 

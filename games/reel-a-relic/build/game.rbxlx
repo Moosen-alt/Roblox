@@ -272,6 +272,133 @@ return Monetization
       </Item>
       <Item class="ModuleScript" referent="6">
         <Properties>
+          <string name="Name">CrystalShape</string>
+          <string name="Source"><![CDATA[--!strict
+-- Shared crystal geometry: a cluster of tapered, glowing shards built from
+-- primitives (no asset uploads). One builder feeds the cave decoration, the
+-- crystal inside every geode, and the spinning 3D gem on reveal cards — so a
+-- Sapphire is recognisably the same rock everywhere in the game.
+
+local CrystalShape = {}
+
+export type Options = {
+	Color: Color3,
+	Scale: number?, -- overall size multiplier (1 ~= 3.5 studs tall)
+	Shards: number?, -- spikes in the cluster
+	Segments: number?, -- taper detail per spike: 1 = flat spike, 3 = faceted gem
+	Seed: number?,
+	Glow: number?, -- PointLight range at the cluster centre (nil/0 = no light)
+	Sparkle: boolean?, -- drifting glints around the cluster
+}
+
+local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Color3): Part
+	local p = Instance.new("Part")
+	p.Name = "Facet"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false -- mining raycasts must hit the geode hitbox, not the sparkle
+	p.CanTouch = false
+	p.Massless = true
+	p.Material = Enum.Material.Neon
+	p.Color = color
+	p.Transparency = 0.06
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Size = size
+	p.CFrame = cframe
+	p.Parent = parent
+	return p
+end
+
+-- One spike: stacked blocks that shrink as they rise, each turned 45 degrees so
+-- the silhouette reads as a faceted crystal rather than a stick.
+local function spike(parent: Instance, base: CFrame, height: number, width: number, color: Color3, segments: number): Part
+	local segHeight = height / (segments + 0.5)
+	local tallest = nil :: Part?
+	for s = 1, segments do
+		local t = (s - 1) / segments
+		local w = width * (1 - t * 0.5)
+		tallest = facet(
+			parent,
+			base * CFrame.new(0, segHeight * (s - 0.5), 0) * CFrame.Angles(0, math.rad(45), 0),
+			Vector3.new(w, segHeight, w),
+			color
+		)
+	end
+	-- Chisel tip
+	local tip = facet(
+		parent,
+		base * CFrame.new(0, segments * segHeight + segHeight * 0.28, 0) * CFrame.Angles(0, math.rad(45), 0),
+		Vector3.new(width * 0.34, segHeight * 0.6, width * 0.34),
+		color
+	)
+	return tallest or tip
+end
+
+function CrystalShape.Build(options: Options): Model
+	local model = Instance.new("Model")
+	model.Name = "Crystal"
+
+	local scale = options.Scale or 1
+	local shards = math.max(options.Shards or 5, 1)
+	local segments = math.max(options.Segments or 2, 1)
+	local rng = Random.new(options.Seed or 7)
+	local center: Part? = nil
+
+	for i = 1, shards do
+		local angle = ((i - 1) / shards) * math.pi * 2 + rng:NextNumber(-0.35, 0.35)
+		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		local isCenter = i == 1
+		local lean = isCenter and rng:NextNumber(0, 0.12) or rng:NextNumber(0.2, 0.55)
+		local dist = (isCenter and 0 or rng:NextNumber(0.4, 0.85)) * scale
+		local height = (isCenter and rng:NextNumber(3.1, 3.6) or rng:NextNumber(1.5, 2.8)) * scale
+		local width = rng:NextNumber(0.5, 0.8) * scale
+		-- Tilt away from the cluster centre: rotate about the horizontal axis
+		-- perpendicular to the shard's radial direction.
+		local tiltAxis = Vector3.new(-dir.Z, 0, dir.X)
+		local base = CFrame.new(dir * dist) * CFrame.fromAxisAngle(tiltAxis, -lean)
+		local part = spike(model, base, height, width, options.Color, segments)
+		if isCenter then
+			center = part
+		end
+	end
+
+	local anchor = center or model:FindFirstChildWhichIsA("BasePart")
+	if anchor then
+		if options.Glow and options.Glow > 0 then
+			local light = Instance.new("PointLight")
+			light.Color = options.Color
+			light.Range = options.Glow
+			light.Brightness = 1.4
+			light.Shadows = false
+			light.Parent = anchor
+		end
+		if options.Sparkle then
+			local glints = Instance.new("ParticleEmitter")
+			glints.Color = ColorSequence.new(options.Color)
+			glints.LightEmission = 1
+			glints.Size = NumberSequence.new(0.35 * scale, 0)
+			glints.Transparency = NumberSequence.new(0.1, 1)
+			glints.Lifetime = NumberRange.new(0.8, 1.6)
+			glints.Rate = 6
+			glints.Speed = NumberRange.new(0.6, 1.8)
+			glints.SpreadAngle = Vector2.new(60, 60)
+			glints.Parent = anchor
+		end
+	end
+
+	-- Pivot at the base of the cluster so callers can plant it on a surface and
+	-- spin it about its own axis.
+	model.WorldPivot = CFrame.new()
+	return model
+end
+
+return CrystalShape
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
+        <Properties>
           <string name="Name">Format</string>
           <string name="Source"><![CDATA[--!strict
 local Format = {}
@@ -327,7 +454,7 @@ return Format
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">RarityMath</string>
           <string name="Source"><![CDATA[--!strict
@@ -463,7 +590,7 @@ return RarityMath
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--!strict
@@ -478,6 +605,8 @@ local EVENTS = {
 	"Notify", -- server -> client: toast messages { Text, Color? }
 	"WelcomeReport", -- server -> client on join: offline earnings + streak summary
 	"CrackResult", -- server -> client: crystals from a crack (drives the reveal)
+	"RareFind", -- server -> all clients: someone pulled a Legendary+ (social proof)
+	"RebirthFx", -- server -> client: run the Set Sail ritual
 }
 
 local FUNCTIONS = {
@@ -555,11 +684,11 @@ return Remotes
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="9">
+  <Item class="ServerScriptService" referent="10">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="10">
+    <Item class="Script" referent="11">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -575,6 +704,7 @@ local AnalyticsService = require(script.AnalyticsService)
 local CrackService = require(script.CrackService)
 local DataService = require(script.DataService)
 local EventService = require(script.EventService)
+local FlexAura = require(script.FlexAura)
 local Leaderboards = require(script.Leaderboards)
 local MapBuilder = require(script.MapBuilder)
 local MiningService = require(script.MiningService)
@@ -584,6 +714,7 @@ local RackService = require(script.RackService)
 local RebirthService = require(script.RebirthService)
 local RodVisual = require(script.RodVisual)
 local ShopService = require(script.ShopService)
+local Spotlight = require(script.Spotlight)
 local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
 
@@ -603,11 +734,14 @@ local ctx: any = {
 	Policy = PolicyGuard,
 	RodVis = RodVisual,
 	Analytics = AnalyticsService,
+	Flex = FlexAura,
+	Spotlight = Spotlight,
 }
 
 -- Called by DataService once a profile is loaded (before the first StateSync).
 ctx.OnProfileLoaded = function(player: Player, data: any)
 	MonetizationService.PreloadPasses(player, data)
+	FlexAura.Apply(player, data)
 	local streakReport = StreakService.HandleJoin(player, data)
 	local offline = RackService.OfflineSummary(player, data)
 	-- Give the client a moment to boot its UI, then show the welcome moment.
@@ -643,7 +777,7 @@ DataService.Init(ctx)
 print("[ReelARelic] Server ready.")
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">AnalyticsService</string>
           <string name="Source"><![CDATA[--!strict
@@ -696,7 +830,7 @@ return AnalyticsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">CrackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -711,11 +845,9 @@ local Balance = require(Shared.Config.Balance)
 local Crystals = require(Shared.Config.Crystals)
 local RarityMath = require(Shared.RarityMath)
 local Remotes = require(Shared.Remotes)
+local Spotlight = require(script.Parent.Spotlight)
 
 local CrackService = {}
-
-local ctx: any = nil
-local rng = Random.new()
 
 export type CrackedCrystal = {
 	Id: string,
@@ -727,6 +859,46 @@ export type CrackedCrystal = {
 	Tier: string,
 	New: boolean,
 }
+
+local ctx: any = nil
+local rng = Random.new()
+
+-- Mutations that earn a server-wide callout even on a lower-tier base: a
+-- Celestial Quartz is a better story than a plain Opal.
+local LOUD_MUTATIONS: { [string]: boolean } = { Radioactive = true, Celestial = true }
+
+local function tierRank(tier: string): number
+	for i, name in Crystals.Tiers do
+		if name == tier then
+			return i
+		end
+	end
+	return 1
+end
+
+-- Social proof: broadcast anything genuinely rare. Nothing here is fabricated —
+-- the callout fires only on rolls that actually cleared the bar.
+local function announceRare(player: Player, crystal: CrackedCrystal)
+	local rank = tierRank(crystal.Tier)
+	if rank < 5 and not LOUD_MUTATIONS[crystal.Mut] then
+		return
+	end
+	local color = Crystals.TierColors[crystal.Tier] or Color3.fromRGB(255, 210, 90)
+	local mutation = Crystals.GetMutation(crystal.Mut)
+	if mutation and mutation.Color and LOUD_MUTATIONS[crystal.Mut] then
+		color = mutation.Color
+	end
+	local label = (crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or "") .. crystal.Base
+	Remotes.Event("RareFind"):FireAllClients({
+		Player = player.DisplayName,
+		Label = label,
+		Tier = crystal.Tier,
+		Rank = rank,
+		Color = color,
+		Value = crystal.Value,
+	})
+	Spotlight.Pillar(player, color)
+end
 
 local function rollOne(player: Player, data: any): CrackedCrystal
 	local layer = ctx.Data.Layer(data)
@@ -761,6 +933,8 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 	if value > data.Stats.RarestValue then
 		data.Stats.RarestValue = value
 		data.Stats.RarestName = (mutName ~= "Normal" and (mutName .. " ") or "") .. baseName
+		-- New personal best: swap the crystal floating over their head
+		ctx.Flex.Set(player, baseName, mutName, value)
 	end
 
 	local def = Crystals.GetBase(baseName)
@@ -803,6 +977,14 @@ function CrackService.Crack(player: Player, count: number?): ({ CrackedCrystal }
 			break
 		end
 	end
+	-- Let the reveal animation land before the server-wide callout
+	task.delay(2.4, function()
+		if player.Parent then
+			for _, crystal in results do
+				announceRare(player, crystal)
+			end
+		end
+	end)
 	return results, nil
 end
 
@@ -817,6 +999,7 @@ function CrackService.AutoCrack(player: Player)
 	local result = rollOne(player, data)
 	ctx.Data.MarkDirty(player)
 	Remotes.Event("CrackResult"):FireClient(player, { result }, true)
+	announceRare(player, result)
 end
 
 -- Deterministic grant used by the Starter Pack (guaranteed Sunken Crown, no RNG).
@@ -875,7 +1058,7 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 	end
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
-	return {
+	local result: CrackedCrystal = {
 		Id = id,
 		Base = baseName,
 		Mut = mutName,
@@ -885,6 +1068,8 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 		Tier = def and def.Tier or "Common",
 		New = isNew,
 	}
+	announceRare(player, result)
+	return result
 end
 
 function CrackService.SellCrystal(player: Player, idOrAll: string): (boolean, string?)
@@ -948,7 +1133,7 @@ return CrackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1231,7 +1416,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">EventService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1296,7 +1481,71 @@ return EventService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
+        <Properties>
+          <string name="Name">FlexAura</string>
+          <string name="Source"><![CDATA[--!strict
+-- Your rarest pull, floating over your head, for everyone in the server to see.
+--
+-- Coins are a private number. This is the public one — the reason to keep
+-- cracking after the shop is bought out, and the reason a new player walking
+-- past someone's Abyssal Leviathan Heart believes the drop table is real.
+--
+-- The server only publishes four attributes on the Player; every client builds
+-- and spins the actual crystal itself (see the client FlexAura), so a lobby
+-- full of showing-off costs no bandwidth.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Crystals = require(Shared.Config.Crystals)
+
+local FlexAura = {}
+
+-- Saves store the rarest find as one display string ("Abyssal Leviathan Heart").
+-- Split it back apart rather than migrating every existing profile.
+function FlexAura.SplitName(name: string): (string, string)
+	for _, mutation in Crystals.MutationNames do
+		if mutation ~= "Normal" and string.sub(name, 1, #mutation + 1) == mutation .. " " then
+			return string.sub(name, #mutation + 2), mutation
+		end
+	end
+	return name, "Normal"
+end
+
+function FlexAura.Set(player: Player, baseName: string, mutationName: string, value: number)
+	local def = Crystals.GetBase(baseName)
+	if not def then
+		return
+	end
+	local color = def.Color
+	local mutation = Crystals.GetMutation(mutationName)
+	if mutation and mutation.Color then
+		color = def.Color:Lerp(mutation.Color, 0.45)
+	end
+	player:SetAttribute("FlexBase", baseName)
+	player:SetAttribute("FlexMut", mutationName)
+	player:SetAttribute("FlexTier", def.Tier)
+	player:SetAttribute("FlexColor", color)
+	player:SetAttribute("FlexValue", value)
+end
+
+-- Called once the profile is loaded, so returning players walk in wearing the
+-- best thing they have ever found.
+function FlexAura.Apply(player: Player, data: any)
+	local name = data.Stats and data.Stats.RarestName
+	if typeof(name) ~= "string" or name == "" then
+		return
+	end
+	local base, mutation = FlexAura.SplitName(name)
+	FlexAura.Set(player, base, mutation, data.Stats.RarestValue or 0)
+end
+
+return FlexAura
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">Leaderboards</string>
           <string name="Source"><![CDATA[--!strict
@@ -1413,7 +1662,7 @@ return Leaderboards
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -1421,8 +1670,13 @@ return Leaderboards
 -- a beach with a wooden dock over real terrain water, glowing fishing spots,
 -- station pads, leaderboard boards, spawn, and lighting.
 
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CrystalShape = require(Shared.CrystalShape)
 
 local MapBuilder = {}
 
@@ -1652,7 +1906,34 @@ function MapBuilder.Build(): MapRefs
 		local click = Instance.new("ClickDetector")
 		click.MaxActivationDistance = 60
 		click.Parent = spot
+		-- Buoys ride the swell. The bob runs on each client, so twelve floating
+		-- markers cost the server nothing.
+		CollectionService:AddTag(spot, "SpinCrystal")
+		spot:SetAttribute("SpinSpeed", 0)
+		spot:SetAttribute("BobHeight", rng:NextNumber(0.5, 0.9))
+		spot:SetAttribute("BobSpeed", rng:NextNumber(0.9, 1.5))
 		table.insert(nodes, spot)
+	end
+
+	-- Landmark relics turning above the water: something to look at on the walk
+	-- down the dock, and a hint of what is down there.
+	for _, spot in { Vector3.new(-46, 12, -58), Vector3.new(46, 12, -58) } do
+		local crystal = CrystalShape.Build({
+			Color = SPOT_COLORS[rng:NextInteger(1, #SPOT_COLORS)],
+			Scale = rng:NextNumber(2.4, 3.2),
+			Shards = 6,
+			Segments = 3,
+			Seed = math.floor(spot.X * 7 + spot.Z),
+			Glow = 34,
+			Sparkle = true,
+		})
+		crystal.Name = "LandmarkRelic"
+		crystal:PivotTo(CFrame.new(spot))
+		crystal.Parent = map
+		CollectionService:AddTag(crystal, "SpinCrystal")
+		crystal:SetAttribute("SpinSpeed", rng:NextNumber(0.18, 0.32))
+		crystal:SetAttribute("BobHeight", rng:NextNumber(1.2, 2.2))
+		crystal:SetAttribute("BobSpeed", rng:NextNumber(0.5, 0.8))
 	end
 
 	-- Stations on the beach
@@ -1716,7 +1997,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">MiningService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1968,7 +2249,7 @@ return MiningService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">MonetizationService</string>
           <string name="Source"><![CDATA[--!strict
@@ -2143,11 +2424,11 @@ return MonetizationService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="19">
+      <Item class="Folder" referent="21">
         <Properties>
           <string name="Name">Packages</string>
         </Properties>
-        <Item class="ModuleScript" referent="20">
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">ProfileStore</string>
             <string name="Source">--[[
@@ -4396,7 +4677,7 @@ return ProfileStore</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">PolicyGuard</string>
           <string name="Source"><![CDATA[--!strict
@@ -4448,7 +4729,7 @@ return PolicyGuard
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">RackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4508,7 +4789,7 @@ function RackService.Socket(player: Player, crystalId: string): (boolean, string
 		return false, "Loading..."
 	end
 	if not data.Crystals[crystalId] then
-		return false, "Crystal not found."
+		return false, "Relic not found."
 	end
 	for _, rack in data.Racks do
 		if rack.CrystalId == crystalId then
@@ -4623,7 +4904,7 @@ return RackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4631,11 +4912,15 @@ return RackService
 -- multiplier and (up to layer cap) unlock the next cave layer. The infinite
 -- ladder is the long-term retention loop — months of goals, zero new content.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
+local Spotlight = require(script.Parent.Spotlight)
+
+local REBIRTH_COLOR = Color3.fromRGB(255, 120, 255)
 
 local RebirthService = {}
 
@@ -4668,13 +4953,25 @@ function RebirthService.Perform(player: Player, free: boolean): (boolean, string
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 5, "FirstRebirth")
 	local layer = ctx.Data.Layer(data)
-	Remotes.Event("Notify"):FireClient(player, {
-		Text = ("Set Sail! Permanent coin bonus is now +%d%%. Welcome to %s."):format(
-			math.floor(Balance.RebirthCoinBonus * data.Rebirths * 100 + 0.5),
-			Balance.LayerNames[layer]
-		),
-		Color = Color3.fromRGB(255, 120, 255),
+	local layerName = Balance.LayerNames[layer]
+	local bonus = math.floor(Balance.RebirthCoinBonus * data.Rebirths * 100 + 0.5)
+
+	-- The prestige ritual. Giving up everything you built deserves more than a
+	-- toast: the screen goes, the world flashes, and the room is told.
+	Remotes.Event("RebirthFx"):FireClient(player, {
+		Rebirths = data.Rebirths,
+		LayerName = layerName,
+		Bonus = bonus,
 	})
+	Spotlight.Pillar(player, REBIRTH_COLOR)
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			Remotes.Event("Notify"):FireClient(other, {
+				Text = ("%s just Set Sail for %s! (voyage #%d)"):format(player.DisplayName, layerName, data.Rebirths),
+				Color = REBIRTH_COLOR,
+			})
+		end
+	end
 	return true, nil
 end
 
@@ -4689,7 +4986,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">RodVisual</string>
           <string name="Source"><![CDATA[--!strict
@@ -4831,7 +5128,7 @@ return RodVisual
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[--!strict
@@ -5046,7 +5343,72 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="28">
+        <Properties>
+          <string name="Name">Spotlight</string>
+          <string name="Source"><![CDATA[--!strict
+-- A pillar of light dropped on a player, server-wide. Used for the moments
+-- worth interrupting everyone else for: a Legendary+ pull, a Recrystallize.
+-- Being seen is the reward; the coins are just the receipt.
+
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Spotlight = {}
+
+function Spotlight.Pillar(player: Player, color: Color3)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+
+	local beam = Instance.new("Part")
+	beam.Name = "Spotlight"
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CanQuery = false
+	beam.CanTouch = false
+	beam.Shape = Enum.PartType.Cylinder
+	beam.Material = Enum.Material.Neon
+	beam.Color = color
+	beam.Transparency = 0.35
+	beam.Size = Vector3.new(70, 7, 7)
+	beam.CFrame = CFrame.new(root.Position + Vector3.new(0, 32, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	beam.Parent = Workspace
+
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 46
+	light.Brightness = 4
+	light.Parent = beam
+
+	local sparks = Instance.new("ParticleEmitter")
+	sparks.Color = ColorSequence.new(color)
+	sparks.LightEmission = 1
+	sparks.Size = NumberSequence.new(1.2, 0)
+	sparks.Lifetime = NumberRange.new(0.8, 1.8)
+	sparks.Speed = NumberRange.new(10, 26)
+	sparks.SpreadAngle = Vector2.new(180, 180)
+	sparks.Rate = 0
+	sparks.Parent = beam
+	sparks:Emit(60)
+
+	TweenService:Create(beam, TweenInfo.new(2.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Size = Vector3.new(70, 16, 16),
+		Transparency = 1,
+	}):Play()
+	TweenService:Create(light, TweenInfo.new(2.2), { Brightness = 0 }):Play()
+	task.delay(2.6, function()
+		beam:Destroy()
+	end)
+end
+
+return Spotlight
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -5141,7 +5503,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[--!strict
@@ -5220,16 +5582,16 @@ return UpgradeService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="28">
+  <Item class="StarterPlayer" referent="31">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterWalkSpeed">20</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="29">
+    <Item class="StarterPlayerScripts" referent="32">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="30">
+      <Item class="LocalScript" referent="33">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -5255,8 +5617,11 @@ end)
 
 local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)
+local FlexAura = require(script.FlexAura)
+local WorldFx = require(script.WorldFx)
 local MiningInput = require(script.MiningInput)
 local ObjectiveBanner = require(script.ObjectiveBanner)
+local RebirthFx = require(script.RebirthFx)
 local Toasts = require(script.Toasts)
 local Hud = require(script.Hud)
 local CrackScreen = require(script.Screens.CrackScreen)
@@ -5277,8 +5642,11 @@ gui.DisplayOrder = 10
 gui.Parent = playerGui
 
 State.Init()
+WorldFx.Init()
+FlexAura.Init()
 MiningInput.Init()
 Toasts.Init(gui)
+RebirthFx.Init(gui)
 Hud.Init(gui)
 ObjectiveBanner.Init(gui)
 CrackScreen.Init(gui)
@@ -5307,7 +5675,189 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt)
 end)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="34">
+          <Properties>
+            <string name="Name">FlexAura</string>
+            <string name="Source"><![CDATA[--!strict
+-- Renders the rarest-find crystal above every player's head. The server just
+-- publishes attributes; the crystal, the spin and the nameplate are all built
+-- locally, so this is free at any player count.
+
+local Players = game:GetService("Players")
+
+local Crystals = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Config.Crystals)
+local GemView = require(script.Parent.GemView)
+local UiKit = require(script.Parent.UiKit)
+
+local FlexAura = {}
+
+local AURA_NAME = "RarestFindAura"
+
+local function clear(character: Model)
+	local head = character:FindFirstChild("Head")
+	local existing = head and head:FindFirstChild(AURA_NAME)
+	if existing then
+		existing:Destroy()
+	end
+end
+
+local function build(player: Player, character: Model)
+	clear(character)
+	local base = player:GetAttribute("FlexBase")
+	if typeof(base) ~= "string" or base == "" then
+		return
+	end
+	local head = character:FindFirstChild("Head")
+	if not head or not head:IsA("BasePart") then
+		return
+	end
+	local mutation = player:GetAttribute("FlexMut")
+	local tier = player:GetAttribute("FlexTier")
+	local color = player:GetAttribute("FlexColor")
+	local crystalColor = typeof(color) == "Color3" and color or Color3.fromRGB(255, 210, 90)
+	local tierColor = (typeof(tier) == "string" and Crystals.TierColors[tier]) or UiKit.Colors.Accent
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = AURA_NAME
+	billboard.Size = UDim2.fromScale(4.4, 5)
+	billboard.StudsOffset = Vector3.new(0, 3.4, 0)
+	billboard.AlwaysOnTop = false
+	billboard.MaxDistance = 110
+	billboard.Parent = head
+
+	GemView.Create({
+		Parent = billboard,
+		Size = UDim2.fromScale(1, 0.7),
+		Position = UDim2.fromScale(0, 0),
+		Color = crystalColor,
+		Seed = #base * 23 + 5,
+		Spin = 0.75,
+		ZIndex = 1,
+	})
+
+	local prefix = (typeof(mutation) == "string" and mutation ~= "Normal") and (mutation .. " ") or ""
+	UiKit.Label({
+		Text = prefix .. base,
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = tierColor,
+		TextStrokeTransparency = 0.3,
+		Size = UDim2.fromScale(1, 0.26),
+		Position = UDim2.fromScale(0, 0.72),
+		ZIndex = 2,
+		Parent = billboard,
+	})
+end
+
+local function watch(player: Player)
+	local function refresh()
+		local character = player.Character
+		if character then
+			build(player, character)
+		end
+	end
+	player.CharacterAdded:Connect(function(character)
+		-- Wait for the Head to exist before parenting the billboard to it
+		character:WaitForChild("Head", 10)
+		task.wait(0.2)
+		build(player, character)
+	end)
+	player:GetAttributeChangedSignal("FlexBase"):Connect(refresh)
+	player:GetAttributeChangedSignal("FlexMut"):Connect(refresh)
+	refresh()
+end
+
+function FlexAura.Init()
+	for _, player in Players:GetPlayers() do
+		watch(player)
+	end
+	Players.PlayerAdded:Connect(watch)
+end
+
+return FlexAura
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="35">
+          <Properties>
+            <string name="Name">GemView</string>
+            <string name="Source"><![CDATA[--!strict
+-- A real, rotating 3D crystal rendered inside a UI frame. Reveal cards used to
+-- show a tilted coloured square; this shows the actual rock, turning, catching
+-- the light — the thing worth screenshotting.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CrystalShape = require(Shared.CrystalShape)
+
+local GemView = {}
+
+export type Props = {
+	Parent: Instance,
+	Size: UDim2,
+	Position: UDim2,
+	Color: Color3,
+	AnchorPoint: Vector2?,
+	ZIndex: number?,
+	Spin: number?,
+	Seed: number?,
+	Shards: number?,
+}
+
+function GemView.Create(props: Props): ViewportFrame
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Name = "Gem"
+	viewport.Size = props.Size
+	viewport.Position = props.Position
+	viewport.AnchorPoint = props.AnchorPoint or Vector2.new(0, 0)
+	viewport.BackgroundTransparency = 1
+	viewport.ZIndex = props.ZIndex or 2
+	-- Neon renders flat-bright in a viewport; full ambient keeps the facets from
+	-- going muddy on low graphics settings.
+	viewport.Ambient = Color3.fromRGB(255, 255, 255)
+	viewport.LightColor = Color3.fromRGB(255, 255, 255)
+	viewport.LightDirection = Vector3.new(-0.4, -1, -0.6)
+
+	local model = CrystalShape.Build({
+		Color = props.Color,
+		Scale = 1,
+		Shards = props.Shards or 5,
+		Segments = 3,
+		Seed = props.Seed or 11,
+	})
+	model.Parent = viewport
+
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 42
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, 2.1, 7.4), Vector3.new(0, 1.5, 0))
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+
+	viewport.Parent = props.Parent
+
+	local speed = props.Spin or 1.1
+	local clock = 0
+	local connection: RBXScriptConnection? = nil
+	connection = RunService.RenderStepped:Connect(function(dt: number)
+		if not viewport.Parent then
+			if connection then
+				connection:Disconnect()
+			end
+			return
+		end
+		clock += dt * speed
+		model:PivotTo(CFrame.Angles(0, clock, 0))
+	end)
+
+	return viewport
+end
+
+return GemView
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -5334,6 +5884,41 @@ local streakLabel: TextLabel? = nil
 local eventBanner: TextLabel? = nil
 local starterButton: TextButton? = nil
 local starterOffer: Frame? = nil
+local indexBadge: TextLabel? = nil
+
+-- Coins roll up to their new value instead of snapping, and the pill punches
+-- when they land. A number that visibly climbs is worth more than the same
+-- number appearing — it's the slot-machine payout counter, and it costs
+-- nothing but a lerp.
+local displayedCoins = 0
+local targetCoins = 0
+local seenFirstSync = false
+
+local function coinGainPopup(anchor: Frame, amount: number)
+	local label = UiKit.Label({
+		Text = "+" .. Format.Number(amount),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Good,
+		TextStrokeTransparency = 0.4,
+		Size = UDim2.fromOffset(150, 30),
+		Position = UDim2.new(1, 6, 0, 6),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = anchor,
+	})
+	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = UDim2.new(1, 6, 0, -22),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	}):Play()
+	task.delay(1, function()
+		label:Destroy()
+	end)
+
+	anchor.Size = UDim2.fromOffset(205, 44)
+	TweenService:Create(anchor, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(190, 40),
+	}):Play()
+end
 
 local function pill(parent: Instance, position: UDim2, color: Color3): TextLabel
 	local frame = UiKit.Create("Frame", {
@@ -5443,6 +6028,27 @@ function Hud.Init(gui: ScreenGui)
 		})
 		UiKit.Corner(12).Parent = button
 		UiKit.Pad(8).Parent = button
+
+		-- The collection counter rides on the Index button rather than taking a
+		-- fifth HUD pill. An unfinished set on screen at all times is the quiet
+		-- reason to crack one more geode.
+		if def.Screen == "Index" then
+			local badge = UiKit.Create("TextLabel", {
+				Text = "",
+				Font = Enum.Font.FredokaOne,
+				TextScaled = true,
+				TextColor3 = Color3.fromRGB(28, 24, 20),
+				BackgroundColor3 = UiKit.Colors.Good,
+				Size = UDim2.fromOffset(56, 20),
+				Position = UDim2.new(1, -30, 0, -14),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				ZIndex = 3,
+				Parent = button,
+			}) :: TextLabel
+			UiKit.Corner(6).Parent = badge
+			indexBadge = badge
+		end
+
 		local screenName = def.Screen
 		button.Activated:Connect(function()
 			ScreenManager.Toggle(screenName)
@@ -5532,14 +6138,29 @@ function Hud.Init(gui: ScreenGui)
 	starterOffer = offer
 
 	State.Changed:Connect(function(state)
-		if coinsLabel then
-			coinsLabel.Text = "Coins: " .. Format.Number(state.Coins) .. "  (x" .. string.format("%.2f", state.CoinMult) .. ")"
+		local gain = state.Coins - targetCoins
+		targetCoins = state.Coins
+		if not seenFirstSync then
+			seenFirstSync = true
+			displayedCoins = state.Coins
+		elseif gain > 0 and coinsLabel then
+			coinGainPopup(coinsLabel.Parent :: Frame, gain)
+		elseif gain < 0 then
+			displayedCoins = state.Coins -- spending is instant; earning is savoured
 		end
 		if geodesLabel then
 			geodesLabel.Text = "Chests: " .. state.Geodes .. " / " .. state.BackpackCapacity
 		end
 		if streakLabel then
 			streakLabel.Text = "Streak: Day " .. state.Streak.Count
+		end
+		local badge = indexBadge
+		if badge and state.TotalIndex then
+			badge.Text = state.CollectionCount .. "/" .. state.TotalIndex
+			-- Goes gold on the home stretch: "almost done" is worth more than a
+			-- number, and it is true rather than manufactured.
+			local remaining = state.TotalIndex - state.CollectionCount
+			badge.BackgroundColor3 = if remaining <= 5 then UiKit.Colors.Accent else UiKit.Colors.Good
 		end
 		local packAvailable = not state.StarterPackOwned and Monetization.Products.StarterPack.Id ~= 0
 		if starterButton then
@@ -5550,8 +6171,23 @@ function Hud.Init(gui: ScreenGui)
 		end
 	end)
 
-	RunService.Heartbeat:Connect(function()
+	RunService.Heartbeat:Connect(function(delta: number)
 		local state = State.Get()
+		if state and coinsLabel then
+			if displayedCoins ~= targetCoins then
+				local step = math.max(math.abs(targetCoins - displayedCoins) * math.min(delta * 9, 1), 1)
+				if math.abs(targetCoins - displayedCoins) <= step then
+					displayedCoins = targetCoins
+				else
+					displayedCoins += (targetCoins > displayedCoins) and step or -step
+				end
+			end
+			coinsLabel.Text = "Coins: "
+				.. Format.Number(math.floor(displayedCoins))
+				.. "  (x"
+				.. string.format("%.2f", state.CoinMult)
+				.. ")"
+		end
 		if state then
 			local remaining = (state.Boost2xUntil or 0) - os.time()
 			local frame = boostFrame
@@ -5584,7 +6220,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">MiningInput</string>
             <string name="Source"><![CDATA[--!strict
@@ -5634,7 +6270,7 @@ return MiningInput
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">ObjectiveBanner</string>
             <string name="Source"><![CDATA[--!strict
@@ -5693,7 +6329,7 @@ return ObjectiveBanner
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -5732,7 +6368,196 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="40">
+          <Properties>
+            <string name="Name">RebirthFx</string>
+            <string name="Source"><![CDATA[--!strict
+-- The Set Sail ritual.
+--
+-- Rebirth asks a player to delete everything they spent an hour building. A
+-- toast is not payment for that. This is: the cave charges up, the screen goes
+-- white, and the number that comes back is permanent and bigger than before.
+-- Handing over your progress has to FEEL like an upgrade or nobody does it
+-- twice — and the second rebirth is where the long retention curve starts.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Remotes = require(Shared.Remotes)
+local RevealFx = require(script.Parent.RevealFx)
+local UiKit = require(script.Parent.UiKit)
+local WorldFx = require(script.Parent.WorldFx)
+
+local RebirthFx = {}
+
+local PINK = Color3.fromRGB(255, 120, 255)
+local gui: ScreenGui? = nil
+local busy = false
+
+local function ping(parent: Instance, pitch: number, volume: number)
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+	sound.PlaybackSpeed = pitch
+	sound.Volume = volume
+	sound.Parent = parent
+	sound:Play()
+	task.delay(2.5, function()
+		sound:Destroy()
+	end)
+end
+
+-- Rings racing outward from the middle of the screen, one per beat.
+local function ring(overlay: Frame, delay: number)
+	task.delay(delay, function()
+		if not overlay.Parent then
+			return
+		end
+		local circle = Instance.new("Frame")
+		circle.AnchorPoint = Vector2.new(0.5, 0.5)
+		circle.Position = UDim2.fromScale(0.5, 0.5)
+		circle.Size = UDim2.fromOffset(40, 40)
+		circle.BackgroundTransparency = 1
+		circle.Parent = overlay
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(1, 0)
+		corner.Parent = circle
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = PINK
+		stroke.Thickness = 6
+		stroke.Transparency = 0.1
+		stroke.Parent = circle
+		TweenService:Create(circle, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.fromOffset(1200, 1200),
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.9), { Transparency = 1, Thickness = 1 }):Play()
+		task.delay(1, function()
+			circle:Destroy()
+		end)
+	end)
+end
+
+local function run(payload: { [string]: any })
+	local screen = gui
+	if not screen or busy then
+		return
+	end
+	busy = true
+
+	local overlay = UiKit.Create("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.4,
+		Active = true,
+		ZIndex = 30,
+		Parent = screen,
+	}) :: Frame
+
+	-- Charge-up: three rings, three rising notes, the shake building under it
+	for i = 0, 2 do
+		ring(overlay, i * 0.28)
+		task.delay(i * 0.28, function()
+			if overlay.Parent then
+				ping(overlay, 0.7 + i * 0.35, 0.5)
+				WorldFx.Shake(0.5 + i * 0.5)
+			end
+		end)
+	end
+
+	task.delay(1.05, function()
+		if not overlay.Parent then
+			return
+		end
+		-- White-out
+		local flash = UiKit.Create("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 0,
+			ZIndex = 31,
+			Parent = overlay,
+		})
+		TweenService:Create(flash, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+		WorldFx.Shake(2.2)
+		RevealFx.Fanfare(overlay, 6)
+		RevealFx.Confetti(overlay, PINK, 44)
+		RevealFx.Sunburst(overlay, UDim2.fromScale(0.5, 0.44), PINK)
+		task.delay(0.9, function()
+			flash:Destroy()
+		end)
+
+		local card = UiKit.Create("Frame", {
+			Size = UDim2.fromOffset(0, 0),
+			Position = UDim2.fromScale(0.5, 0.44),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			BackgroundColor3 = UiKit.Colors.Bg,
+			ZIndex = 32,
+			Parent = overlay,
+		})
+		UiKit.Corner(18).Parent = card
+		UiKit.Stroke(PINK, 4).Parent = card
+		TweenService:Create(card, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Size = UDim2.fromOffset(460, 250),
+		}):Play()
+
+		local lines = {
+			{ Text = "SET SAIL", Color = PINK, Font = Enum.Font.FredokaOne, Height = 52 },
+			{ Text = "Voyage #" .. tostring(payload.Rebirths or 1), Color = UiKit.Colors.Text, Font = Enum.Font.GothamBold, Height = 30 },
+			{ Text = "Now fishing: " .. tostring(payload.LayerName or "the deep"), Color = UiKit.Colors.Good, Font = Enum.Font.GothamBold, Height = 30 },
+			{
+				Text = ("+%d%% coins — permanently"):format(tonumber(payload.Bonus) or 0),
+				Color = UiKit.Colors.Accent,
+				Font = Enum.Font.FredokaOne,
+				Height = 40,
+			},
+			{ Text = "Your relics and collection were kept.", Color = UiKit.Colors.TextDim, Font = Enum.Font.Gotham, Height = 26 },
+		}
+		local y = 14
+		for i, line in lines do
+			local label = UiKit.Label({
+				Text = line.Text,
+				Font = line.Font,
+				TextColor3 = line.Color,
+				Size = UDim2.new(1, -24, 0, line.Height),
+				Position = UDim2.fromOffset(12, y),
+				TextTransparency = 1,
+				ZIndex = 33,
+				Parent = card,
+			})
+			y += line.Height + 4
+			task.delay(0.2 + i * 0.11, function()
+				if label.Parent then
+					TweenService:Create(label, TweenInfo.new(0.3), { TextTransparency = 0 }):Play()
+					ping(card, 1.1 + i * 0.18, 0.35)
+				end
+			end)
+		end
+
+		task.delay(4.2, function()
+			if overlay.Parent then
+				local fade = TweenService:Create(overlay, TweenInfo.new(0.4), { BackgroundTransparency = 1 })
+				fade:Play()
+				fade.Completed:Wait()
+				overlay:Destroy()
+			end
+			busy = false
+		end)
+	end)
+end
+
+function RebirthFx.Init(screenGui: ScreenGui)
+	gui = screenGui
+	Remotes.Event("RebirthFx").OnClientEvent:Connect(function(payload)
+		if typeof(payload) == "table" then
+			run(payload)
+		end
+	end)
+end
+
+return RebirthFx
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -5982,7 +6807,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -6039,11 +6864,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="37">
+        <Item class="Folder" referent="43">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="38">
+          <Item class="ModuleScript" referent="44">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6058,12 +6883,14 @@ local Crystals = require(Shared.Config.Crystals)
 local Format = require(Shared.Format)
 local RarityMath = require(Shared.RarityMath)
 local Remotes = require(Shared.Remotes)
+local GemView = require(script.Parent.Parent.GemView)
 local Purchase = require(script.Parent.Parent.Purchase)
 local RevealFx = require(script.Parent.Parent.RevealFx)
 local ScreenManager = require(script.Parent.Parent.ScreenManager)
 local State = require(script.Parent.Parent.State)
 local Toasts = require(script.Parent.Parent.Toasts)
 local UiKit = require(script.Parent.Parent.UiKit)
+local WorldFx = require(script.Parent.Parent.WorldFx)
 
 local CrackScreen = {}
 
@@ -6090,6 +6917,58 @@ local function tierRank(tier: string): number
 		end
 	end
 	return 1
+end
+
+-- The flex line. Same numbers as the odds panel, multiplied out: "1 in 12,500"
+-- is the thing players screenshot and paste into a group chat. Only shown when
+-- the pull was genuinely long odds, so it never becomes wallpaper.
+local function oddsBrag(crystal: { [string]: any }): string?
+	local state = State.Get()
+	if not state then
+		return nil
+	end
+	local baseChance = 0
+	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
+		if entry.Name == crystal.Base then
+			baseChance = entry.Chance
+		end
+	end
+	local mutChance = 100
+	for _, entry in RarityMath.GetMutationOdds(state.MutationMult) do
+		if entry.Name == crystal.Mut then
+			mutChance = entry.Chance
+		end
+	end
+	local probability = (baseChance / 100) * (mutChance / 100)
+	if probability <= 0 then
+		return nil
+	end
+	local oneIn = math.floor(1 / probability + 0.5)
+	if oneIn < 40 then
+		return nil
+	end
+	return "1 in " .. Format.Number(oneIn)
+end
+
+-- Mythic pulls get a colour cycling around the card border. Costs one gradient.
+local function rainbowStroke(stroke: UIStroke)
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 120)),
+		ColorSequenceKeypoint.new(0.35, Color3.fromRGB(255, 220, 90)),
+		ColorSequenceKeypoint.new(0.7, Color3.fromRGB(120, 255, 200)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(190, 120, 255)),
+	})
+	gradient.Parent = stroke
+	task.spawn(function()
+		while gradient.Parent do
+			TweenService:Create(gradient, TweenInfo.new(2.4, Enum.EasingStyle.Linear), { Rotation = 360 }):Play()
+			task.wait(2.4)
+			if gradient.Parent then
+				gradient.Rotation = 0
+			end
+		end
+	end)
 end
 
 local function renderOdds()
@@ -6127,11 +7006,20 @@ local function renderOdds()
 	end
 end
 
-local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number, handledIds: { [string]: boolean }, onHandled: () -> ()): Frame
+local function makeCard(
+	overlay: Frame,
+	crystal: { [string]: any },
+	position: UDim2,
+	cardWidth: number,
+	handledIds: { [string]: boolean },
+	onHandled: () -> (),
+	previousBest: number
+): Frame
 	local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
 	local baseDef = Crystals.GetBase(crystal.Base)
+	local rank = tierRank(crystal.Tier)
 	local card = UiKit.Create("Frame", {
-		Size = UDim2.fromOffset(cardWidth, 260),
+		Size = UDim2.fromOffset(cardWidth, 292),
 		Position = position,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = UiKit.Colors.Bg,
@@ -6139,24 +7027,37 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		Parent = overlay,
 	})
 	UiKit.Corner(16).Parent = card
-	UiKit.Stroke(tierColor, 4).Parent = card
-	local gem = UiKit.Create("Frame", {
-		Size = UDim2.fromOffset(90, 90),
-		Position = UDim2.new(0.5, -45, 0, 22),
-		BackgroundColor3 = baseDef and baseDef.Color or tierColor,
-		Rotation = 45,
-		ZIndex = 2,
+	local cardStroke = UiKit.Stroke(tierColor, 4)
+	cardStroke.Parent = card
+	if rank >= 6 then
+		rainbowStroke(cardStroke)
+	elseif rank >= 5 then
+		-- Legendary borders breathe, so the good card is obvious in a row of three
+		TweenService:Create(
+			cardStroke,
+			TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ Thickness = 8 }
+		):Play()
+	end
+
+	-- The rock itself, in 3D, turning
+	GemView.Create({
 		Parent = card,
+		Size = UDim2.fromOffset(112, 104),
+		Position = UDim2.new(0.5, -56, 0, 12),
+		Color = baseDef and baseDef.Color or tierColor,
+		Seed = #crystal.Base * 17 + #crystal.Mut,
+		Spin = 0.8 + rank * 0.16,
+		ZIndex = 2,
 	})
-	UiKit.Corner(18).Parent = gem
-	UiKit.Stroke(Color3.new(1, 1, 1), 2).Parent = gem
+
 	local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
 	UiKit.Label({
 		Text = mutPrefix .. crystal.Base,
 		TextColor3 = UiKit.Colors.Text,
 		Font = Enum.Font.FredokaOne,
 		Size = UDim2.new(1, -12, 0, 34),
-		Position = UDim2.fromOffset(6, 122),
+		Position = UDim2.fromOffset(6, 120),
 		ZIndex = 2,
 		Parent = card,
 	})
@@ -6164,7 +7065,7 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		Text = crystal.Tier,
 		TextColor3 = tierColor,
 		Size = UDim2.new(1, -12, 0, 26),
-		Position = UDim2.fromOffset(6, 158),
+		Position = UDim2.fromOffset(6, 154),
 		ZIndex = 2,
 		Parent = card,
 	})
@@ -6172,7 +7073,21 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		Text = "Value: " .. Format.Number(crystal.Value),
 		TextColor3 = UiKit.Colors.Accent,
 		Size = UDim2.new(1, -12, 0, 26),
-		Position = UDim2.fromOffset(6, 190),
+		Position = UDim2.fromOffset(6, 182),
+		ZIndex = 2,
+		Parent = card,
+	})
+
+	-- Two brag lines, both earned rather than decorative: the true odds you beat,
+	-- and whether this is the best thing you have ever pulled.
+	local brag = oddsBrag(crystal)
+	local isBest = crystal.Value > previousBest and previousBest > 0
+	UiKit.Label({
+		Text = isBest and "★ NEW PERSONAL BEST ★" or (brag or ""),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = isBest and Color3.fromRGB(255, 230, 120) or UiKit.Colors.TextDim,
+		Size = UDim2.new(1, -12, 0, 22),
+		Position = UDim2.fromOffset(6, 210),
 		ZIndex = 2,
 		Parent = card,
 	})
@@ -6186,7 +7101,7 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 			TextColor3 = Color3.fromRGB(25, 22, 18),
 			BackgroundColor3 = color,
 			Size = UDim2.fromOffset(cardWidth // 2 - 14, 30),
-			Position = UDim2.fromOffset(x, 222),
+			Position = UDim2.fromOffset(x, 250),
 			ZIndex = 3,
 			Parent = card,
 		})
@@ -6213,7 +7128,7 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		sellButton.TextColor3 = UiKit.Colors.TextDim
 		sellButton.Text = text
 		sellButton.Size = UDim2.new(1, -16, 0, 26)
-		sellButton.Position = UDim2.fromOffset(8, 224)
+		sellButton.Position = UDim2.fromOffset(8, 252)
 		onHandled()
 	end
 	sellButton.Activated:Connect(function()
@@ -6246,16 +7161,23 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 			end
 		end
 	end)
+	-- A new index entry always carries the count with it: an unfinished set is
+	-- the strongest reason to crack one more.
 	if crystal.New then
+		local state = State.Get()
+		local caption = "NEW!"
+		if state and state.TotalIndex then
+			caption = ("NEW!  %d/%d"):format(state.CollectionCount, state.TotalIndex)
+		end
 		local badge = UiKit.Create("TextLabel", {
-			Text = "NEW!",
+			Text = caption,
 			Font = Enum.Font.FredokaOne,
 			TextScaled = true,
 			TextColor3 = Color3.fromRGB(30, 26, 20),
 			BackgroundColor3 = UiKit.Colors.Good,
 			Rotation = -12,
-			Size = UDim2.fromOffset(64, 30),
-			Position = UDim2.new(1, -48, 0, -10),
+			Size = UDim2.fromOffset(96, 30),
+			Position = UDim2.new(1, -56, 0, -10),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			ZIndex = 3,
 			Parent = card,
@@ -6265,21 +7187,19 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		TweenService:Create(
 			badge,
 			TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out, 0, false, 0.2),
-			{ Size = UDim2.fromOffset(64, 30) }
+			{ Size = UDim2.fromOffset(96, 30) }
 		):Play()
 	end
 
 	-- pop in
 	card.Size = UDim2.fromOffset(0, 0)
 	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Size = UDim2.fromOffset(cardWidth, 260),
+		Size = UDim2.fromOffset(cardWidth, 292),
 	}):Play()
-	local spin = TweenService:Create(gem, TweenInfo.new(2.4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), { Rotation = 405 })
-	spin:Play()
 	return card
 end
 
-local function showReveal(results: { { [string]: any } })
+local function showReveal(results: { { [string]: any } }, previousBest: number)
 	if not revealGui then
 		return
 	end
@@ -6349,6 +7269,8 @@ local function showReveal(results: { { [string]: any } })
 	}, function()
 		-- Celebration extras land with the burst
 		RevealFx.Fanfare(overlay, bestRank)
+		-- The whole screen kicks, scaled to what you pulled
+		WorldFx.Shake(0.5 + bestRank * 0.45)
 		if bestRank >= 4 then
 			RevealFx.Confetti(overlay, bestColor, bestRank >= 5 and 36 or 20)
 		end
@@ -6359,7 +7281,7 @@ local function showReveal(results: { { [string]: any } })
 			end
 			task.delay((i - 1) * 0.18, function()
 				if overlay.Parent then
-					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll)
+					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll, previousBest)
 				end
 			end)
 		end
@@ -6407,6 +7329,10 @@ local function crack(count: number)
 		return
 	end
 	cracking = true
+	-- Snapshot the record BEFORE the server updates it, or every pull would
+	-- claim to be a personal best.
+	local state = State.Get()
+	local previousBest = (state and state.Stats and state.Stats.RarestValue) or 0
 	local results, err = Remotes.Function("CrackGeode"):InvokeServer(count)
 	cracking = false
 	if not results then
@@ -6415,7 +7341,7 @@ local function crack(count: number)
 		end
 		return
 	end
-	showReveal(results)
+	showReveal(results, previousBest)
 end
 
 function CrackScreen.Init(gui: ScreenGui)
@@ -6535,7 +7461,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="45">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6658,7 +7584,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="46">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -6950,7 +7876,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="41">
+          <Item class="ModuleScript" referent="47">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7026,7 +7952,7 @@ function RebirthScreen.Init(gui: ScreenGui)
 	end)
 
 	local instant = UiKit.Button({
-		Text = "Instant Recrystallize (R$)",
+		Text = "Instant Set Sail (R$)",
 		BackgroundColor3 = UiKit.Colors.Robux,
 		Size = UDim2.new(0.9, 0, 0, 44),
 		Position = UDim2.fromScale(0.05, 0.82),
@@ -7049,7 +7975,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="42">
+          <Item class="ModuleScript" referent="48">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7310,7 +8236,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="43">
+          <Item class="ModuleScript" referent="49">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7492,7 +8418,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -7539,13 +8465,14 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
 -- Toast notifications (Notify), auto-crack result toasts, and the welcome-back
 -- popup (streak + offline earnings) — the daily dopamine moment.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -7555,6 +8482,7 @@ local Crystals = require(Shared.Config.Crystals)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local UiKit = require(script.Parent.UiKit)
+local WorldFx = require(script.Parent.WorldFx)
 
 local Toasts = {}
 
@@ -7587,6 +8515,85 @@ local function pushToast(text: string, color: Color3?)
 end
 
 Toasts.Push = pushToast
+
+-- Server-wide rare-find callout. This is the game's status economy: pulling a
+-- Mythic in front of 14 other people is worth more than the coins are, and
+-- seeing someone else's callout is the most convincing possible proof that the
+-- rare stuff is really in there.
+local function showRareFind(payload: { [string]: any })
+	if not gui then
+		return
+	end
+	local color = typeof(payload.Color) == "Color3" and payload.Color or UiKit.Colors.Accent
+	local mine = payload.Player == Players.LocalPlayer.DisplayName
+	local rank = tonumber(payload.Rank) or 5
+
+	local banner = UiKit.Create("Frame", {
+		Size = UDim2.fromOffset(0, 62),
+		Position = UDim2.new(0.5, 0, 0, 96),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		BackgroundTransparency = 0.08,
+		ZIndex = 20,
+		Parent = gui,
+	})
+	UiKit.Corner(14).Parent = banner
+	local stroke = UiKit.Stroke(color, 3)
+	stroke.Parent = banner
+	UiKit.Label({
+		Text = mine and "★  YOU REELED IN A " .. string.upper(payload.Label or "") .. "!  ★"
+			or ((payload.Player or "Someone") .. " reeled in a " .. (payload.Label or "relic") .. "!"),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = color,
+		Size = UDim2.new(1, -20, 0, 34),
+		Position = UDim2.fromOffset(10, 6),
+		ZIndex = 21,
+		Parent = banner,
+	})
+	UiKit.Label({
+		Text = (payload.Tier or "Legendary") .. "  •  worth " .. Format.Number(tonumber(payload.Value) or 0),
+		Font = Enum.Font.GothamBold,
+		TextColor3 = UiKit.Colors.TextDim,
+		Size = UDim2.new(1, -20, 0, 18),
+		Position = UDim2.fromOffset(10, 38),
+		ZIndex = 21,
+		Parent = banner,
+	})
+
+	TweenService:Create(banner, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(mine and 560 or 480, 62),
+	}):Play()
+	TweenService:Create(
+		stroke,
+		TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 6, true),
+		{ Thickness = 7 }
+	):Play()
+	WorldFx.Shake(mine and 1.6 or 0.5)
+
+	for i, pitch in { 0.7, 1.05, 1.4, 1.85 } do
+		task.delay((i - 1) * 0.09, function()
+			if not banner.Parent then
+				return
+			end
+			local sting = Instance.new("Sound")
+			sting.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+			sting.PlaybackSpeed = pitch
+			sting.Volume = rank >= 6 and 0.8 or 0.55
+			sting.Parent = banner
+			sting:Play()
+		end)
+	end
+
+	task.delay(mine and 6 or 4.5, function()
+		if not banner.Parent then
+			return
+		end
+		local fade = TweenService:Create(banner, TweenInfo.new(0.35), { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 62) })
+		fade:Play()
+		fade.Completed:Wait()
+		banner:Destroy()
+	end)
+end
 
 local function showWelcome(report: { [string]: any })
 	if not gui then
@@ -7744,6 +8751,12 @@ function Toasts.Init(screenGui: ScreenGui)
 		end
 	end)
 
+	Remotes.Event("RareFind").OnClientEvent:Connect(function(payload)
+		if typeof(payload) == "table" then
+			showRareFind(payload)
+		end
+	end)
+
 	Remotes.Event("WelcomeReport").OnClientEvent:Connect(function(report)
 		if typeof(report) == "table" then
 			showWelcome(report)
@@ -7755,7 +8768,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -7912,6 +8925,119 @@ function UiKit.Clear(container: Instance)
 end
 
 return UiKit
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="53">
+          <Properties>
+            <string name="Name">WorldFx</string>
+            <string name="Source"><![CDATA[--!strict
+-- Client-side world juice: relics that turn, buoys that ride the swell, and
+-- camera shake for the moments that earn it.
+--
+-- All of it is local. Nothing here replicates, which is why a dozen bobbing
+-- buoys and two turning landmark relics cost the server nothing at all.
+
+local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local WorldFx = {}
+
+local rng = Random.new()
+local shake = 0
+
+-- Shake decays fast and is capped, so a lucky streak gives a lively screen
+-- rather than an unplayable one.
+function WorldFx.Shake(amount: number)
+	shake = math.min(shake + amount, 2.2)
+end
+
+-- PVInstance, not Model: this drives relic clusters and single buoys alike.
+type Spinner = { Object: PVInstance, Base: CFrame, Speed: number, Bob: number, BobSpeed: number, Phase: number }
+
+local spinners: { Spinner } = {}
+local spinnerOf: { [PVInstance]: Spinner } = {}
+
+local function trackSpinner(instance: Instance)
+	if not instance:IsA("PVInstance") then
+		return
+	end
+	local object = instance :: PVInstance
+	if spinnerOf[object] then
+		return
+	end
+	local spinner: Spinner = {
+		Object = object,
+		Base = object:GetPivot(),
+		Speed = (object:GetAttribute("SpinSpeed") :: number?) or 0.4,
+		Bob = (object:GetAttribute("BobHeight") :: number?) or 0,
+		BobSpeed = (object:GetAttribute("BobSpeed") :: number?) or 0.6,
+		Phase = rng:NextNumber(0, math.pi * 2),
+	}
+	spinnerOf[object] = spinner
+	table.insert(spinners, spinner)
+end
+
+local function untrackSpinner(instance: Instance)
+	if not instance:IsA("PVInstance") then
+		return
+	end
+	local spinner = spinnerOf[instance :: PVInstance]
+	if not spinner then
+		return
+	end
+	spinnerOf[instance :: PVInstance] = nil
+	local index = table.find(spinners, spinner)
+	if index then
+		table.remove(spinners, index)
+	end
+end
+
+function WorldFx.Init()
+	for _, tagged in CollectionService:GetTagged("SpinCrystal") do
+		trackSpinner(tagged)
+	end
+	CollectionService:GetInstanceAddedSignal("SpinCrystal"):Connect(trackSpinner)
+	CollectionService:GetInstanceRemovedSignal("SpinCrystal"):Connect(untrackSpinner)
+
+	local clock = 0
+	RunService.RenderStepped:Connect(function(dt: number)
+		clock += dt
+		for _, spinner in spinners do
+			if spinner.Object.Parent then
+				local lift = spinner.Bob > 0
+					and math.sin(clock * spinner.BobSpeed + spinner.Phase) * spinner.Bob
+					or 0
+				spinner.Object:PivotTo(
+					spinner.Base * CFrame.new(0, lift, 0) * CFrame.Angles(0, clock * spinner.Speed * math.pi, 0)
+				)
+			end
+		end
+	end)
+
+	-- Shake is applied after the camera script has written its CFrame, or it
+	-- gets overwritten the same frame.
+	RunService:BindToRenderStep("WorldFxShake", Enum.RenderPriority.Camera.Value + 1, function(dt: number)
+		if shake <= 0.0005 then
+			return
+		end
+		shake = math.max(shake - dt * 6, 0)
+		local camera = Workspace.CurrentCamera
+		if not camera then
+			return
+		end
+		local magnitude = shake * 0.012
+		camera.CFrame = camera.CFrame
+			* CFrame.Angles(
+				rng:NextNumber(-magnitude, magnitude),
+				rng:NextNumber(-magnitude, magnitude),
+				rng:NextNumber(-magnitude, magnitude)
+			)
+	end)
+end
+
+return WorldFx
 ]]></string>
           </Properties>
         </Item>

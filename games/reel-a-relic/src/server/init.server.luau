@@ -10,6 +10,7 @@ local AnalyticsService = require(script.AnalyticsService)
 local CrackService = require(script.CrackService)
 local DataService = require(script.DataService)
 local EventService = require(script.EventService)
+local FlexAura = require(script.FlexAura)
 local Leaderboards = require(script.Leaderboards)
 local MapBuilder = require(script.MapBuilder)
 local MiningService = require(script.MiningService)
@@ -19,6 +20,7 @@ local RackService = require(script.RackService)
 local RebirthService = require(script.RebirthService)
 local RodVisual = require(script.RodVisual)
 local ShopService = require(script.ShopService)
+local Spotlight = require(script.Spotlight)
 local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
 
@@ -38,11 +40,14 @@ local ctx: any = {
 	Policy = PolicyGuard,
 	RodVis = RodVisual,
 	Analytics = AnalyticsService,
+	Flex = FlexAura,
+	Spotlight = Spotlight,
 }
 
 -- Called by DataService once a profile is loaded (before the first StateSync).
 ctx.OnProfileLoaded = function(player: Player, data: any)
 	MonetizationService.PreloadPasses(player, data)
+	FlexAura.Apply(player, data)
 	local streakReport = StreakService.HandleJoin(player, data)
 	local offline = RackService.OfflineSummary(player, data)
 	-- Give the client a moment to boot its UI, then show the welcome moment.

@@ -10,6 +10,8 @@ local EVENTS = {
 	"Notify", -- server -> client: toast messages { Text, Color? }
 	"WelcomeReport", -- server -> client on join: offline earnings + streak summary
 	"CrackResult", -- server -> client: crystals from a crack (drives the reveal)
+	"RareFind", -- server -> all clients: someone pulled a Legendary+ (social proof)
+	"RebirthFx", -- server -> client: run the Set Sail ritual
 }
 
 local FUNCTIONS = {

@@ -7,6 +7,7 @@ local State = require(script.State)
 local Toasts = require(script.Toasts)
 local Hud = require(script.Hud)
 local LeapFx = require(script.LeapFx)
+local WorldFx = require(script.WorldFx)
 local TrailsScreen = require(script.Screens.TrailsScreen)
 local TeleportScreen = require(script.Screens.TeleportScreen)
 local RebirthScreen = require(script.Screens.RebirthScreen)
@@ -23,6 +24,7 @@ gui.DisplayOrder = 10
 gui.Parent = playerGui
 
 State.Init()
+WorldFx.Init()
 Toasts.Init(gui)
 Hud.Init(gui)
 LeapFx.Init(gui)

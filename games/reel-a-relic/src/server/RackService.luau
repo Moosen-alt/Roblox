@@ -55,7 +55,7 @@ function RackService.Socket(player: Player, crystalId: string): (boolean, string
 		return false, "Loading..."
 	end
 	if not data.Crystals[crystalId] then
-		return false, "Crystal not found."
+		return false, "Relic not found."
 	end
 	for _, rack in data.Racks do
 		if rack.CrystalId == crystalId then

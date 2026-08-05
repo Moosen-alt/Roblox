@@ -3,8 +3,13 @@
 -- a beach with a wooden dock over real terrain water, glowing fishing spots,
 -- station pads, leaderboard boards, spawn, and lighting.
 
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CrystalShape = require(Shared.CrystalShape)
 
 local MapBuilder = {}
 
@@ -234,7 +239,34 @@ function MapBuilder.Build(): MapRefs
 		local click = Instance.new("ClickDetector")
 		click.MaxActivationDistance = 60
 		click.Parent = spot
+		-- Buoys ride the swell. The bob runs on each client, so twelve floating
+		-- markers cost the server nothing.
+		CollectionService:AddTag(spot, "SpinCrystal")
+		spot:SetAttribute("SpinSpeed", 0)
+		spot:SetAttribute("BobHeight", rng:NextNumber(0.5, 0.9))
+		spot:SetAttribute("BobSpeed", rng:NextNumber(0.9, 1.5))
 		table.insert(nodes, spot)
+	end
+
+	-- Landmark relics turning above the water: something to look at on the walk
+	-- down the dock, and a hint of what is down there.
+	for _, spot in { Vector3.new(-46, 12, -58), Vector3.new(46, 12, -58) } do
+		local crystal = CrystalShape.Build({
+			Color = SPOT_COLORS[rng:NextInteger(1, #SPOT_COLORS)],
+			Scale = rng:NextNumber(2.4, 3.2),
+			Shards = 6,
+			Segments = 3,
+			Seed = math.floor(spot.X * 7 + spot.Z),
+			Glow = 34,
+			Sparkle = true,
+		})
+		crystal.Name = "LandmarkRelic"
+		crystal:PivotTo(CFrame.new(spot))
+		crystal.Parent = map
+		CollectionService:AddTag(crystal, "SpinCrystal")
+		crystal:SetAttribute("SpinSpeed", rng:NextNumber(0.18, 0.32))
+		crystal:SetAttribute("BobHeight", rng:NextNumber(1.2, 2.2))
+		crystal:SetAttribute("BobSpeed", rng:NextNumber(0.5, 0.8))
 	end
 
 	-- Stations on the beach

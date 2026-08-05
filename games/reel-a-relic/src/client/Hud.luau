@@ -22,6 +22,41 @@ local streakLabel: TextLabel? = nil
 local eventBanner: TextLabel? = nil
 local starterButton: TextButton? = nil
 local starterOffer: Frame? = nil
+local indexBadge: TextLabel? = nil
+
+-- Coins roll up to their new value instead of snapping, and the pill punches
+-- when they land. A number that visibly climbs is worth more than the same
+-- number appearing — it's the slot-machine payout counter, and it costs
+-- nothing but a lerp.
+local displayedCoins = 0
+local targetCoins = 0
+local seenFirstSync = false
+
+local function coinGainPopup(anchor: Frame, amount: number)
+	local label = UiKit.Label({
+		Text = "+" .. Format.Number(amount),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Good,
+		TextStrokeTransparency = 0.4,
+		Size = UDim2.fromOffset(150, 30),
+		Position = UDim2.new(1, 6, 0, 6),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = anchor,
+	})
+	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = UDim2.new(1, 6, 0, -22),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	}):Play()
+	task.delay(1, function()
+		label:Destroy()
+	end)
+
+	anchor.Size = UDim2.fromOffset(205, 44)
+	TweenService:Create(anchor, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(190, 40),
+	}):Play()
+end
 
 local function pill(parent: Instance, position: UDim2, color: Color3): TextLabel
 	local frame = UiKit.Create("Frame", {
@@ -131,6 +166,27 @@ function Hud.Init(gui: ScreenGui)
 		})
 		UiKit.Corner(12).Parent = button
 		UiKit.Pad(8).Parent = button
+
+		-- The collection counter rides on the Index button rather than taking a
+		-- fifth HUD pill. An unfinished set on screen at all times is the quiet
+		-- reason to crack one more geode.
+		if def.Screen == "Index" then
+			local badge = UiKit.Create("TextLabel", {
+				Text = "",
+				Font = Enum.Font.FredokaOne,
+				TextScaled = true,
+				TextColor3 = Color3.fromRGB(28, 24, 20),
+				BackgroundColor3 = UiKit.Colors.Good,
+				Size = UDim2.fromOffset(56, 20),
+				Position = UDim2.new(1, -30, 0, -14),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				ZIndex = 3,
+				Parent = button,
+			}) :: TextLabel
+			UiKit.Corner(6).Parent = badge
+			indexBadge = badge
+		end
+
 		local screenName = def.Screen
 		button.Activated:Connect(function()
 			ScreenManager.Toggle(screenName)
@@ -220,14 +276,29 @@ function Hud.Init(gui: ScreenGui)
 	starterOffer = offer
 
 	State.Changed:Connect(function(state)
-		if coinsLabel then
-			coinsLabel.Text = "Coins: " .. Format.Number(state.Coins) .. "  (x" .. string.format("%.2f", state.CoinMult) .. ")"
+		local gain = state.Coins - targetCoins
+		targetCoins = state.Coins
+		if not seenFirstSync then
+			seenFirstSync = true
+			displayedCoins = state.Coins
+		elseif gain > 0 and coinsLabel then
+			coinGainPopup(coinsLabel.Parent :: Frame, gain)
+		elseif gain < 0 then
+			displayedCoins = state.Coins -- spending is instant; earning is savoured
 		end
 		if geodesLabel then
 			geodesLabel.Text = "Chests: " .. state.Geodes .. " / " .. state.BackpackCapacity
 		end
 		if streakLabel then
 			streakLabel.Text = "Streak: Day " .. state.Streak.Count
+		end
+		local badge = indexBadge
+		if badge and state.TotalIndex then
+			badge.Text = state.CollectionCount .. "/" .. state.TotalIndex
+			-- Goes gold on the home stretch: "almost done" is worth more than a
+			-- number, and it is true rather than manufactured.
+			local remaining = state.TotalIndex - state.CollectionCount
+			badge.BackgroundColor3 = if remaining <= 5 then UiKit.Colors.Accent else UiKit.Colors.Good
 		end
 		local packAvailable = not state.StarterPackOwned and Monetization.Products.StarterPack.Id ~= 0
 		if starterButton then
@@ -238,8 +309,23 @@ function Hud.Init(gui: ScreenGui)
 		end
 	end)
 
-	RunService.Heartbeat:Connect(function()
+	RunService.Heartbeat:Connect(function(delta: number)
 		local state = State.Get()
+		if state and coinsLabel then
+			if displayedCoins ~= targetCoins then
+				local step = math.max(math.abs(targetCoins - displayedCoins) * math.min(delta * 9, 1), 1)
+				if math.abs(targetCoins - displayedCoins) <= step then
+					displayedCoins = targetCoins
+				else
+					displayedCoins += (targetCoins > displayedCoins) and step or -step
+				end
+			end
+			coinsLabel.Text = "Coins: "
+				.. Format.Number(math.floor(displayedCoins))
+				.. "  (x"
+				.. string.format("%.2f", state.CoinMult)
+				.. ")"
+		end
 		if state then
 			local remaining = (state.Boost2xUntil or 0) - os.time()
 			local frame = boostFrame

@@ -3,12 +3,14 @@
 -- server rolls a fresh seed, so each server is a new tower layout — systemic
 -- content, Tower-of-Hell style, with zero authored maps.
 
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
+local CrystalShape = require(Shared.CrystalShape)
 
 local CourseBuilder = {}
 
@@ -199,6 +201,31 @@ function CourseBuilder.Build(): CourseRefs
 		local stageRng = Random.new(rng:NextInteger(1, 2 ^ 30))
 		segmentPlatforms(stageRng, stageRng:NextInteger(1, 6), z - Balance.StageLength, z, folder, stageColor(i))
 		pads[i] = makePad(i, z, folder)
+	end
+
+	-- Giant turning crystals every ten stages: a landmark you can see from the
+	-- stage below, so "just get to the next one" always has something to aim at.
+	-- The spin and float run on each client (see WorldFx), so a hundred stages
+	-- of decoration costs the server nothing.
+	for milestone = 10, Balance.Stages, 10 do
+		local z = milestone * Balance.StageLength
+		local side = (milestone % 20 == 0) and 1 or -1
+		local crystal = CrystalShape.Build({
+			Color = stageColor(milestone),
+			Scale = rng:NextNumber(2.4, 3.4),
+			Shards = 6,
+			Segments = 3,
+			Seed = milestone * 13,
+			Glow = 40,
+			Sparkle = true,
+		})
+		crystal.Name = "Landmark" .. milestone
+		crystal:PivotTo(CFrame.new(side * 34, 16, z))
+		crystal.Parent = folder
+		CollectionService:AddTag(crystal, "SpinCrystal")
+		crystal:SetAttribute("SpinSpeed", rng:NextNumber(0.16, 0.3))
+		crystal:SetAttribute("BobHeight", rng:NextNumber(1.4, 2.6))
+		crystal:SetAttribute("BobSpeed", rng:NextNumber(0.45, 0.8))
 	end
 
 	local boardStages = makeBoard(Vector3.new(-26, 7, -30), "Best Stage", folder)

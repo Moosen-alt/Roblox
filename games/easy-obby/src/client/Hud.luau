@@ -2,6 +2,8 @@
 -- HUD: coins/jump/stage pills, screen buttons, and the Skip Stage quick-buy.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Format = require(Shared.Format)
@@ -17,6 +19,39 @@ local coinsLabel: TextLabel? = nil
 local jumpLabel: TextLabel? = nil
 local stageLabel: TextLabel? = nil
 local streakLabel: TextLabel? = nil
+
+-- Coins roll up to their new value instead of snapping, and the pill punches
+-- when they land. A number that visibly climbs is worth more than the same
+-- number appearing — it's the payout counter, and it costs nothing but a lerp.
+local displayedCoins = 0
+local targetCoins = 0
+local seenFirstSync = false
+
+local function coinGainPopup(anchor: Frame, amount: number)
+	local label = UiKit.Label({
+		Text = "+" .. Format.Number(amount),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Good,
+		TextStrokeTransparency = 0.4,
+		Size = UDim2.fromOffset(150, 30),
+		Position = UDim2.new(1, 6, 0, 6),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = anchor,
+	})
+	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = UDim2.new(1, 6, 0, -22),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	}):Play()
+	task.delay(1, function()
+		label:Destroy()
+	end)
+
+	anchor.Size = UDim2.fromOffset(205, 44)
+	TweenService:Create(anchor, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(190, 40),
+	}):Play()
+end
 
 local function pill(parent: Instance, position: UDim2, color: Color3): TextLabel
 	local frame = UiKit.Create("Frame", {
@@ -101,8 +136,15 @@ function Hud.Init(gui: ScreenGui)
 	end)
 
 	State.Changed:Connect(function(state)
-		if coinsLabel then
-			coinsLabel.Text = "Coins: " .. Format.Number(state.Coins) .. "  (x" .. string.format("%.2f", state.CoinMult) .. ")"
+		local gain = state.Coins - targetCoins
+		targetCoins = state.Coins
+		if not seenFirstSync then
+			seenFirstSync = true
+			displayedCoins = state.Coins
+		elseif gain > 0 and coinsLabel then
+			coinGainPopup(coinsLabel.Parent :: Frame, gain)
+		elseif gain < 0 then
+			displayedCoins = state.Coins -- spending is instant; earning is savoured
 		end
 		if jumpLabel then
 			jumpLabel.Text = "Jump Power: " .. state.JumpPower
@@ -113,6 +155,25 @@ function Hud.Init(gui: ScreenGui)
 		if streakLabel then
 			streakLabel.Text = "Streak: Day " .. state.Streak.Count .. "  •  Rebirth " .. state.Rebirths
 		end
+	end)
+	RunService.Heartbeat:Connect(function(delta: number)
+		local state = State.Get()
+		if not state or not coinsLabel then
+			return
+		end
+		if displayedCoins ~= targetCoins then
+			local step = math.max(math.abs(targetCoins - displayedCoins) * math.min(delta * 9, 1), 1)
+			if math.abs(targetCoins - displayedCoins) <= step then
+				displayedCoins = targetCoins
+			else
+				displayedCoins += (targetCoins > displayedCoins) and step or -step
+			end
+		end
+		coinsLabel.Text = "Coins: "
+			.. Format.Number(math.floor(displayedCoins))
+			.. "  (x"
+			.. string.format("%.2f", state.CoinMult)
+			.. ")"
 	end)
 end
 

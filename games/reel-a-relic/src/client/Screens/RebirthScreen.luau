@@ -71,7 +71,7 @@ function RebirthScreen.Init(gui: ScreenGui)
 	end)
 
 	local instant = UiKit.Button({
-		Text = "Instant Recrystallize (R$)",
+		Text = "Instant Set Sail (R$)",
 		BackgroundColor3 = UiKit.Colors.Robux,
 		Size = UDim2.new(0.9, 0, 0, 44),
 		Position = UDim2.fromScale(0.05, 0.82),

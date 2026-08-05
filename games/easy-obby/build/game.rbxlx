@@ -146,6 +146,133 @@ return Monetization
       </Item>
       <Item class="ModuleScript" referent="5">
         <Properties>
+          <string name="Name">CrystalShape</string>
+          <string name="Source"><![CDATA[--!strict
+-- Shared crystal geometry: a cluster of tapered, glowing shards built from
+-- primitives (no asset uploads). One builder feeds the cave decoration, the
+-- crystal inside every geode, and the spinning 3D gem on reveal cards — so a
+-- Sapphire is recognisably the same rock everywhere in the game.
+
+local CrystalShape = {}
+
+export type Options = {
+	Color: Color3,
+	Scale: number?, -- overall size multiplier (1 ~= 3.5 studs tall)
+	Shards: number?, -- spikes in the cluster
+	Segments: number?, -- taper detail per spike: 1 = flat spike, 3 = faceted gem
+	Seed: number?,
+	Glow: number?, -- PointLight range at the cluster centre (nil/0 = no light)
+	Sparkle: boolean?, -- drifting glints around the cluster
+}
+
+local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Color3): Part
+	local p = Instance.new("Part")
+	p.Name = "Facet"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false -- mining raycasts must hit the geode hitbox, not the sparkle
+	p.CanTouch = false
+	p.Massless = true
+	p.Material = Enum.Material.Neon
+	p.Color = color
+	p.Transparency = 0.06
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Size = size
+	p.CFrame = cframe
+	p.Parent = parent
+	return p
+end
+
+-- One spike: stacked blocks that shrink as they rise, each turned 45 degrees so
+-- the silhouette reads as a faceted crystal rather than a stick.
+local function spike(parent: Instance, base: CFrame, height: number, width: number, color: Color3, segments: number): Part
+	local segHeight = height / (segments + 0.5)
+	local tallest = nil :: Part?
+	for s = 1, segments do
+		local t = (s - 1) / segments
+		local w = width * (1 - t * 0.5)
+		tallest = facet(
+			parent,
+			base * CFrame.new(0, segHeight * (s - 0.5), 0) * CFrame.Angles(0, math.rad(45), 0),
+			Vector3.new(w, segHeight, w),
+			color
+		)
+	end
+	-- Chisel tip
+	local tip = facet(
+		parent,
+		base * CFrame.new(0, segments * segHeight + segHeight * 0.28, 0) * CFrame.Angles(0, math.rad(45), 0),
+		Vector3.new(width * 0.34, segHeight * 0.6, width * 0.34),
+		color
+	)
+	return tallest or tip
+end
+
+function CrystalShape.Build(options: Options): Model
+	local model = Instance.new("Model")
+	model.Name = "Crystal"
+
+	local scale = options.Scale or 1
+	local shards = math.max(options.Shards or 5, 1)
+	local segments = math.max(options.Segments or 2, 1)
+	local rng = Random.new(options.Seed or 7)
+	local center: Part? = nil
+
+	for i = 1, shards do
+		local angle = ((i - 1) / shards) * math.pi * 2 + rng:NextNumber(-0.35, 0.35)
+		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		local isCenter = i == 1
+		local lean = isCenter and rng:NextNumber(0, 0.12) or rng:NextNumber(0.2, 0.55)
+		local dist = (isCenter and 0 or rng:NextNumber(0.4, 0.85)) * scale
+		local height = (isCenter and rng:NextNumber(3.1, 3.6) or rng:NextNumber(1.5, 2.8)) * scale
+		local width = rng:NextNumber(0.5, 0.8) * scale
+		-- Tilt away from the cluster centre: rotate about the horizontal axis
+		-- perpendicular to the shard's radial direction.
+		local tiltAxis = Vector3.new(-dir.Z, 0, dir.X)
+		local base = CFrame.new(dir * dist) * CFrame.fromAxisAngle(tiltAxis, -lean)
+		local part = spike(model, base, height, width, options.Color, segments)
+		if isCenter then
+			center = part
+		end
+	end
+
+	local anchor = center or model:FindFirstChildWhichIsA("BasePart")
+	if anchor then
+		if options.Glow and options.Glow > 0 then
+			local light = Instance.new("PointLight")
+			light.Color = options.Color
+			light.Range = options.Glow
+			light.Brightness = 1.4
+			light.Shadows = false
+			light.Parent = anchor
+		end
+		if options.Sparkle then
+			local glints = Instance.new("ParticleEmitter")
+			glints.Color = ColorSequence.new(options.Color)
+			glints.LightEmission = 1
+			glints.Size = NumberSequence.new(0.35 * scale, 0)
+			glints.Transparency = NumberSequence.new(0.1, 1)
+			glints.Lifetime = NumberRange.new(0.8, 1.6)
+			glints.Rate = 6
+			glints.Speed = NumberRange.new(0.6, 1.8)
+			glints.SpreadAngle = Vector2.new(60, 60)
+			glints.Parent = anchor
+		end
+	end
+
+	-- Pivot at the base of the cluster so callers can plant it on a surface and
+	-- spin it about its own axis.
+	model.WorldPivot = CFrame.new()
+	return model
+end
+
+return CrystalShape
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
           <string name="Name">Format</string>
           <string name="Source"><![CDATA[--!strict
 local Format = {}
@@ -201,7 +328,7 @@ return Format
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="7">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--!strict
@@ -284,11 +411,11 @@ return Remotes
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="7">
+  <Item class="ServerScriptService" referent="8">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="8">
+    <Item class="Script" referent="9">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -366,7 +493,7 @@ DataService.Init(ctx)
 print("[EasyObby] Server ready.")
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">AnalyticsService</string>
           <string name="Source"><![CDATA[--!strict
@@ -400,7 +527,7 @@ return AnalyticsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">CourseBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -408,12 +535,14 @@ return AnalyticsService
 -- server rolls a fresh seed, so each server is a new tower layout — systemic
 -- content, Tower-of-Hell style, with zero authored maps.
 
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
+local CrystalShape = require(Shared.CrystalShape)
 
 local CourseBuilder = {}
 
@@ -606,6 +735,31 @@ function CourseBuilder.Build(): CourseRefs
 		pads[i] = makePad(i, z, folder)
 	end
 
+	-- Giant turning crystals every ten stages: a landmark you can see from the
+	-- stage below, so "just get to the next one" always has something to aim at.
+	-- The spin and float run on each client (see WorldFx), so a hundred stages
+	-- of decoration costs the server nothing.
+	for milestone = 10, Balance.Stages, 10 do
+		local z = milestone * Balance.StageLength
+		local side = (milestone % 20 == 0) and 1 or -1
+		local crystal = CrystalShape.Build({
+			Color = stageColor(milestone),
+			Scale = rng:NextNumber(2.4, 3.4),
+			Shards = 6,
+			Segments = 3,
+			Seed = milestone * 13,
+			Glow = 40,
+			Sparkle = true,
+		})
+		crystal.Name = "Landmark" .. milestone
+		crystal:PivotTo(CFrame.new(side * 34, 16, z))
+		crystal.Parent = folder
+		CollectionService:AddTag(crystal, "SpinCrystal")
+		crystal:SetAttribute("SpinSpeed", rng:NextNumber(0.16, 0.3))
+		crystal:SetAttribute("BobHeight", rng:NextNumber(1.4, 2.6))
+		crystal:SetAttribute("BobSpeed", rng:NextNumber(0.45, 0.8))
+	end
+
 	local boardStages = makeBoard(Vector3.new(-26, 7, -30), "Best Stage", folder)
 	local boardRebirths = makeBoard(Vector3.new(26, 7, -30), "Top Rebirths", folder)
 
@@ -633,7 +787,7 @@ return CourseBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[--!strict
@@ -846,7 +1000,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Leaderboards</string>
           <string name="Source"><![CDATA[--!strict
@@ -961,7 +1115,7 @@ return Leaderboards
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">MonetizationService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1123,11 +1277,11 @@ return MonetizationService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="14">
+      <Item class="Folder" referent="15">
         <Properties>
           <string name="Name">Packages</string>
         </Properties>
-        <Item class="ModuleScript" referent="15">
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">ProfileStore</string>
             <string name="Source">--[[
@@ -3376,7 +3530,7 @@ return ProfileStore</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3437,7 +3591,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">StageService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3650,7 +3804,7 @@ return StageService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3733,7 +3887,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">TrailService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3864,18 +4018,18 @@ return TrailService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="20">
+  <Item class="StarterPlayer" referent="21">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterJumpPower">50</float>
       <bool name="CharacterUseJumpPower">true</bool>
       <float name="CharacterWalkSpeed">16</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="21">
+    <Item class="StarterPlayerScripts" referent="22">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="22">
+      <Item class="LocalScript" referent="23">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -3887,6 +4041,7 @@ local State = require(script.State)
 local Toasts = require(script.Toasts)
 local Hud = require(script.Hud)
 local LeapFx = require(script.LeapFx)
+local WorldFx = require(script.WorldFx)
 local TrailsScreen = require(script.Screens.TrailsScreen)
 local TeleportScreen = require(script.Screens.TeleportScreen)
 local RebirthScreen = require(script.Screens.RebirthScreen)
@@ -3903,6 +4058,7 @@ gui.DisplayOrder = 10
 gui.Parent = playerGui
 
 State.Init()
+WorldFx.Init()
 Toasts.Init(gui)
 Hud.Init(gui)
 LeapFx.Init(gui)
@@ -3912,13 +4068,15 @@ RebirthScreen.Init(gui)
 StoreScreen.Init(gui)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
 -- HUD: coins/jump/stage pills, screen buttons, and the Skip Stage quick-buy.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Format = require(Shared.Format)
@@ -3934,6 +4092,39 @@ local coinsLabel: TextLabel? = nil
 local jumpLabel: TextLabel? = nil
 local stageLabel: TextLabel? = nil
 local streakLabel: TextLabel? = nil
+
+-- Coins roll up to their new value instead of snapping, and the pill punches
+-- when they land. A number that visibly climbs is worth more than the same
+-- number appearing — it's the payout counter, and it costs nothing but a lerp.
+local displayedCoins = 0
+local targetCoins = 0
+local seenFirstSync = false
+
+local function coinGainPopup(anchor: Frame, amount: number)
+	local label = UiKit.Label({
+		Text = "+" .. Format.Number(amount),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Good,
+		TextStrokeTransparency = 0.4,
+		Size = UDim2.fromOffset(150, 30),
+		Position = UDim2.new(1, 6, 0, 6),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = anchor,
+	})
+	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = UDim2.new(1, 6, 0, -22),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	}):Play()
+	task.delay(1, function()
+		label:Destroy()
+	end)
+
+	anchor.Size = UDim2.fromOffset(205, 44)
+	TweenService:Create(anchor, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(190, 40),
+	}):Play()
+end
 
 local function pill(parent: Instance, position: UDim2, color: Color3): TextLabel
 	local frame = UiKit.Create("Frame", {
@@ -4018,8 +4209,15 @@ function Hud.Init(gui: ScreenGui)
 	end)
 
 	State.Changed:Connect(function(state)
-		if coinsLabel then
-			coinsLabel.Text = "Coins: " .. Format.Number(state.Coins) .. "  (x" .. string.format("%.2f", state.CoinMult) .. ")"
+		local gain = state.Coins - targetCoins
+		targetCoins = state.Coins
+		if not seenFirstSync then
+			seenFirstSync = true
+			displayedCoins = state.Coins
+		elseif gain > 0 and coinsLabel then
+			coinGainPopup(coinsLabel.Parent :: Frame, gain)
+		elseif gain < 0 then
+			displayedCoins = state.Coins -- spending is instant; earning is savoured
 		end
 		if jumpLabel then
 			jumpLabel.Text = "Jump Power: " .. state.JumpPower
@@ -4031,13 +4229,32 @@ function Hud.Init(gui: ScreenGui)
 			streakLabel.Text = "Streak: Day " .. state.Streak.Count .. "  •  Rebirth " .. state.Rebirths
 		end
 	end)
+	RunService.Heartbeat:Connect(function(delta: number)
+		local state = State.Get()
+		if not state or not coinsLabel then
+			return
+		end
+		if displayedCoins ~= targetCoins then
+			local step = math.max(math.abs(targetCoins - displayedCoins) * math.min(delta * 9, 1), 1)
+			if math.abs(targetCoins - displayedCoins) <= step then
+				displayedCoins = targetCoins
+			else
+				displayedCoins += (targetCoins > displayedCoins) and step or -step
+			end
+		end
+		coinsLabel.Text = "Coins: "
+			.. Format.Number(math.floor(displayedCoins))
+			.. "  (x"
+			.. string.format("%.2f", state.CoinMult)
+			.. ")"
+	end)
 end
 
 return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">LeapFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -4049,6 +4266,7 @@ local TweenService = game:GetService("TweenService")
 
 local State = require(script.Parent.State)
 local UiKit = require(script.Parent.UiKit)
+local WorldFx = require(script.Parent.WorldFx)
 
 local LeapFx = {}
 
@@ -4117,6 +4335,8 @@ local function celebrate(delta: number)
 
 	LeapFx.Banner(("MEGA LEAP!  +%d"):format(delta), UiKit.Colors.Accent)
 	LeapFx.Confetti(math.min(10 + delta * 2, 34))
+	-- The screen kicks harder the further you flew
+	WorldFx.Shake(math.min(0.6 + delta * 0.2, 2))
 	LeapFx.Chime({ { 0, 1.0, 0.55 }, { 0.08, 1.26, 0.6 }, { 0.16, 1.5, 0.65 } })
 end
 
@@ -4216,7 +4436,7 @@ return LeapFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -4255,7 +4475,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -4312,11 +4532,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="27">
+        <Item class="Folder" referent="28">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="28">
+          <Item class="ModuleScript" referent="29">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -4410,7 +4630,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="29">
+          <Item class="ModuleScript" referent="30">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -4591,7 +4811,7 @@ return StoreScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="30">
+          <Item class="ModuleScript" referent="31">
             <Properties>
               <string name="Name">TeleportScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -4687,7 +4907,7 @@ return TeleportScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="31">
+          <Item class="ModuleScript" referent="32">
             <Properties>
               <string name="Name">TrailsScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -4859,7 +5079,7 @@ return TrailsScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -4892,7 +5112,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -5048,7 +5268,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -5208,10 +5428,123 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
+        <Item class="ModuleScript" referent="36">
+          <Properties>
+            <string name="Name">WorldFx</string>
+            <string name="Source"><![CDATA[--!strict
+-- Client-side world juice: floating crystals that turn over the course, and
+-- camera shake for the moments that earn it.
+--
+-- All of it is local. Nothing here replicates, which is why the decoration
+-- along a hundred stages costs the server nothing at all.
+
+local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local WorldFx = {}
+
+local rng = Random.new()
+local shake = 0
+
+-- Shake decays fast and is capped, so a chain of leaps gives a lively screen
+-- rather than an unplayable one.
+function WorldFx.Shake(amount: number)
+	shake = math.min(shake + amount, 2.2)
+end
+
+-- PVInstance, not Model: this drives crystal clusters and single parts alike.
+type Spinner = { Object: PVInstance, Base: CFrame, Speed: number, Bob: number, BobSpeed: number, Phase: number }
+
+local spinners: { Spinner } = {}
+local spinnerOf: { [PVInstance]: Spinner } = {}
+
+local function trackSpinner(instance: Instance)
+	if not instance:IsA("PVInstance") then
+		return
+	end
+	local object = instance :: PVInstance
+	if spinnerOf[object] then
+		return
+	end
+	local spinner: Spinner = {
+		Object = object,
+		Base = object:GetPivot(),
+		Speed = (object:GetAttribute("SpinSpeed") :: number?) or 0.4,
+		Bob = (object:GetAttribute("BobHeight") :: number?) or 0,
+		BobSpeed = (object:GetAttribute("BobSpeed") :: number?) or 0.6,
+		Phase = rng:NextNumber(0, math.pi * 2),
+	}
+	spinnerOf[object] = spinner
+	table.insert(spinners, spinner)
+end
+
+local function untrackSpinner(instance: Instance)
+	if not instance:IsA("PVInstance") then
+		return
+	end
+	local spinner = spinnerOf[instance :: PVInstance]
+	if not spinner then
+		return
+	end
+	spinnerOf[instance :: PVInstance] = nil
+	local index = table.find(spinners, spinner)
+	if index then
+		table.remove(spinners, index)
+	end
+end
+
+function WorldFx.Init()
+	for _, tagged in CollectionService:GetTagged("SpinCrystal") do
+		trackSpinner(tagged)
+	end
+	CollectionService:GetInstanceAddedSignal("SpinCrystal"):Connect(trackSpinner)
+	CollectionService:GetInstanceRemovedSignal("SpinCrystal"):Connect(untrackSpinner)
+
+	local clock = 0
+	RunService.RenderStepped:Connect(function(dt: number)
+		clock += dt
+		for _, spinner in spinners do
+			if spinner.Object.Parent then
+				local lift = spinner.Bob > 0
+					and math.sin(clock * spinner.BobSpeed + spinner.Phase) * spinner.Bob
+					or 0
+				spinner.Object:PivotTo(
+					spinner.Base * CFrame.new(0, lift, 0) * CFrame.Angles(0, clock * spinner.Speed * math.pi, 0)
+				)
+			end
+		end
+	end)
+
+	-- Shake is applied after the camera script has written its CFrame, or it
+	-- gets overwritten the same frame.
+	RunService:BindToRenderStep("WorldFxShake", Enum.RenderPriority.Camera.Value + 1, function(dt: number)
+		if shake <= 0.0005 then
+			return
+		end
+		shake = math.max(shake - dt * 6, 0)
+		local camera = Workspace.CurrentCamera
+		if not camera then
+			return
+		end
+		local magnitude = shake * 0.012
+		camera.CFrame = camera.CFrame
+			* CFrame.Angles(
+				rng:NextNumber(-magnitude, magnitude),
+				rng:NextNumber(-magnitude, magnitude),
+				rng:NextNumber(-magnitude, magnitude)
+			)
+	end)
+end
+
+return WorldFx
+]]></string>
+          </Properties>
+        </Item>
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="35">
+  <Item class="Workspace" referent="37">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-30</float>
