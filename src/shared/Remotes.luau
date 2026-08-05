@@ -11,6 +11,8 @@ local EVENTS = {
 	"WelcomeReport", -- server -> client on join: offline earnings + streak summary
 	"CrackResult", -- server -> client: crystals from a crack (drives the reveal)
 	"MineNode", -- client -> server: tapped a deposit node (Tools swallow ClickDetector clicks)
+	"MineFx", -- server -> client: per-player mining feedback (damage, cracks, shake)
+	"RareFind", -- server -> all clients: someone pulled a Legendary+ (social proof)
 }
 
 local FUNCTIONS = {

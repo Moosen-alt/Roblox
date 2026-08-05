@@ -4,6 +4,8 @@
 -- pity roll (Nth lifetime crack guaranteed Rare+).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
@@ -12,9 +14,6 @@ local RarityMath = require(Shared.RarityMath)
 local Remotes = require(Shared.Remotes)
 
 local CrackService = {}
-
-local ctx: any = nil
-local rng = Random.new()
 
 export type CrackedCrystal = {
 	Id: string,
@@ -26,6 +25,96 @@ export type CrackedCrystal = {
 	Tier: string,
 	New: boolean,
 }
+
+local ctx: any = nil
+local rng = Random.new()
+
+-- Mutations that earn a server-wide callout even on a lower-tier base: a
+-- Celestial Quartz is a better story than a plain Opal.
+local LOUD_MUTATIONS: { [string]: boolean } = { Radioactive = true, Celestial = true }
+
+local function tierRank(tier: string): number
+	for i, name in Crystals.Tiers do
+		if name == tier then
+			return i
+		end
+	end
+	return 1
+end
+
+-- A pillar of light where the lucky player is standing. Everyone on the server
+-- turns to look, which is the entire point: the reward for a big pull is not
+-- just coins, it is the room noticing.
+local function lightPillar(player: Player, color: Color3)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+	local beam = Instance.new("Part")
+	beam.Name = "RarePillar"
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CanQuery = false
+	beam.CanTouch = false
+	beam.Shape = Enum.PartType.Cylinder
+	beam.Material = Enum.Material.Neon
+	beam.Color = color
+	beam.Transparency = 0.35
+	beam.Size = Vector3.new(70, 7, 7)
+	beam.CFrame = CFrame.new(root.Position + Vector3.new(0, 32, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	beam.Parent = Workspace
+
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 46
+	light.Brightness = 4
+	light.Parent = beam
+
+	local sparks = Instance.new("ParticleEmitter")
+	sparks.Color = ColorSequence.new(color)
+	sparks.LightEmission = 1
+	sparks.Size = NumberSequence.new(1.2, 0)
+	sparks.Lifetime = NumberRange.new(0.8, 1.8)
+	sparks.Speed = NumberRange.new(10, 26)
+	sparks.SpreadAngle = Vector2.new(180, 180)
+	sparks.Rate = 0
+	sparks.Parent = beam
+	sparks:Emit(60)
+
+	TweenService:Create(beam, TweenInfo.new(2.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Size = Vector3.new(70, 16, 16),
+		Transparency = 1,
+	}):Play()
+	TweenService:Create(light, TweenInfo.new(2.2), { Brightness = 0 }):Play()
+	task.delay(2.6, function()
+		beam:Destroy()
+	end)
+end
+
+-- Social proof: broadcast anything genuinely rare. Nothing here is fabricated —
+-- the callout fires only on rolls that actually cleared the bar.
+local function announceRare(player: Player, crystal: CrackedCrystal)
+	local rank = tierRank(crystal.Tier)
+	if rank < 5 and not LOUD_MUTATIONS[crystal.Mut] then
+		return
+	end
+	local color = Crystals.TierColors[crystal.Tier] or Color3.fromRGB(255, 210, 90)
+	local mutation = Crystals.GetMutation(crystal.Mut)
+	if mutation and mutation.Color and LOUD_MUTATIONS[crystal.Mut] then
+		color = mutation.Color
+	end
+	local label = (crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or "") .. crystal.Base
+	Remotes.Event("RareFind"):FireAllClients({
+		Player = player.DisplayName,
+		Label = label,
+		Tier = crystal.Tier,
+		Rank = rank,
+		Color = color,
+		Value = crystal.Value,
+	})
+	lightPillar(player, color)
+end
 
 local function rollOne(player: Player, data: any): CrackedCrystal
 	local layer = ctx.Data.Layer(data)
@@ -60,6 +149,8 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 	if value > data.Stats.RarestValue then
 		data.Stats.RarestValue = value
 		data.Stats.RarestName = (mutName ~= "Normal" and (mutName .. " ") or "") .. baseName
+		-- New personal best: swap the crystal floating over their head
+		ctx.Flex.Set(player, baseName, mutName, value)
 	end
 
 	local def = Crystals.GetBase(baseName)
@@ -102,6 +193,14 @@ function CrackService.Crack(player: Player, count: number?): ({ CrackedCrystal }
 			break
 		end
 	end
+	-- Let the reveal animation land before the server-wide callout
+	task.delay(2.4, function()
+		if player.Parent then
+			for _, crystal in results do
+				announceRare(player, crystal)
+			end
+		end
+	end)
 	return results, nil
 end
 
@@ -116,6 +215,7 @@ function CrackService.AutoCrack(player: Player)
 	local result = rollOne(player, data)
 	ctx.Data.MarkDirty(player)
 	Remotes.Event("CrackResult"):FireClient(player, { result }, true)
+	announceRare(player, result)
 end
 
 -- Deterministic grant used by the Starter Pack (guaranteed Emerald, no RNG).
@@ -174,7 +274,7 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 	end
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
-	return {
+	local result: CrackedCrystal = {
 		Id = id,
 		Base = baseName,
 		Mut = mutName,
@@ -184,6 +284,8 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 		Tier = def and def.Tier or "Common",
 		New = isNew,
 	}
+	announceRare(player, result)
+	return result
 end
 
 function CrackService.SellCrystal(player: Player, idOrAll: string): (boolean, string?)

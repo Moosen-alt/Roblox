@@ -21,9 +21,11 @@ end)
 
 local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)
+local FlexAura = require(script.FlexAura)
 local MiningInput = require(script.MiningInput)
 local ObjectiveBanner = require(script.ObjectiveBanner)
 local Toasts = require(script.Toasts)
+local WorldFx = require(script.WorldFx)
 local Hud = require(script.Hud)
 local CrackScreen = require(script.Screens.CrackScreen)
 local RacksScreen = require(script.Screens.RacksScreen)
@@ -43,6 +45,8 @@ gui.DisplayOrder = 10
 gui.Parent = playerGui
 
 State.Init()
+WorldFx.Init()
+FlexAura.Init()
 MiningInput.Init()
 Toasts.Init(gui)
 Hud.Init(gui)

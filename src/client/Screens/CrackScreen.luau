@@ -10,12 +10,14 @@ local Crystals = require(Shared.Config.Crystals)
 local Format = require(Shared.Format)
 local RarityMath = require(Shared.RarityMath)
 local Remotes = require(Shared.Remotes)
+local GemView = require(script.Parent.Parent.GemView)
 local Purchase = require(script.Parent.Parent.Purchase)
 local RevealFx = require(script.Parent.Parent.RevealFx)
 local ScreenManager = require(script.Parent.Parent.ScreenManager)
 local State = require(script.Parent.Parent.State)
 local Toasts = require(script.Parent.Parent.Toasts)
 local UiKit = require(script.Parent.Parent.UiKit)
+local WorldFx = require(script.Parent.Parent.WorldFx)
 
 local CrackScreen = {}
 
@@ -42,6 +44,58 @@ local function tierRank(tier: string): number
 		end
 	end
 	return 1
+end
+
+-- The flex line. Same numbers as the odds panel, multiplied out: "1 in 12,500"
+-- is the thing players screenshot and paste into a group chat. Only shown when
+-- the pull was genuinely long odds, so it never becomes wallpaper.
+local function oddsBrag(crystal: { [string]: any }): string?
+	local state = State.Get()
+	if not state then
+		return nil
+	end
+	local baseChance = 0
+	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
+		if entry.Name == crystal.Base then
+			baseChance = entry.Chance
+		end
+	end
+	local mutChance = 100
+	for _, entry in RarityMath.GetMutationOdds(state.MutationMult) do
+		if entry.Name == crystal.Mut then
+			mutChance = entry.Chance
+		end
+	end
+	local probability = (baseChance / 100) * (mutChance / 100)
+	if probability <= 0 then
+		return nil
+	end
+	local oneIn = math.floor(1 / probability + 0.5)
+	if oneIn < 40 then
+		return nil
+	end
+	return "1 in " .. Format.Number(oneIn)
+end
+
+-- Mythic pulls get a colour cycling around the card border. Costs one gradient.
+local function rainbowStroke(stroke: UIStroke)
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 120)),
+		ColorSequenceKeypoint.new(0.35, Color3.fromRGB(255, 220, 90)),
+		ColorSequenceKeypoint.new(0.7, Color3.fromRGB(120, 255, 200)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(190, 120, 255)),
+	})
+	gradient.Parent = stroke
+	task.spawn(function()
+		while gradient.Parent do
+			TweenService:Create(gradient, TweenInfo.new(2.4, Enum.EasingStyle.Linear), { Rotation = 360 }):Play()
+			task.wait(2.4)
+			if gradient.Parent then
+				gradient.Rotation = 0
+			end
+		end
+	end)
 end
 
 local function renderOdds()
@@ -79,11 +133,20 @@ local function renderOdds()
 	end
 end
 
-local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UDim2, cardWidth: number, handledIds: { [string]: boolean }, onHandled: () -> ()): Frame
+local function makeCard(
+	overlay: Frame,
+	crystal: { [string]: any },
+	position: UDim2,
+	cardWidth: number,
+	handledIds: { [string]: boolean },
+	onHandled: () -> (),
+	previousBest: number
+): Frame
 	local tierColor = Crystals.TierColors[crystal.Tier] or UiKit.Colors.Text
 	local baseDef = Crystals.GetBase(crystal.Base)
+	local rank = tierRank(crystal.Tier)
 	local card = UiKit.Create("Frame", {
-		Size = UDim2.fromOffset(cardWidth, 260),
+		Size = UDim2.fromOffset(cardWidth, 292),
 		Position = position,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = UiKit.Colors.Bg,
@@ -91,24 +154,37 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		Parent = overlay,
 	})
 	UiKit.Corner(16).Parent = card
-	UiKit.Stroke(tierColor, 4).Parent = card
-	local gem = UiKit.Create("Frame", {
-		Size = UDim2.fromOffset(90, 90),
-		Position = UDim2.new(0.5, -45, 0, 22),
-		BackgroundColor3 = baseDef and baseDef.Color or tierColor,
-		Rotation = 45,
-		ZIndex = 2,
+	local cardStroke = UiKit.Stroke(tierColor, 4)
+	cardStroke.Parent = card
+	if rank >= 6 then
+		rainbowStroke(cardStroke)
+	elseif rank >= 5 then
+		-- Legendary borders breathe, so the good card is obvious in a row of three
+		TweenService:Create(
+			cardStroke,
+			TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ Thickness = 8 }
+		):Play()
+	end
+
+	-- The rock itself, in 3D, turning
+	GemView.Create({
 		Parent = card,
+		Size = UDim2.fromOffset(112, 104),
+		Position = UDim2.new(0.5, -56, 0, 12),
+		Color = baseDef and baseDef.Color or tierColor,
+		Seed = #crystal.Base * 17 + #crystal.Mut,
+		Spin = 0.8 + rank * 0.16,
+		ZIndex = 2,
 	})
-	UiKit.Corner(18).Parent = gem
-	UiKit.Stroke(Color3.new(1, 1, 1), 2).Parent = gem
+
 	local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
 	UiKit.Label({
 		Text = mutPrefix .. crystal.Base,
 		TextColor3 = UiKit.Colors.Text,
 		Font = Enum.Font.FredokaOne,
 		Size = UDim2.new(1, -12, 0, 34),
-		Position = UDim2.fromOffset(6, 122),
+		Position = UDim2.fromOffset(6, 120),
 		ZIndex = 2,
 		Parent = card,
 	})
@@ -116,7 +192,7 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		Text = crystal.Tier,
 		TextColor3 = tierColor,
 		Size = UDim2.new(1, -12, 0, 26),
-		Position = UDim2.fromOffset(6, 158),
+		Position = UDim2.fromOffset(6, 154),
 		ZIndex = 2,
 		Parent = card,
 	})
@@ -124,7 +200,21 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		Text = "Value: " .. Format.Number(crystal.Value),
 		TextColor3 = UiKit.Colors.Accent,
 		Size = UDim2.new(1, -12, 0, 26),
-		Position = UDim2.fromOffset(6, 190),
+		Position = UDim2.fromOffset(6, 182),
+		ZIndex = 2,
+		Parent = card,
+	})
+
+	-- Two brag lines, both earned rather than decorative: the true odds you beat,
+	-- and whether this is the best thing you have ever pulled.
+	local brag = oddsBrag(crystal)
+	local isBest = crystal.Value > previousBest and previousBest > 0
+	UiKit.Label({
+		Text = isBest and "★ NEW PERSONAL BEST ★" or (brag or ""),
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = isBest and Color3.fromRGB(255, 230, 120) or UiKit.Colors.TextDim,
+		Size = UDim2.new(1, -12, 0, 22),
+		Position = UDim2.fromOffset(6, 210),
 		ZIndex = 2,
 		Parent = card,
 	})
@@ -138,7 +228,7 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 			TextColor3 = Color3.fromRGB(25, 22, 18),
 			BackgroundColor3 = color,
 			Size = UDim2.fromOffset(cardWidth // 2 - 14, 30),
-			Position = UDim2.fromOffset(x, 222),
+			Position = UDim2.fromOffset(x, 250),
 			ZIndex = 3,
 			Parent = card,
 		})
@@ -165,7 +255,7 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		sellButton.TextColor3 = UiKit.Colors.TextDim
 		sellButton.Text = text
 		sellButton.Size = UDim2.new(1, -16, 0, 26)
-		sellButton.Position = UDim2.fromOffset(8, 224)
+		sellButton.Position = UDim2.fromOffset(8, 252)
 		onHandled()
 	end
 	sellButton.Activated:Connect(function()
@@ -198,16 +288,23 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 			end
 		end
 	end)
+	-- A new index entry always carries the count with it: an unfinished set is
+	-- the strongest reason to crack one more.
 	if crystal.New then
+		local state = State.Get()
+		local caption = "NEW!"
+		if state and state.TotalIndex then
+			caption = ("NEW!  %d/%d"):format(state.CollectionCount, state.TotalIndex)
+		end
 		local badge = UiKit.Create("TextLabel", {
-			Text = "NEW!",
+			Text = caption,
 			Font = Enum.Font.FredokaOne,
 			TextScaled = true,
 			TextColor3 = Color3.fromRGB(30, 26, 20),
 			BackgroundColor3 = UiKit.Colors.Good,
 			Rotation = -12,
-			Size = UDim2.fromOffset(64, 30),
-			Position = UDim2.new(1, -48, 0, -10),
+			Size = UDim2.fromOffset(96, 30),
+			Position = UDim2.new(1, -56, 0, -10),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			ZIndex = 3,
 			Parent = card,
@@ -217,21 +314,19 @@ local function makeCard(overlay: Frame, crystal: { [string]: any }, position: UD
 		TweenService:Create(
 			badge,
 			TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out, 0, false, 0.2),
-			{ Size = UDim2.fromOffset(64, 30) }
+			{ Size = UDim2.fromOffset(96, 30) }
 		):Play()
 	end
 
 	-- pop in
 	card.Size = UDim2.fromOffset(0, 0)
 	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Size = UDim2.fromOffset(cardWidth, 260),
+		Size = UDim2.fromOffset(cardWidth, 292),
 	}):Play()
-	local spin = TweenService:Create(gem, TweenInfo.new(2.4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), { Rotation = 405 })
-	spin:Play()
 	return card
 end
 
-local function showReveal(results: { { [string]: any } })
+local function showReveal(results: { { [string]: any } }, previousBest: number)
 	if not revealGui then
 		return
 	end
@@ -301,6 +396,8 @@ local function showReveal(results: { { [string]: any } })
 	}, function()
 		-- Celebration extras land with the burst
 		RevealFx.Fanfare(overlay, bestRank)
+		-- The whole screen kicks, scaled to what you pulled
+		WorldFx.Shake(0.5 + bestRank * 0.45)
 		if bestRank >= 4 then
 			RevealFx.Confetti(overlay, bestColor, bestRank >= 5 and 36 or 20)
 		end
@@ -311,7 +408,7 @@ local function showReveal(results: { { [string]: any } })
 			end
 			task.delay((i - 1) * 0.18, function()
 				if overlay.Parent then
-					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll)
+					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll, previousBest)
 				end
 			end)
 		end
@@ -359,6 +456,10 @@ local function crack(count: number)
 		return
 	end
 	cracking = true
+	-- Snapshot the record BEFORE the server updates it, or every pull would
+	-- claim to be a personal best.
+	local state = State.Get()
+	local previousBest = (state and state.Stats and state.Stats.RarestValue) or 0
 	local results, err = Remotes.Function("CrackGeode"):InvokeServer(count)
 	cracking = false
 	if not results then
@@ -367,7 +468,7 @@ local function crack(count: number)
 		end
 		return
 	end
-	showReveal(results)
+	showReveal(results, previousBest)
 end
 
 function CrackScreen.Init(gui: ScreenGui)

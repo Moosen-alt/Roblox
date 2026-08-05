@@ -3,8 +3,14 @@
 -- cave floor, glowing mine wall with deposit nodes, three station pads,
 -- leaderboard boards, spawn, and lighting. Returns references for services.
 
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CrystalShape = require(Shared.CrystalShape)
+local GeodeNode = require(script.Parent.GeodeNode)
 
 local MapBuilder = {}
 
@@ -59,23 +65,39 @@ local function setLighting()
 end
 
 local function makeCrystalCluster(position: Vector3, color: Color3, scale: number, parent: Instance): Model
-	local model = Instance.new("Model")
+	local model = CrystalShape.Build({
+		Color = color,
+		Scale = scale,
+		Shards = 5,
+		Segments = 2,
+		Seed = math.floor(position.X * 13 + position.Z * 7),
+		Glow = 14 * scale,
+	})
 	model.Name = "CrystalCluster"
-	for i = 1, 4 do
-		local height = (2 + rng:NextNumber() * 3) * scale
-		local shard = part({
-			Name = "Shard" .. i,
-			Size = Vector3.new(0.8 * scale, height, 0.8 * scale),
-			Color = color,
-			Material = Enum.Material.Neon,
-			Transparency = 0.1,
-			CFrame = CFrame.new(position + Vector3.new(rng:NextNumber(-1, 1) * scale, height / 2 - 0.5, rng:NextNumber(-1, 1) * scale))
-				* CFrame.Angles(rng:NextNumber(-0.35, 0.35), rng:NextNumber(0, 6.28), rng:NextNumber(-0.35, 0.35)),
-		}, model)
-		shard.CanCollide = false
-	end
+	model:PivotTo(CFrame.new(position))
 	model.Parent = parent
 	return model
+end
+
+-- Big, slowly turning crystals floating over the cave floor. Pure eye candy —
+-- the spin and bob run on each client (tags below), so they cost no bandwidth.
+local function makeFloatingCrystal(position: Vector3, color: Color3, scale: number, parent: Instance)
+	local model = CrystalShape.Build({
+		Color = color,
+		Scale = scale,
+		Shards = 6,
+		Segments = 3,
+		Seed = math.floor(position.X * 5 + position.Z * 11),
+		Glow = 34,
+		Sparkle = true,
+	})
+	model.Name = "FloatingCrystal"
+	model:PivotTo(CFrame.new(position))
+	model.Parent = parent
+	CollectionService:AddTag(model, "SpinCrystal")
+	model:SetAttribute("SpinSpeed", rng:NextNumber(0.18, 0.35))
+	model:SetAttribute("BobHeight", rng:NextNumber(1.2, 2.4))
+	model:SetAttribute("BobSpeed", rng:NextNumber(0.5, 0.9))
 end
 
 local function makeStation(position: Vector3, title: string, stationKey: string, color: Color3, parent: Instance): ProximityPrompt
@@ -285,7 +307,30 @@ function MapBuilder.Build(): MapRefs
 		end
 	end
 
-	-- Deposit nodes along the wall face
+	-- Landmark crystals: giant, turning, impossible to miss on the walk in
+	for _, spot in { Vector3.new(-62, 14, 4), Vector3.new(62, 14, 4), Vector3.new(0, 18, 62) } do
+		makeFloatingCrystal(spot, NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)], rng:NextNumber(2.6, 3.6), map)
+	end
+
+	-- Ore veins glowing through the wall face: the mine reads as "full of
+	-- treasure" even where there is nothing to mine yet.
+	for i = 1, 22 do
+		local x = rng:NextNumber(-95, 95)
+		local y = rng:NextNumber(2, 34)
+		local length = rng:NextNumber(3, 9)
+		local color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)]
+		local vein = part({
+			Name = "WallVein" .. i,
+			Size = Vector3.new(0.5, length, 0.6),
+			CFrame = CFrame.new(x, y, -64.9) * CFrame.Angles(0, 0, rng:NextNumber(0, math.pi)),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.35,
+		}, map)
+		vein.CanCollide = false
+	end
+
+	-- Deposit geodes along the wall face
 	local nodes: { BasePart } = {}
 	local nodeFolder = Instance.new("Folder")
 	nodeFolder.Name = "Nodes"
@@ -293,24 +338,8 @@ function MapBuilder.Build(): MapRefs
 	for i = 1, 12 do
 		local x = -82 + (i - 1) * 15
 		local color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)]
-		local node = part({
-			Name = "Node" .. i,
-			Size = Vector3.new(6, 6, 3),
-			Position = Vector3.new(x, 5, -64),
-			Color = color,
-			Material = Enum.Material.Neon,
-			Transparency = 0.05,
-		}, nodeFolder)
-		node:SetAttribute("NodeIndex", i)
-		local sparkle = Instance.new("PointLight")
-		sparkle.Color = color
-		sparkle.Range = 14
-		sparkle.Brightness = 1
-		sparkle.Parent = node
-		local click = Instance.new("ClickDetector")
-		click.MaxActivationDistance = 26
-		click.Parent = node
-		table.insert(nodes, node)
+		local node = GeodeNode.Build(i, Vector3.new(x, 5.5, -63.5), color, nodeFolder)
+		table.insert(nodes, node.Hitbox)
 	end
 
 	-- Stations

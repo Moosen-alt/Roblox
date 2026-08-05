@@ -22,6 +22,7 @@ local streakLabel: TextLabel? = nil
 local eventBanner: TextLabel? = nil
 local starterButton: TextButton? = nil
 local starterOffer: Frame? = nil
+local indexBadge: TextLabel? = nil
 
 local function pill(parent: Instance, position: UDim2, color: Color3): TextLabel
 	local frame = UiKit.Create("Frame", {
@@ -131,6 +132,27 @@ function Hud.Init(gui: ScreenGui)
 		})
 		UiKit.Corner(12).Parent = button
 		UiKit.Pad(8).Parent = button
+
+		-- The collection counter rides on the Index button rather than taking a
+		-- fifth HUD pill. An unfinished set on screen at all times is the quiet
+		-- reason to crack one more geode.
+		if def.Screen == "Index" then
+			local badge = UiKit.Create("TextLabel", {
+				Text = "",
+				Font = Enum.Font.FredokaOne,
+				TextScaled = true,
+				TextColor3 = Color3.fromRGB(28, 24, 20),
+				BackgroundColor3 = UiKit.Colors.Good,
+				Size = UDim2.fromOffset(56, 20),
+				Position = UDim2.new(1, -30, 0, -14),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				ZIndex = 3,
+				Parent = button,
+			}) :: TextLabel
+			UiKit.Corner(6).Parent = badge
+			indexBadge = badge
+		end
+
 		local screenName = def.Screen
 		button.Activated:Connect(function()
 			ScreenManager.Toggle(screenName)
@@ -228,6 +250,14 @@ function Hud.Init(gui: ScreenGui)
 		end
 		if streakLabel then
 			streakLabel.Text = "Streak: Day " .. state.Streak.Count
+		end
+		local badge = indexBadge
+		if badge and state.TotalIndex then
+			badge.Text = state.CollectionCount .. "/" .. state.TotalIndex
+			-- Goes gold on the home stretch: "almost done" is worth more than a
+			-- number, and it is true rather than manufactured.
+			local remaining = state.TotalIndex - state.CollectionCount
+			badge.BackgroundColor3 = if remaining <= 5 then UiKit.Colors.Accent else UiKit.Colors.Good
 		end
 		local packAvailable = not state.StarterPackOwned and Monetization.Products.StarterPack.Id ~= 0
 		if starterButton then
