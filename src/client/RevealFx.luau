@@ -8,9 +8,12 @@ local TweenService = game:GetService("TweenService")
 
 local RevealFx = {}
 
--- Theme knobs (the fishing re-theme overrides these via sed)
+-- Theme knobs (the fishing re-theme overrides these)
 RevealFx.ShellColor = Color3.fromRGB(120, 100, 150)
 RevealFx.ShellStroke = Color3.fromRGB(80, 65, 105)
+-- How the shell comes apart. A geode cracks down the middle into two
+-- hemispheres; a treasure chest hinges its lid up instead.
+RevealFx.SplitVertical = false
 
 local TICK_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 local THUD_SOUND = "rbxasset://sounds/snap.mp3"
@@ -66,22 +69,30 @@ end
 
 local GEODE_SIZE = 180
 
--- One hemisphere of the geode: a clipped frame showing exactly half of a
--- circle, so the two of them sit flush as one rock until they split.
-local function makeHalf(parent: Frame, isLeft: boolean): Frame
+-- One half of the shell: a clipped frame showing exactly half of the rounded
+-- shape, so the two of them sit flush as one object until they come apart.
+-- `isFirst` is the left half when splitting sideways, the top half when hinging.
+local function makeHalf(parent: Frame, isFirst: boolean): Frame
+	local vertical = RevealFx.SplitVertical
 	local half = Instance.new("Frame")
 	half.AnchorPoint = Vector2.new(0.5, 0.5)
-	half.Size = UDim2.fromOffset(GEODE_SIZE // 2, GEODE_SIZE)
-	half.Position = UDim2.fromScale(0.5, 0.5) + UDim2.fromOffset(isLeft and -GEODE_SIZE // 4 or GEODE_SIZE // 4, 0)
+	half.Size = if vertical
+		then UDim2.fromOffset(GEODE_SIZE, GEODE_SIZE // 2)
+		else UDim2.fromOffset(GEODE_SIZE // 2, GEODE_SIZE)
+	local shift = if isFirst then -GEODE_SIZE // 4 else GEODE_SIZE // 4
+	half.Position = UDim2.fromScale(0.5, 0.5)
+		+ (if vertical then UDim2.fromOffset(0, shift) else UDim2.fromOffset(shift, 0))
 	half.BackgroundTransparency = 1
 	half.ClipsDescendants = true
 	half.ZIndex = 3
 	half.Parent = parent
 
+	-- The full shape, offset so the clip leaves exactly the wanted half
+	local back = if isFirst then 0 else -GEODE_SIZE // 2
 	local rock = Instance.new("Frame")
 	rock.Name = "Rock"
 	rock.Size = UDim2.fromOffset(GEODE_SIZE, GEODE_SIZE)
-	rock.Position = UDim2.fromOffset(isLeft and 0 or -GEODE_SIZE // 2, 0)
+	rock.Position = if vertical then UDim2.fromOffset(0, back) else UDim2.fromOffset(back, 0)
 	rock.BackgroundColor3 = RevealFx.ShellColor
 	rock.BorderSizePixel = 0
 	rock.ZIndex = 3
@@ -161,14 +172,14 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		tooth.Parent = interior
 	end
 
-	local leftHalf = makeHalf(geode, true)
-	local rightHalf = makeHalf(geode, false)
+	local firstHalf = makeHalf(geode, true) -- left, or the lid when hinged
+	local secondHalf = makeHalf(geode, false)
 
-	-- The seam the crack runs down before it splits
+	-- The seam the crack runs along before it splits
 	local seam = Instance.new("Frame")
 	seam.AnchorPoint = Vector2.new(0.5, 0.5)
 	seam.Position = UDim2.fromScale(0.5, 0.5)
-	seam.Size = UDim2.fromOffset(0, GEODE_SIZE)
+	seam.Size = if RevealFx.SplitVertical then UDim2.fromOffset(GEODE_SIZE, 0) else UDim2.fromOffset(0, GEODE_SIZE)
 	seam.BackgroundColor3 = Color3.new(1, 1, 1)
 	seam.BackgroundTransparency = 1
 	seam.BorderSizePixel = 0
@@ -195,10 +206,16 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 			local wantedCracks = math.floor(progress * 5)
 			if wantedCracks > crackCount then
 				crackCount = wantedCracks
+				local along = (crackCount - 0.5) / 5
+				local jitter = rng:NextInteger(-8, 8)
 				local crack = Instance.new("Frame")
 				crack.AnchorPoint = Vector2.new(0.5, 0.5)
-				crack.Position = UDim2.new(0.5, rng:NextInteger(-8, 8), (crackCount - 0.5) / 5, 0)
-				crack.Size = UDim2.fromOffset(rng:NextInteger(3, 6), GEODE_SIZE // 5 + 8)
+				crack.Position = if RevealFx.SplitVertical
+					then UDim2.new(along, 0, 0.5, jitter)
+					else UDim2.new(0.5, jitter, along, 0)
+				crack.Size = if RevealFx.SplitVertical
+					then UDim2.fromOffset(GEODE_SIZE // 5 + 8, rng:NextInteger(3, 6))
+					else UDim2.fromOffset(rng:NextInteger(3, 6), GEODE_SIZE // 5 + 8)
 				crack.Rotation = rng:NextInteger(-14, 14)
 				crack.BackgroundColor3 = Color3.new(1, 1, 1)
 				crack.BackgroundTransparency = 0.15
@@ -212,11 +229,14 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		-- Light leaking from the seam just before it gives: the tell that
 		-- something bright is inside.
 		seam.BackgroundTransparency = 0.2
+		local gap = options.Charged and 26 or 12
 		TweenService:Create(seam, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.fromOffset(options.Charged and 26 or 12, GEODE_SIZE),
+			Size = if RevealFx.SplitVertical
+				then UDim2.fromOffset(GEODE_SIZE, gap)
+				else UDim2.fromOffset(gap, GEODE_SIZE),
 		}):Play()
 		if options.Charged then
-			for _, half in { leftHalf, rightHalf } do
+			for _, half in { firstHalf, secondHalf } do
 				local rock = half:FindFirstChild("Rock")
 				if rock and rock:IsA("Frame") then
 					TweenService:Create(rock, TweenInfo.new(0.3), { BackgroundColor3 = Color3.new(1, 1, 1) }):Play()
@@ -233,18 +253,26 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		play(overlay, THUD_SOUND, 0.75, 0.8)
 		tick(overlay, 0.6)
 
+		-- Sideways: both hemispheres tumble away. Hinged: the lid swings up and
+		-- back while the base only settles.
 		local splitInfo = TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		TweenService:Create(leftHalf, splitInfo, {
-			Position = UDim2.fromScale(0.5, 0.5) + UDim2.fromOffset(-260, 90),
-			Rotation = -55,
-			BackgroundTransparency = 1,
+		local firstTarget, firstSpin, secondTarget, secondSpin
+		if RevealFx.SplitVertical then
+			firstTarget, firstSpin = UDim2.fromOffset(-20, -210), -34
+			secondTarget, secondSpin = UDim2.fromOffset(10, 110), 12
+		else
+			firstTarget, firstSpin = UDim2.fromOffset(-260, 90), -55
+			secondTarget, secondSpin = UDim2.fromOffset(260, 70), 55
+		end
+		TweenService:Create(firstHalf, splitInfo, {
+			Position = UDim2.fromScale(0.5, 0.5) + firstTarget,
+			Rotation = firstSpin,
 		}):Play()
-		TweenService:Create(rightHalf, splitInfo, {
-			Position = UDim2.fromScale(0.5, 0.5) + UDim2.fromOffset(260, 70),
-			Rotation = 55,
-			BackgroundTransparency = 1,
+		TweenService:Create(secondHalf, splitInfo, {
+			Position = UDim2.fromScale(0.5, 0.5) + secondTarget,
+			Rotation = secondSpin,
 		}):Play()
-		for _, half in { leftHalf, rightHalf } do
+		for _, half in { firstHalf, secondHalf } do
 			local rock = half:FindFirstChild("Rock")
 			if rock and rock:IsA("Frame") then
 				TweenService:Create(rock, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
