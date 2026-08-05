@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local FilmMode = require(script.Parent.FilmMode)
 local ProfileStore = require(script.Parent.Packages.ProfileStore)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
@@ -143,6 +144,9 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	profiles[player] = profile
+	-- Studio-only, and only when Balance.FilmMode is on: hand this session a
+	-- late-game save so marketing footage does not require an hour of climbing.
+	FilmMode.Apply(profile.Data)
 
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"

@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
+local FilmMode = require(script.Parent.FilmMode)
 
 local EventService = {}
 
@@ -26,10 +27,14 @@ function EventService.Current()
 end
 
 function EventService.Init(_serviceCtx: any)
+	-- Film mode fires an event every few seconds so a Meteor Shower take does
+	-- not mean waiting six minutes between attempts.
+	local interval = if FilmMode.Active() then 12 else Balance.EventCheckInterval
+	local chance = if FilmMode.Active() then 1 else Balance.EventChance
 	task.spawn(function()
 		while true do
-			task.wait(Balance.EventCheckInterval)
-			if EventService.Current().Name == nil and rng:NextNumber() < Balance.EventChance then
+			task.wait(interval)
+			if EventService.Current().Name == nil and rng:NextNumber() < chance then
 				local def = Balance.Events[rng:NextInteger(1, #Balance.Events)]
 				current = {
 					Name = def.Name,

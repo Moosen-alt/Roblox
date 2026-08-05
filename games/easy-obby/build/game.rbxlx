@@ -19,6 +19,12 @@
 
 local Balance = {}
 
+-- FILM MODE: set true in Studio to record marketing clips — capped jump power
+-- (the mega-leap shot), every trail owned, Day 30 streak, and 8h of offline
+-- coins waiting. It is ignored outside Studio and ships as false, so it can
+-- never affect the live game. See src/server/FilmMode.luau.
+Balance.FilmMode = false
+
 -- Course
 Balance.Stages = 100
 Balance.StageLength = 26 -- studs of course per stage
@@ -797,6 +803,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local FilmMode = require(script.Parent.FilmMode)
 local ProfileStore = require(script.Parent.Packages.ProfileStore)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
@@ -935,6 +942,9 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	profiles[player] = profile
+	-- Studio-only, and only when Balance.FilmMode is on: hand this session a
+	-- late-game save so marketing footage does not require an hour of climbing.
+	FilmMode.Apply(profile.Data)
 
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
@@ -1001,6 +1011,67 @@ return DataService
         </Properties>
       </Item>
       <Item class="ModuleScript" referent="13">
+        <Properties>
+          <string name="Name">FilmMode</string>
+          <string name="Source"><![CDATA[--!strict
+-- FILM MODE — for recording clips, never for the live game.
+--
+-- The clip this game lives or dies on is the mega leap: five stages cleared in
+-- one bound. Earning that honestly takes an hour of play before every take, so
+-- this hands the session a late-game jump stat instead:
+--
+--     ReplicatedStorage -> Shared -> Config -> Balance -> FilmMode = true
+--
+-- Two independent guards mean it can never reach players:
+--   1. It only runs when RunService:IsStudio() is true.
+--   2. Balance.FilmMode ships as false, and CI publishes whatever is committed.
+-- Flip it in Studio, press Play, film, close WITHOUT saving.
+
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+
+local FilmMode = {}
+
+function FilmMode.Active(): boolean
+	return Balance.FilmMode == true and RunService:IsStudio()
+end
+
+-- Applied to the profile right after it loads, before the first StateSync.
+function FilmMode.Apply(data: any)
+	if not FilmMode.Active() then
+		return
+	end
+
+	data.Coins = 250_000
+	data.JumpBonus = Balance.JumpBonusCap -- leaps that clear 5-15 stages
+	data.Checkpoint = 40 -- mid-tower, so there is course visible both ways
+	data.Rebirths = 3
+	data.Stats.BestStage = 100
+	data.Stats.TotalStagesCleared = 340
+
+	-- Every trail owned, so the cosmetics shot does not need a shopping trip.
+	for _, trail in Balance.Trails do
+		data.Trails[trail.Name] = true
+	end
+
+	-- Streak sits at 29 with yesterday's claim, so joining rolls it to Day 30
+	-- and the milestone popup fires for real.
+	data.Streak.Count = 29
+	data.Streak.Best = 29
+	data.Streak.LastDay = (os.time() // 86400) - 1
+
+	-- An eight-hour absence, so the welcome-back popup has a real number in it.
+	data.LastSeen = os.time() - Balance.OfflineCapSeconds
+end
+
+return FilmMode
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">Leaderboards</string>
           <string name="Source"><![CDATA[--!strict
@@ -1115,7 +1186,7 @@ return Leaderboards
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">MonetizationService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1277,11 +1348,11 @@ return MonetizationService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="15">
+      <Item class="Folder" referent="16">
         <Properties>
           <string name="Name">Packages</string>
         </Properties>
-        <Item class="ModuleScript" referent="16">
+        <Item class="ModuleScript" referent="17">
           <Properties>
             <string name="Name">ProfileStore</string>
             <string name="Source">--[[
@@ -3530,7 +3601,7 @@ return ProfileStore</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3591,7 +3662,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">StageService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3804,7 +3875,7 @@ return StageService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3887,7 +3958,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">TrailService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4018,18 +4089,18 @@ return TrailService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="21">
+  <Item class="StarterPlayer" referent="22">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterJumpPower">50</float>
       <bool name="CharacterUseJumpPower">true</bool>
       <float name="CharacterWalkSpeed">16</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="22">
+    <Item class="StarterPlayerScripts" referent="23">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="23">
+      <Item class="LocalScript" referent="24">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -4068,7 +4139,7 @@ RebirthScreen.Init(gui)
 StoreScreen.Init(gui)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -4254,7 +4325,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">LeapFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -4436,7 +4507,7 @@ return LeapFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -4475,7 +4546,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -4532,11 +4603,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="28">
+        <Item class="Folder" referent="29">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="29">
+          <Item class="ModuleScript" referent="30">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -4630,7 +4701,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="30">
+          <Item class="ModuleScript" referent="31">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -4811,7 +4882,7 @@ return StoreScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="31">
+          <Item class="ModuleScript" referent="32">
             <Properties>
               <string name="Name">TeleportScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -4907,7 +4978,7 @@ return TeleportScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="32">
+          <Item class="ModuleScript" referent="33">
             <Properties>
               <string name="Name">TrailsScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -5079,7 +5150,7 @@ return TrailsScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -5112,7 +5183,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -5268,7 +5339,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -5428,7 +5499,7 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">WorldFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -5544,7 +5615,7 @@ return WorldFx
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="37">
+  <Item class="Workspace" referent="38">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-30</float>

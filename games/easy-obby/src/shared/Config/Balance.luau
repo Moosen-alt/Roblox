@@ -3,6 +3,12 @@
 
 local Balance = {}
 
+-- FILM MODE: set true in Studio to record marketing clips — capped jump power
+-- (the mega-leap shot), every trail owned, Day 30 streak, and 8h of offline
+-- coins waiting. It is ignored outside Studio and ships as false, so it can
+-- never affect the live game. See src/server/FilmMode.luau.
+Balance.FilmMode = false
+
 -- Course
 Balance.Stages = 100
 Balance.StageLength = 26 -- studs of course per stage

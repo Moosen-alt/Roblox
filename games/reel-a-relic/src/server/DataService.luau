@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local FilmMode = require(script.Parent.FilmMode)
 local ProfileStore = require(script.Parent.Packages.ProfileStore)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
@@ -211,6 +212,9 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	profiles[player] = profile
+	-- Studio-only, and only when Balance.FilmMode is on: hand this session an
+	-- endgame save so marketing footage does not require a week of play.
+	FilmMode.Apply(profile.Data)
 
 	-- leaderstats for the Roblox player list
 	local leaderstats = Instance.new("Folder")

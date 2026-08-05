@@ -19,6 +19,12 @@
 
 local Balance = {}
 
+-- FILM MODE: set true in Studio to record marketing clips — maxed profile,
+-- 36/48 collection, Day 30 streak, 8h of offline earnings waiting, and server
+-- events firing every few seconds. It is ignored outside Studio and ships as
+-- false, so it can never affect the live game. See src/server/FilmMode.luau.
+Balance.FilmMode = false
+
 -- Cave layers (unlocked by rebirths). Values multiply, rarity luck creeps up.
 Balance.MaxLayer = 5
 Balance.LayerValueMult = 2.5 -- crystal value x 2.5 per layer
@@ -1144,6 +1150,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local FilmMode = require(script.Parent.FilmMode)
 local ProfileStore = require(script.Parent.Packages.ProfileStore)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
@@ -1349,6 +1356,9 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	profiles[player] = profile
+	-- Studio-only, and only when Balance.FilmMode is on: hand this session an
+	-- endgame save so marketing footage does not require a week of play.
+	FilmMode.Apply(profile.Data)
 
 	-- leaderstats for the Roblox player list
 	local leaderstats = Instance.new("Folder")
@@ -1428,6 +1438,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
+local FilmMode = require(script.Parent.FilmMode)
 
 local EventService = {}
 
@@ -1447,10 +1458,14 @@ function EventService.Current()
 end
 
 function EventService.Init(_serviceCtx: any)
+	-- Film mode fires an event every few seconds so a Feeding Frenzy take does
+	-- not mean waiting six minutes between attempts.
+	local interval = if FilmMode.Active() then 12 else Balance.EventCheckInterval
+	local chance = if FilmMode.Active() then 1 else Balance.EventChance
 	task.spawn(function()
 		while true do
-			task.wait(Balance.EventCheckInterval)
-			if EventService.Current().Name == nil and rng:NextNumber() < Balance.EventChance then
+			task.wait(interval)
+			if EventService.Current().Name == nil and rng:NextNumber() < chance then
 				local def = Balance.Events[rng:NextInteger(1, #Balance.Events)]
 				current = {
 					Name = def.Name,
@@ -1482,6 +1497,88 @@ return EventService
         </Properties>
       </Item>
       <Item class="ModuleScript" referent="16">
+        <Properties>
+          <string name="Name">FilmMode</string>
+          <string name="Source"><![CDATA[--!strict
+-- FILM MODE — for recording clips, never for the live game.
+--
+-- Marketing needs footage of things that take days to reach honestly: a maxed
+-- rod, a near-complete collection, a Day 30 streak, a Feeding Frenzy on
+-- demand. Editing six config files by hand before every shoot is how a wrong
+-- number ends up published, so it is one switch instead:
+--
+--     ReplicatedStorage -> Shared -> Config -> Balance -> FilmMode = true
+--
+-- Two independent guards mean this can never reach players:
+--   1. It only runs when RunService:IsStudio() is true.
+--   2. Balance.FilmMode ships as false, and CI publishes whatever is committed.
+-- Flip it in Studio, press Play, film, close WITHOUT saving.
+--
+-- What it does NOT do: change the odds panel's honesty, or fake any number the
+-- UI reports. Everything below hands you a real endgame profile and lets the
+-- real systems run — the footage is of the actual game, just fast-forwarded.
+
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Crystals = require(Shared.Config.Crystals)
+
+local FilmMode = {}
+
+function FilmMode.Active(): boolean
+	return Balance.FilmMode == true and RunService:IsStudio()
+end
+
+-- Applied to the profile right after it loads, before the first StateSync.
+function FilmMode.Apply(data: any)
+	if not FilmMode.Active() then
+		return
+	end
+
+	data.Coins = 5_000_000
+	data.Geodes = 20 -- uncracked chests
+	data.Pickaxe = #Balance.Pickaxes
+	data.Backpack = #Balance.Backpacks
+	data.RackSlots = Balance.MaxRackSlots
+	data.Rebirths = 6 -- deepest layer, best drop table
+	data.Stats.GeodesMined = 4820
+	data.Stats.GeodesCracked = 4610
+
+	-- Collection at 36/48: enough to look like a real save, with the last dozen
+	-- still missing so the "what am I still hunting" shot has something to show.
+	local target = math.floor(Crystals.TotalIndexEntries() * 0.75)
+	local filled = 0
+	for _, base in Crystals.Bases do
+		for _, mutation in Crystals.MutationNames do
+			if filled >= target then
+				break
+			end
+			local key = Crystals.IndexKey(base.Name, mutation)
+			if not data.Collection[key] then
+				data.Collection[key] = true
+				filled += 1
+			end
+		end
+	end
+	data.CollectionCount = filled
+
+	-- Streak sits at 29 with yesterday's claim, so joining rolls it to Day 30
+	-- and the milestone popup fires for real.
+	data.Streak.Count = 29
+	data.Streak.Best = 29
+	data.Streak.LastDay = (os.time() // 86400) - 1
+
+	-- An eight-hour absence, so the welcome-back popup has a real number in it.
+	data.LastSeen = os.time() - Balance.OfflineCapSeconds
+end
+
+return FilmMode
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">FlexAura</string>
           <string name="Source"><![CDATA[--!strict
@@ -1545,7 +1642,7 @@ return FlexAura
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Leaderboards</string>
           <string name="Source"><![CDATA[--!strict
@@ -1662,7 +1759,7 @@ return Leaderboards
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -1997,7 +2094,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">MiningService</string>
           <string name="Source"><![CDATA[--!strict
@@ -2249,7 +2346,7 @@ return MiningService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">MonetizationService</string>
           <string name="Source"><![CDATA[--!strict
@@ -2424,11 +2521,11 @@ return MonetizationService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="21">
+      <Item class="Folder" referent="22">
         <Properties>
           <string name="Name">Packages</string>
         </Properties>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">ProfileStore</string>
             <string name="Source">--[[
@@ -4677,7 +4774,7 @@ return ProfileStore</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">PolicyGuard</string>
           <string name="Source"><![CDATA[--!strict
@@ -4729,7 +4826,7 @@ return PolicyGuard
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">RackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4904,7 +5001,7 @@ return RackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4986,7 +5083,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">RodVisual</string>
           <string name="Source"><![CDATA[--!strict
@@ -5128,7 +5225,7 @@ return RodVisual
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[--!strict
@@ -5343,7 +5440,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">Spotlight</string>
           <string name="Source"><![CDATA[--!strict
@@ -5408,7 +5505,7 @@ return Spotlight
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -5503,7 +5600,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[--!strict
@@ -5582,16 +5679,16 @@ return UpgradeService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="31">
+  <Item class="StarterPlayer" referent="32">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterWalkSpeed">20</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="32">
+    <Item class="StarterPlayerScripts" referent="33">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="33">
+      <Item class="LocalScript" referent="34">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -5675,7 +5772,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt)
 end)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">FlexAura</string>
             <string name="Source"><![CDATA[--!strict
@@ -5777,7 +5874,7 @@ return FlexAura
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">GemView</string>
             <string name="Source"><![CDATA[--!strict
@@ -5857,7 +5954,7 @@ return GemView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -6220,7 +6317,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">MiningInput</string>
             <string name="Source"><![CDATA[--!strict
@@ -6270,7 +6367,7 @@ return MiningInput
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">ObjectiveBanner</string>
             <string name="Source"><![CDATA[--!strict
@@ -6329,7 +6426,7 @@ return ObjectiveBanner
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -6368,7 +6465,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">RebirthFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -6557,7 +6654,7 @@ return RebirthFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -6807,7 +6904,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -6864,11 +6961,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="43">
+        <Item class="Folder" referent="44">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="44">
+          <Item class="ModuleScript" referent="45">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7461,7 +7558,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="45">
+          <Item class="ModuleScript" referent="46">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7584,7 +7681,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="46">
+          <Item class="ModuleScript" referent="47">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7876,7 +7973,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="47">
+          <Item class="ModuleScript" referent="48">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -7975,7 +8072,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="48">
+          <Item class="ModuleScript" referent="49">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -8236,7 +8333,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="49">
+          <Item class="ModuleScript" referent="50">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -8418,7 +8515,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -8465,7 +8562,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -8768,7 +8865,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -8928,7 +9025,7 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">WorldFx</string>
             <string name="Source"><![CDATA[--!strict

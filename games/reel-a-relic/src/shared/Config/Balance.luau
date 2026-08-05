@@ -3,6 +3,12 @@
 
 local Balance = {}
 
+-- FILM MODE: set true in Studio to record marketing clips — maxed profile,
+-- 36/48 collection, Day 30 streak, 8h of offline earnings waiting, and server
+-- events firing every few seconds. It is ignored outside Studio and ships as
+-- false, so it can never affect the live game. See src/server/FilmMode.luau.
+Balance.FilmMode = false
+
 -- Cave layers (unlocked by rebirths). Values multiply, rarity luck creeps up.
 Balance.MaxLayer = 5
 Balance.LayerValueMult = 2.5 -- crystal value x 2.5 per layer
