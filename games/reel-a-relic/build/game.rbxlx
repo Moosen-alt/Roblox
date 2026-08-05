@@ -6377,6 +6377,11 @@ return MiningInput
 -- Guided objective banner: shows new players exactly what to do next, driven
 -- by the server-side onboarding funnel (each step also pays a coin reward).
 -- Disappears forever once the loop is learned (first rebirth).
+--
+-- It lives bottom-left, tucked above the button row rather than across the
+-- middle of the screen, and every step can be dismissed with the X. Dismissing
+-- is per-step, so the next objective still gets one chance to be seen — a
+-- tutorial you cannot turn off is worse than one nobody reads.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -6389,38 +6394,68 @@ local _ = Shared
 local ObjectiveBanner = {}
 
 local STEPS = {
-	{ key = "FirstGeode", text = "⛏️ Objective: Catch a chest at a glowing fishing spot!" },
-	{ key = "FirstCrack", text = "💥 Objective: Open your chest at Treasure Chests!" },
-	{ key = "FirstRare", text = "💎 Objective: Keep opening — find a Rare relic!" },
-	{ key = "FirstSocket", text = "🔮 Objective: Display a relic in your Aquarium!" },
-	{ key = "FirstRebirth", text = "✨ Objective: Save up coins and Set Sail!" },
+	{ key = "FirstGeode", text = "⛏️ Catch a chest at a glowing fishing spot!" },
+	{ key = "FirstCrack", text = "💥 Open your chest at Treasure Chests!" },
+	{ key = "FirstRare", text = "💎 Keep opening — find a Rare relic!" },
+	{ key = "FirstSocket", text = "🔮 Display a relic in your Aquarium!" },
+	{ key = "FirstRebirth", text = "✨ Save up coins and Set Sail!" },
 }
 
 function ObjectiveBanner.Init(gui: ScreenGui)
-	local banner = UiKit.Create("TextLabel", {
-		Text = "",
-		Font = Enum.Font.GothamBold,
-		TextScaled = true,
-		TextColor3 = Color3.fromRGB(255, 240, 180),
+	local dismissed: { [string]: boolean } = {}
+	local currentKey: string? = nil
+
+	local banner = UiKit.Create("Frame", {
+		Name = "ObjectiveBanner",
 		BackgroundColor3 = UiKit.Colors.Bg,
 		BackgroundTransparency = 0.25,
-		Size = UDim2.fromOffset(540, 34),
-		Position = UDim2.new(0.5, -270, 0, 284),
+		Size = UDim2.fromOffset(346, 34),
+		Position = UDim2.new(0, 12, 1, -116),
 		Visible = false,
 		Parent = gui,
-	}) :: TextLabel
+	}) :: Frame
 	UiKit.Corner(10).Parent = banner
-	UiKit.Pad(6).Parent = banner
+	UiKit.Stroke(UiKit.Colors.Accent, 1).Parent = banner
+
+	local label = UiKit.Label({
+		Text = "",
+		Font = Enum.Font.GothamBold,
+		TextColor3 = Color3.fromRGB(255, 240, 180),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, -42, 1, -10),
+		Position = UDim2.fromOffset(10, 5),
+		Parent = banner,
+	})
+
+	local close = UiKit.Create("TextButton", {
+		Text = "✕",
+		Font = Enum.Font.GothamBold,
+		TextScaled = true,
+		TextColor3 = UiKit.Colors.TextDim,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(24, 24),
+		Position = UDim2.new(1, -28, 0.5, -12),
+		Parent = banner,
+	}) :: TextButton
+	UiKit.Pad(5).Parent = close
+	close.Activated:Connect(function()
+		if currentKey then
+			dismissed[currentKey] = true
+		end
+		banner.Visible = false
+	end)
 
 	State.Changed:Connect(function(state)
 		local funnel = state.Funnel or {}
 		for _, step in STEPS do
 			if not funnel[step.key] then
-				banner.Text = step.text
-				banner.Visible = true
+				currentKey = step.key
+				label.Text = step.text
+				banner.Visible = not dismissed[step.key]
 				return
 			end
 		end
+		currentKey = nil
 		banner.Visible = false
 	end)
 end
@@ -6726,13 +6761,46 @@ local function tick(parent: Instance, pitch: number)
 	play(parent, TICK_SOUND, pitch, 0.35)
 end
 
--- Anticipation + burst. Calls onBurst at the explosion moment, then cleans up
--- its own instances (everything is parented to `overlay`, which the caller
--- destroys when the reveal closes).
+local GEODE_SIZE = 180
+
+-- One hemisphere of the geode: a clipped frame showing exactly half of a
+-- circle, so the two of them sit flush as one rock until they split.
+local function makeHalf(parent: Frame, isLeft: boolean): Frame
+	local half = Instance.new("Frame")
+	half.AnchorPoint = Vector2.new(0.5, 0.5)
+	half.Size = UDim2.fromOffset(GEODE_SIZE // 2, GEODE_SIZE)
+	half.Position = UDim2.fromScale(0.5, 0.5) + UDim2.fromOffset(isLeft and -GEODE_SIZE // 4 or GEODE_SIZE // 4, 0)
+	half.BackgroundTransparency = 1
+	half.ClipsDescendants = true
+	half.ZIndex = 3
+	half.Parent = parent
+
+	local rock = Instance.new("Frame")
+	rock.Name = "Rock"
+	rock.Size = UDim2.fromOffset(GEODE_SIZE, GEODE_SIZE)
+	rock.Position = UDim2.fromOffset(isLeft and 0 or -GEODE_SIZE // 2, 0)
+	rock.BackgroundColor3 = RevealFx.ShellColor
+	rock.BorderSizePixel = 0
+	rock.ZIndex = 3
+	rock.Parent = half
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = rock
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = RevealFx.ShellStroke
+	stroke.Thickness = 5
+	stroke.Parent = rock
+
+	return half
+end
+
+-- Anticipation, split, reveal. Calls onBurst once the halves are open, then
+-- cleans up its own instances (everything is parented to `overlay`, which the
+-- caller destroys when the reveal closes).
 function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 	local center = UDim2.fromScale(0.5, 0.42)
 
-	-- Glow behind the shell, building in tier color
+	-- Glow behind the geode, building in tier colour
 	local glow = Instance.new("Frame")
 	glow.AnchorPoint = Vector2.new(0.5, 0.5)
 	glow.Position = center
@@ -6749,24 +6817,60 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		{ Size = UDim2.fromOffset(340, 340), BackgroundTransparency = 0.45 }
 	):Play()
 
-	-- The shell
-	local shell = Instance.new("Frame")
-	shell.AnchorPoint = Vector2.new(0.5, 0.5)
-	shell.Position = center
-	shell.Size = UDim2.fromOffset(0, 0)
-	shell.Rotation = 45
-	shell.BackgroundColor3 = RevealFx.ShellColor
-	shell.Parent = overlay
-	local shellCorner = Instance.new("UICorner")
-	shellCorner.CornerRadius = UDim.new(0, 28)
-	shellCorner.Parent = shell
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = RevealFx.ShellStroke
-	stroke.Thickness = 5
-	stroke.Parent = shell
-	TweenService:Create(shell, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Size = UDim2.fromOffset(140, 140),
+	-- The geode: a container holding the crystal interior and two rock halves
+	-- that sit flush over it.
+	local geode = Instance.new("Frame")
+	geode.AnchorPoint = Vector2.new(0.5, 0.5)
+	geode.Position = center
+	geode.Size = UDim2.fromOffset(0, 0)
+	geode.BackgroundTransparency = 1
+	geode.Parent = overlay
+	TweenService:Create(geode, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(GEODE_SIZE, GEODE_SIZE),
 	}):Play()
+
+	-- Crystal-lined interior, hidden under the halves until they open
+	local interior = Instance.new("Frame")
+	interior.AnchorPoint = Vector2.new(0.5, 0.5)
+	interior.Position = UDim2.fromScale(0.5, 0.5)
+	interior.Size = UDim2.fromOffset(GEODE_SIZE - 18, GEODE_SIZE - 18)
+	interior.BackgroundColor3 = options.Color
+	interior.BackgroundTransparency = 0.1
+	interior.ZIndex = 2
+	interior.Parent = geode
+	local interiorCorner = Instance.new("UICorner")
+	interiorCorner.CornerRadius = UDim.new(1, 0)
+	interiorCorner.Parent = interior
+	-- Crystal teeth lining the cavity, so the open geode is jagged rather than
+	-- a plain coloured disc.
+	local toothRng = Random.new(7)
+	for i = 1, 14 do
+		local angle = (i / 14) * math.pi * 2
+		local tooth = Instance.new("Frame")
+		tooth.AnchorPoint = Vector2.new(0.5, 0.5)
+		tooth.Position = UDim2.new(0.5, math.cos(angle) * 62, 0.5, math.sin(angle) * 62)
+		tooth.Size = UDim2.fromOffset(toothRng:NextInteger(10, 18), toothRng:NextInteger(22, 40))
+		tooth.Rotation = math.deg(angle) + 90
+		tooth.BackgroundColor3 = Color3.new(1, 1, 1):Lerp(options.Color, 0.55)
+		tooth.BackgroundTransparency = 0.15
+		tooth.BorderSizePixel = 0
+		tooth.ZIndex = 2
+		tooth.Parent = interior
+	end
+
+	local leftHalf = makeHalf(geode, true)
+	local rightHalf = makeHalf(geode, false)
+
+	-- The seam the crack runs down before it splits
+	local seam = Instance.new("Frame")
+	seam.AnchorPoint = Vector2.new(0.5, 0.5)
+	seam.Position = UDim2.fromScale(0.5, 0.5)
+	seam.Size = UDim2.fromOffset(0, GEODE_SIZE)
+	seam.BackgroundColor3 = Color3.new(1, 1, 1)
+	seam.BackgroundTransparency = 1
+	seam.BorderSizePixel = 0
+	seam.ZIndex = 4
+	seam.Parent = geode
 
 	task.spawn(function()
 		task.wait(0.3)
@@ -6779,34 +6883,80 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 			elapsed += step
 			local progress = elapsed / options.Suspense
 			local amplitude = 2 + progress * 12
-			shell.Position = center + UDim2.fromOffset(rng:NextInteger(-amplitude, amplitude), rng:NextInteger(-amplitude, amplitude))
-			shell.Rotation = 45 + rng:NextNumber(-progress * 10, progress * 10)
+			geode.Position = center
+				+ UDim2.fromOffset(rng:NextInteger(-amplitude, amplitude), rng:NextInteger(-amplitude, amplitude))
+			geode.Rotation = rng:NextNumber(-progress * 8, progress * 8)
 
-			-- Cracks spread at fixed progress milestones, with rising ticks
+			-- The fracture walks down the seam in jagged segments, with rising
+			-- ticks — five milestones, so the pacing scales with suspense.
 			local wantedCracks = math.floor(progress * 5)
 			if wantedCracks > crackCount then
 				crackCount = wantedCracks
 				local crack = Instance.new("Frame")
 				crack.AnchorPoint = Vector2.new(0.5, 0.5)
-				crack.Position = UDim2.new(0.5, rng:NextInteger(-40, 40), 0.5, rng:NextInteger(-40, 40))
-				crack.Size = UDim2.fromOffset(3, 20 + crackCount * 16)
-				crack.Rotation = rng:NextInteger(0, 179)
+				crack.Position = UDim2.new(0.5, rng:NextInteger(-8, 8), (crackCount - 0.5) / 5, 0)
+				crack.Size = UDim2.fromOffset(rng:NextInteger(3, 6), GEODE_SIZE // 5 + 8)
+				crack.Rotation = rng:NextInteger(-14, 14)
 				crack.BackgroundColor3 = Color3.new(1, 1, 1)
 				crack.BackgroundTransparency = 0.15
 				crack.BorderSizePixel = 0
-				crack.Parent = shell
+				crack.ZIndex = 4
+				crack.Parent = geode
 				tick(overlay, 0.9 + crackCount * 0.12)
 			end
 		end
 
-		-- Optional white charge-up for big pulls
+		-- Light leaking from the seam just before it gives: the tell that
+		-- something bright is inside.
+		seam.BackgroundTransparency = 0.2
+		TweenService:Create(seam, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.fromOffset(options.Charged and 26 or 12, GEODE_SIZE),
+		}):Play()
 		if options.Charged then
-			local charge = TweenService:Create(shell, TweenInfo.new(0.3), { BackgroundColor3 = Color3.new(1, 1, 1) })
-			charge:Play()
-			charge.Completed:Wait()
+			for _, half in { leftHalf, rightHalf } do
+				local rock = half:FindFirstChild("Rock")
+				if rock and rock:IsA("Frame") then
+					TweenService:Create(rock, TweenInfo.new(0.3), { BackgroundColor3 = Color3.new(1, 1, 1) }):Play()
+				end
+			end
+			task.wait(0.3)
+		else
+			task.wait(0.12)
 		end
 
-		-- BURST: flash + shards, then hand off to the cards
+		-- SPLIT: the halves crack apart and tumble away, showing the cavity
+		geode.Rotation = 0
+		geode.Position = center
+		play(overlay, THUD_SOUND, 0.75, 0.8)
+		tick(overlay, 0.6)
+
+		local splitInfo = TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		TweenService:Create(leftHalf, splitInfo, {
+			Position = UDim2.fromScale(0.5, 0.5) + UDim2.fromOffset(-260, 90),
+			Rotation = -55,
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(rightHalf, splitInfo, {
+			Position = UDim2.fromScale(0.5, 0.5) + UDim2.fromOffset(260, 70),
+			Rotation = 55,
+			BackgroundTransparency = 1,
+		}):Play()
+		for _, half in { leftHalf, rightHalf } do
+			local rock = half:FindFirstChild("Rock")
+			if rock and rock:IsA("Frame") then
+				TweenService:Create(rock, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+				local rockStroke = rock:FindFirstChildOfClass("UIStroke")
+				if rockStroke then
+					TweenService:Create(rockStroke, TweenInfo.new(0.5), { Transparency = 1 }):Play()
+				end
+			end
+		end
+		TweenService:Create(seam, TweenInfo.new(0.35), {
+			Size = UDim2.fromOffset(GEODE_SIZE, GEODE_SIZE),
+			BackgroundTransparency = 1,
+		}):Play()
+
+		-- Flash + shards thrown from the break
 		local flash = Instance.new("Frame")
 		flash.Size = UDim2.fromScale(1, 1)
 		flash.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -6819,8 +6969,6 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 			flash:Destroy()
 		end)
 
-		shell.Visible = false
-		tick(overlay, 0.6)
 		for _ = 1, 14 do
 			local shard = Instance.new("Frame")
 			shard.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -6845,8 +6993,20 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 				shard:Destroy()
 			end)
 		end
+
+		-- The open cavity blooms for a beat, then clears for the cards
+		TweenService:Create(interior, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Size = UDim2.fromOffset(GEODE_SIZE + 40, GEODE_SIZE + 40),
+		}):Play()
+		task.delay(0.3, function()
+			TweenService:Create(geode, TweenInfo.new(0.35), { Size = UDim2.fromOffset(0, 0) }):Play()
+			task.delay(0.4, function()
+				geode:Destroy()
+			end)
+		end)
 		TweenService:Create(glow, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
 
+		task.wait(0.28)
 		onBurst()
 	end)
 end

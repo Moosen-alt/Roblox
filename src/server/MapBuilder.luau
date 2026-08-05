@@ -312,22 +312,77 @@ function MapBuilder.Build(): MapRefs
 		makeFloatingCrystal(spot, NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)], rng:NextNumber(2.6, 3.6), map)
 	end
 
-	-- Ore veins glowing through the wall face: the mine reads as "full of
-	-- treasure" even where there is nothing to mine yet.
-	for i = 1, 22 do
+	-- Ore veins glowing through the wall face, each branching once, so the rock
+	-- reads as shot through with mineral rather than painted with stripes.
+	for i = 1, 26 do
 		local x = rng:NextNumber(-95, 95)
-		local y = rng:NextNumber(2, 34)
+		local y = rng:NextNumber(2, 36)
 		local length = rng:NextNumber(3, 9)
+		local angle = rng:NextNumber(0, math.pi)
 		local color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)]
+		local trunk = CFrame.new(x, y, -64.9) * CFrame.Angles(0, 0, angle)
 		local vein = part({
 			Name = "WallVein" .. i,
 			Size = Vector3.new(0.5, length, 0.6),
-			CFrame = CFrame.new(x, y, -64.9) * CFrame.Angles(0, 0, rng:NextNumber(0, math.pi)),
+			CFrame = trunk,
 			Color = color,
 			Material = Enum.Material.Neon,
 			Transparency = 0.35,
 		}, map)
 		vein.CanCollide = false
+		vein.CanQuery = false
+		local branch = part({
+			Name = "WallVeinBranch" .. i,
+			Size = Vector3.new(0.4, length * 0.55, 0.5),
+			CFrame = trunk
+				* CFrame.new(0, length * 0.3, 0)
+				* CFrame.Angles(0, 0, rng:NextNumber(0.5, 1.1) * (rng:NextNumber() < 0.5 and -1 or 1))
+				* CFrame.new(0, length * 0.28, 0),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.45,
+		}, map)
+		branch.CanCollide = false
+		branch.CanQuery = false
+	end
+
+	-- Geodes still buried in the face. Deliberately dull — see GeodeNode.Buried
+	-- for why these must not look tappable. They sit between the mining spots,
+	-- which are spaced 15 studs apart starting at x = -82.
+	for i = 1, 22 do
+		local x = rng:NextNumber(-96, 96)
+		local nearestNode = math.abs(((x + 82) % 15) - 7.5)
+		if nearestNode < 4 then
+			continue -- too close to a real deposit; would read as tappable
+		end
+		GeodeNode.Buried(
+			Vector3.new(x, rng:NextNumber(1.5, 34), -64.2),
+			NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)],
+			rng:NextNumber(0.6, 1.5),
+			i * 97 + 13,
+			map
+		)
+	end
+
+	-- Crystal spurs growing straight out of the rock face at odd angles, the
+	-- way they do in a real cave wall.
+	for i = 1, 14 do
+		local x = rng:NextNumber(-98, 98)
+		local y = rng:NextNumber(2, 38)
+		local spur = CrystalShape.Build({
+			Color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)],
+			Scale = rng:NextNumber(0.5, 1.2),
+			Shards = rng:NextInteger(3, 5),
+			Segments = 2,
+			Seed = i * 41 + 3,
+		})
+		spur.Name = "WallSpur" .. i
+		spur:PivotTo(
+			CFrame.new(x, y, -64.6)
+				* CFrame.Angles(0, rng:NextNumber(-0.5, 0.5), rng:NextNumber(-0.6, 0.6))
+				* CFrame.Angles(math.rad(90), 0, 0)
+		)
+		spur.Parent = map
 	end
 
 	-- Deposit geodes along the wall face

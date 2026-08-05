@@ -188,6 +188,63 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 	return node
 end
 
+-- A geode still buried in the rock face: lumpy stone with mineral veins
+-- showing through, and deliberately NO open cavity, no crystals and no light.
+--
+-- That restraint is the whole point. These are scenery, and if they looked like
+-- the minable ones players would tap them and get nothing. Bright + cracked
+-- open + full of crystals means "mine me"; dull stone with a hint of colour
+-- means "there is more of this buried in here", which is the feeling the wall
+-- should give without making a promise it cannot keep.
+function GeodeNode.Buried(position: Vector3, color: Color3, scale: number, seed: number, parent: Instance)
+	local localRng = Random.new(seed)
+	local rockColor = color:Lerp(Color3.fromRGB(50, 44, 64), 0.9)
+	local model = Instance.new("Model")
+	model.Name = "BuriedGeode"
+
+	local size = 4.6 * scale
+	part({
+		Name = "Rock",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(size, size, size),
+		Position = position,
+		Color = rockColor,
+		Material = Enum.Material.Rock,
+	}, model)
+	for lump = 1, 2 do
+		local angle = localRng:NextNumber(0, math.pi * 2)
+		local lumpSize = localRng:NextNumber(2, 3.4) * scale
+		part({
+			Name = "Lump" .. lump,
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(lumpSize, lumpSize, lumpSize),
+			Position = position
+				+ Vector3.new(math.cos(angle) * 1.7 * scale, math.sin(angle) * 1.5 * scale, localRng:NextNumber(-1, 0.2)),
+			Color = rockColor,
+			Material = Enum.Material.Rock,
+		}, model)
+	end
+
+	-- Mineral veins tracing the surface: dim, so they read as ore in stone
+	-- rather than as an open, tappable geode.
+	for v = 1, 3 do
+		local angle = localRng:NextNumber(0, math.pi * 2)
+		local length = localRng:NextNumber(1.6, 2.8) * scale
+		part({
+			Name = "Vein" .. v,
+			Size = Vector3.new(0.22 * scale, length, 0.3 * scale),
+			CFrame = CFrame.new(position + Vector3.new(0, 0, size * 0.42))
+				* CFrame.Angles(0, 0, -angle)
+				* CFrame.new(0, length * 0.35, 0),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.72,
+		}, model)
+	end
+
+	model.Parent = parent
+end
+
 -- The payoff frame: shockwave, shard burst, the rock vanishing.
 function GeodeNode.Break(node: Node)
 	local shock = part({
