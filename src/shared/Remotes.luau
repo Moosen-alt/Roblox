@@ -13,6 +13,7 @@ local EVENTS = {
 	"MineNode", -- client -> server: tapped a deposit node (Tools swallow ClickDetector clicks)
 	"MineFx", -- server -> client: per-player mining feedback (damage, cracks, shake)
 	"RareFind", -- server -> all clients: someone pulled a Legendary+ (social proof)
+	"RebirthFx", -- server -> client: run the Recrystallize ritual
 }
 
 local FUNCTIONS = {

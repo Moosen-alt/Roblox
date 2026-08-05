@@ -3,11 +3,15 @@
 -- multiplier and (up to layer cap) unlock the next cave layer. The infinite
 -- ladder is the long-term retention loop — months of goals, zero new content.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
+local Spotlight = require(script.Parent.Spotlight)
+
+local REBIRTH_COLOR = Color3.fromRGB(255, 120, 255)
 
 local RebirthService = {}
 
@@ -40,13 +44,25 @@ function RebirthService.Perform(player: Player, free: boolean): (boolean, string
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 5, "FirstRebirth")
 	local layer = ctx.Data.Layer(data)
-	Remotes.Event("Notify"):FireClient(player, {
-		Text = ("Recrystallized! Permanent coin bonus is now +%d%%. Welcome to %s."):format(
-			math.floor(Balance.RebirthCoinBonus * data.Rebirths * 100 + 0.5),
-			Balance.LayerNames[layer]
-		),
-		Color = Color3.fromRGB(255, 120, 255),
+	local layerName = Balance.LayerNames[layer]
+	local bonus = math.floor(Balance.RebirthCoinBonus * data.Rebirths * 100 + 0.5)
+
+	-- The prestige ritual. Giving up everything you built deserves more than a
+	-- toast: the screen goes, the world flashes, and the room is told.
+	Remotes.Event("RebirthFx"):FireClient(player, {
+		Rebirths = data.Rebirths,
+		LayerName = layerName,
+		Bonus = bonus,
 	})
+	Spotlight.Pillar(player, REBIRTH_COLOR)
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			Remotes.Event("Notify"):FireClient(other, {
+				Text = ("%s just Recrystallized into %s! (rebirth #%d)"):format(player.DisplayName, layerName, data.Rebirths),
+				Color = REBIRTH_COLOR,
+			})
+		end
+	end
 	return true, nil
 end
 

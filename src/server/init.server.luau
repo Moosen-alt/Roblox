@@ -20,6 +20,7 @@ local PolicyGuard = require(script.PolicyGuard)
 local RackService = require(script.RackService)
 local RebirthService = require(script.RebirthService)
 local ShopService = require(script.ShopService)
+local Spotlight = require(script.Spotlight)
 local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
 
@@ -40,6 +41,7 @@ local ctx: any = {
 	Analytics = AnalyticsService,
 	PickaxeVis = PickaxeVisual,
 	Flex = FlexAura,
+	Spotlight = Spotlight,
 }
 
 -- Called by DataService once a profile is loaded (before the first StateSync).
