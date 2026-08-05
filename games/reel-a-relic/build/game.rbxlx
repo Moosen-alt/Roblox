@@ -1340,7 +1340,10 @@ function DataService.PushState(player: Player)
 end
 
 local function onPlayerAdded(player: Player)
-	local profile = PlayerStore:StartSessionAsync("Player_" .. player.UserId, {})
+	-- Film mode loads from ProfileStore's mock store: a staged endgame save
+	-- for recording must never be written to the real one.
+	local store = if FilmMode.Active() then PlayerStore.Mock else PlayerStore
+	local profile = store:StartSessionAsync("Player_" .. player.UserId, {})
 	if profile == nil then
 		player:Kick("Your data is loaded on another server. Rejoin in a moment!")
 		return
