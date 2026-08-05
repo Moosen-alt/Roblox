@@ -266,12 +266,22 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		end
 		TweenService:Create(firstHalf, splitInfo, {
 			Position = UDim2.fromScale(0.5, 0.5) + firstTarget,
-			Rotation = firstSpin,
 		}):Play()
 		TweenService:Create(secondHalf, splitInfo, {
 			Position = UDim2.fromScale(0.5, 0.5) + secondTarget,
-			Rotation = secondSpin,
 		}):Play()
+		-- Rotation is held back a beat on purpose. Roblox skips ClipsDescendants
+		-- for any subtree carrying a rotation, so spinning a half the moment it
+		-- leaves would un-clip it and each "hemisphere" would tumble away as a
+		-- whole circle. By 0.3s the rocks are nearly faded and the white flash is
+		-- still over them, so the spin lands without exposing the seam.
+		task.delay(0.3, function()
+			if not firstHalf.Parent then
+				return
+			end
+			TweenService:Create(firstHalf, TweenInfo.new(0.3), { Rotation = firstSpin }):Play()
+			TweenService:Create(secondHalf, TweenInfo.new(0.3), { Rotation = secondSpin }):Play()
+		end)
 		for _, half in { firstHalf, secondHalf } do
 			local rock = half:FindFirstChild("Rock")
 			if rock and rock:IsA("Frame") then

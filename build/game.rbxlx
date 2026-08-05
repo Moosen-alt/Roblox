@@ -647,34 +647,46 @@ local function container(): Folder
 	return ReplicatedStorage:WaitForChild("Remotes") :: Folder
 end
 
-function Remotes.Event(name: string): RemoteEvent
+-- Both lookups are by name only, and the `::` casts are compile-time fiction —
+-- so a name listed in the wrong registry hands back the wrong class and dies
+-- later at `.OnServerEvent`, deep inside a service, with a message that points
+-- nowhere near the actual mistake. Check the class here instead, where the name
+-- and the expectation are both in view.
+local function typedRemote(name: string, className: string): Instance
 	local folder = container()
 	if RunService:IsServer() then
-		local remote = folder:FindFirstChild(name) :: RemoteEvent?
-		if not remote then
-			local newRemote = Instance.new("RemoteEvent")
-			newRemote.Name = name
-			newRemote.Parent = folder
-			remote = newRemote
+		local existing = folder:FindFirstChild(name)
+		if existing then
+			if not existing:IsA(className) then
+				error(
+					("Remote %q is a %s but was requested as a %s — it is listed in the wrong table in Remotes.luau"):format(
+						name,
+						existing.ClassName,
+						className
+					),
+					3
+				)
+			end
+			return existing
 		end
-		return remote :: RemoteEvent
+		local created = Instance.new(className)
+		created.Name = name
+		created.Parent = folder
+		return created
 	end
-	return folder:WaitForChild(name) :: RemoteEvent
+	local remote = folder:WaitForChild(name)
+	if not remote:IsA(className) then
+		error(("Remote %q is a %s but was requested as a %s"):format(name, remote.ClassName, className), 3)
+	end
+	return remote
+end
+
+function Remotes.Event(name: string): RemoteEvent
+	return typedRemote(name, "RemoteEvent") :: RemoteEvent
 end
 
 function Remotes.Function(name: string): RemoteFunction
-	local folder = container()
-	if RunService:IsServer() then
-		local remote = folder:FindFirstChild(name) :: RemoteFunction?
-		if not remote then
-			local newRemote = Instance.new("RemoteFunction")
-			newRemote.Name = name
-			newRemote.Parent = folder
-			remote = newRemote
-		end
-		return remote :: RemoteFunction
-	end
-	return folder:WaitForChild(name) :: RemoteFunction
+	return typedRemote(name, "RemoteFunction") :: RemoteFunction
 end
 
 function Remotes.Init()
@@ -866,6 +878,7 @@ export type CrackedCrystal = {
 	Value: number,
 	Tier: string,
 	New: boolean,
+	Pity: boolean?,
 }
 
 local ctx: any = nil
@@ -874,6 +887,19 @@ local rng = Random.new()
 -- Mutations that earn a server-wide callout even on a lower-tier base: a
 -- Celestial Quartz is a better story than a plain Opal.
 local LOUD_MUTATIONS: { [string]: boolean } = { Radioactive = true, Celestial = true }
+
+-- Every roll path must record a personal best the same way, or a crystal can be
+-- announced server-wide and still never become the flex aura, the leaderboard
+-- entry, or the name on the "rarest find" board. Shop, streak and starter-pack
+-- grants all diverged from the crack path before this was hoisted out.
+local function recordRarest(player: Player, data: any, baseName: string, mutName: string, value: number)
+	if value <= data.Stats.RarestValue then
+		return
+	end
+	data.Stats.RarestValue = value
+	data.Stats.RarestName = (mutName ~= "Normal" and (mutName .. " ") or "") .. baseName
+	ctx.Flex.Set(player, baseName, mutName, value)
+end
 
 local function tierRank(tier: string): number
 	for i, name in Crystals.Tiers do
@@ -898,6 +924,10 @@ local function announceRare(player: Player, crystal: CrackedCrystal)
 	end
 	local label = (crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or "") .. crystal.Base
 	Remotes.Event("RareFind"):FireAllClients({
+		-- UserId, not just the name: DisplayNames are not unique, and matching on
+		-- one made a stranger's Mythic render as "YOU FOUND" on someone else's
+		-- screen — fabricated first-person social proof.
+		UserId = player.UserId,
 		Player = player.DisplayName,
 		Label = label,
 		Tier = crystal.Tier,
@@ -915,9 +945,11 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 
 	data.PityCracks += 1
 	local baseName
+	local pity = false
 	if not data.RareGiven and data.PityCracks >= Balance.PityForcedRareCrack then
 		baseName = RarityMath.RollRarePlus(layer, luck, rng)
 		data.RareGiven = true
+		pity = true
 	else
 		baseName = RarityMath.RollBase(layer, luck, rng)
 	end
@@ -938,12 +970,7 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 	end
 
 	local value = ctx.Data.CrystalValue(data, crystal)
-	if value > data.Stats.RarestValue then
-		data.Stats.RarestValue = value
-		data.Stats.RarestName = (mutName ~= "Normal" and (mutName .. " ") or "") .. baseName
-		-- New personal best: swap the crystal floating over their head
-		ctx.Flex.Set(player, baseName, mutName, value)
-	end
+	recordRarest(player, data, baseName, mutName, value)
 
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -955,6 +982,9 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 		Value = value,
 		Tier = def and def.Tier or "Common",
 		New = isNew,
+		-- The first-session guaranteed Rare+ did not beat any odds, so the card
+		-- must not claim it did.
+		Pity = pity,
 	}
 end
 
@@ -1022,10 +1052,13 @@ function CrackService.GrantFixedCrystal(player: Player, baseName: string, size: 
 	local crystal = { Base = baseName, Mut = "Normal", Size = size, Layer = layer }
 	data.Crystals[id] = crystal
 	local key = Crystals.IndexKey(baseName, "Normal")
-	if not data.Collection[key] then
+	local isNew = not data.Collection[key]
+	if isNew then
 		data.Collection[key] = true
 		data.CollectionCount += 1
 	end
+	local value = ctx.Data.CrystalValue(data, crystal)
+	recordRarest(player, data, baseName, "Normal", value)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -1034,9 +1067,9 @@ function CrackService.GrantFixedCrystal(player: Player, baseName: string, size: 
 		Mut = "Normal",
 		Size = size,
 		Layer = layer,
-		Value = ctx.Data.CrystalValue(data, crystal),
+		Value = value,
 		Tier = def and def.Tier or "Rare",
-		New = false,
+		New = isNew,
 	}
 end
 
@@ -1064,6 +1097,8 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 		data.Collection[key] = true
 		data.CollectionCount += 1
 	end
+	local value = ctx.Data.CrystalValue(data, crystal)
+	recordRarest(player, data, baseName, mutName, value)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	local result: CrackedCrystal = {
@@ -1072,7 +1107,7 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 		Mut = mutName,
 		Size = size,
 		Layer = layer,
-		Value = ctx.Data.CrystalValue(data, crystal),
+		Value = value,
 		Tier = def and def.Tier or "Common",
 		New = isNew,
 	}
@@ -1517,6 +1552,12 @@ return EventService
 -- Two independent guards mean this can never reach players:
 --   1. It only runs when RunService:IsStudio() is true.
 --   2. Balance.FilmMode ships as false, and CI publishes whatever is committed.
+-- Two further containments, because "Studio only" is not the same as "harmless":
+--   3. The profile loads from ProfileStore's Mock store, so a staged save is
+--      never written to the real one.
+--   4. Leaderboards.Save returns early while film mode is on. Those are separate
+--      OrderedDataStores keyed by your real UserId — without the guard, a film
+--      take published an endgame score to the live boards.
 -- Flip it in Studio, press Play, film, close WITHOUT saving.
 --
 -- What it does NOT do: change the odds panel's honesty, or fake any number the
@@ -1529,6 +1570,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Crystals = require(Shared.Config.Crystals)
+local RarityMath = require(Shared.RarityMath)
 
 local FilmMode = {}
 
@@ -1548,6 +1590,7 @@ function FilmMode.Apply(data: any)
 	data.Backpack = #Balance.Backpacks
 	data.RackSlots = Balance.MaxRackSlots
 	data.Rebirths = 6 -- deepest layer, best drop table
+	local layer = math.min(data.Rebirths + 1, Balance.MaxLayer)
 	data.Stats.GeodesMined = 4820
 	data.Stats.GeodesCracked = 4610
 
@@ -1577,6 +1620,35 @@ function FilmMode.Apply(data: any)
 
 	-- An eight-hour absence, so the welcome-back popup has a real number in it.
 	data.LastSeen = os.time() - Balance.OfflineCapSeconds
+
+	-- ...but offline earnings are computed from SOCKETED items, so an empty
+	-- inventory made the welcome popup show no earnings line at all and left the
+	-- racks bare on camera. Stage a spread worth showing, including one big
+	-- mutated piece that becomes the flex aura over the character's head.
+	local staged = {
+		{ Base = Crystals.Bases[#Crystals.Bases].Name, Mut = Crystals.MutationNames[#Crystals.MutationNames], Size = 2.4 },
+		{ Base = Crystals.Bases[math.max(#Crystals.Bases - 1, 1)].Name, Mut = "Normal", Size = 1.8 },
+		{ Base = Crystals.Bases[math.max(#Crystals.Bases - 2, 1)].Name, Mut = "Normal", Size = 1.5 },
+		{ Base = Crystals.Bases[math.max(#Crystals.Bases - 3, 1)].Name, Mut = "Normal", Size = 1.2 },
+	}
+	-- The best staged piece is also the record, so FlexAura.Apply dresses the
+	-- character with it on join instead of leaving the head bare on camera.
+	local showpiece = staged[1]
+	data.Stats.RarestName = showpiece.Mut .. " " .. showpiece.Base
+	data.Stats.RarestValue = RarityMath.ComputeValue(showpiece.Base, showpiece.Mut, showpiece.Size, layer)
+
+	local socketedAt = os.time() - Balance.OfflineCapSeconds
+	for slot, entry in staged do
+		local id = tostring(data.NextCrystalId)
+		data.NextCrystalId += 1
+		data.Crystals[id] = {
+			Base = entry.Base,
+			Mut = entry.Mut,
+			Size = entry.Size,
+			Layer = layer,
+		}
+		data.Racks[tostring(slot)] = { CrystalId = id, LastTick = socketedAt }
+	end
 end
 
 return FilmMode
@@ -2000,6 +2072,8 @@ return GeodeNode
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 
+local FilmMode = require(script.Parent.FilmMode)
+
 local Leaderboards = {}
 
 local ctx: any = nil
@@ -2017,6 +2091,13 @@ local function store(name: string): OrderedDataStore?
 end
 
 function Leaderboards.Save(player: Player, data: any)
+	-- A staged film-mode save must not reach the real boards either. The Mock
+	-- ProfileStore only isolates the profile; these are separate OrderedDataStores
+	-- keyed by the developer's own UserId, and both the periodic loop and the
+	-- on-leave save would otherwise publish an endgame score to live players.
+	if FilmMode.Active() then
+		return
+	end
 	if rebirthStore and data.Rebirths > 0 then
 		pcall(function()
 			(rebirthStore :: OrderedDataStore):SetAsync(tostring(player.UserId), data.Rebirths)
@@ -2147,6 +2228,10 @@ local NODE_COLORS = {
 
 local rng = Random.new(20260804)
 
+-- NOTE: unlike GeodeNode's helper, this one leaves CanQuery at the Roblox
+-- default of true. Anything invisible or overhead that a tap-ray could cross on
+-- its way to a geode must set CanQuery = false explicitly, or it silently eats
+-- the tap (MiningInput drops any hit without a NodeIndex attribute).
 local function part(props: { [string]: any }, parent: Instance): Part
 	local p = Instance.new("Part")
 	p.Anchored = true
@@ -2347,6 +2432,7 @@ function MapBuilder.Build(): MapRefs
 			Material = Enum.Material.Rock,
 		}, map)
 		stalactite.CanCollide = false
+		stalactite.CanQuery = false
 		if i % 3 == 0 then
 			local tipColor = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)]
 			local tip = part({
@@ -2358,6 +2444,7 @@ function MapBuilder.Build(): MapRefs
 				Transparency = 0.15,
 			}, map)
 			tip.CanCollide = false
+			tip.CanQuery = false
 			local tipLight = Instance.new("PointLight")
 			tipLight.Color = tipColor
 			tipLight.Range = 28
@@ -2390,6 +2477,7 @@ function MapBuilder.Build(): MapRefs
 		Transparency = 1,
 	}, map)
 	dustSource.CanCollide = false
+	dustSource.CanQuery = false
 	local dust = Instance.new("ParticleEmitter")
 	dust.Color = ColorSequence.new(Color3.fromRGB(200, 190, 235))
 	dust.Size = NumberSequence.new(0.25, 0.1)
@@ -2403,6 +2491,7 @@ function MapBuilder.Build(): MapRefs
 	for _, offset in { Vector3.new(-55, 40, -30), Vector3.new(55, 40, -30), Vector3.new(-55, 40, 40), Vector3.new(55, 40, 40) } do
 		local fillPart = part({ Name = "FillLight", Size = Vector3.new(1, 1, 1), Position = offset, Transparency = 1 }, map)
 		fillPart.CanCollide = false
+		fillPart.CanQuery = false
 		local fill = Instance.new("PointLight")
 		fill.Color = Color3.fromRGB(150, 135, 200)
 		fill.Range = 70
@@ -2463,8 +2552,12 @@ function MapBuilder.Build(): MapRefs
 	-- which are spaced 15 studs apart starting at x = -82.
 	for i = 1, 22 do
 		local x = rng:NextNumber(-96, 96)
-		local nearestNode = math.abs(((x + 82) % 15) - 7.5)
-		if nearestNode < 4 then
+		-- Distance to the nearest REAL deposit column. Deposits sit every 15 studs
+		-- from x = -82, but only twelve of them — a plain modulo invents phantom
+		-- columns past each end and throws away perfectly good spots out at the
+		-- wall edges, so snap to the actual column index and clamp it.
+		local column = math.clamp(math.floor((x + 82) / 15 + 0.5), 0, 11)
+		if math.abs(x - (column * 15 - 82)) < 4 then
 			continue -- too close to a real deposit; would read as tappable
 		end
 		GeodeNode.Buried(
@@ -6219,6 +6312,34 @@ local UiKit = require(script.Parent.UiKit)
 local FlexAura = {}
 
 local AURA_NAME = "RarestFindAura"
+local VISIBLE_RANGE = 110 -- matches the billboard's MaxDistance
+
+-- One shared loop gates every aura, rather than fifteen ViewportFrames each
+-- spinning a twenty-part model every frame regardless of whether anyone can see
+-- them. GemView skips work while its viewport is hidden, so flipping Visible
+-- here is what actually buys the frames back.
+local tracked: { [Player]: { Billboard: BillboardGui, Viewport: ViewportFrame, Head: BasePart } } = {}
+
+local function gateVisibility()
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local origin = camera.CFrame.Position
+	for player, aura in tracked do
+		if not aura.Billboard.Parent or not aura.Head.Parent then
+			tracked[player] = nil
+		else
+			local near = (aura.Head.Position - origin).Magnitude <= VISIBLE_RANGE
+			aura.Viewport.Visible = near
+			aura.Billboard.Enabled = near
+		end
+	end
+end
+
+local function untrack(player: Player)
+	tracked[player] = nil
+end
 
 local function clear(character: Model)
 	local head = character:FindFirstChild("Head")
@@ -6230,6 +6351,7 @@ end
 
 local function build(player: Player, character: Model)
 	clear(character)
+	untrack(player)
 	local base = player:GetAttribute("FlexBase")
 	if typeof(base) ~= "string" or base == "" then
 		return
@@ -6252,7 +6374,7 @@ local function build(player: Player, character: Model)
 	billboard.MaxDistance = 110
 	billboard.Parent = head
 
-	GemView.Create({
+	local gem = GemView.Create({
 		Parent = billboard,
 		Size = UDim2.fromScale(1, 0.7),
 		Position = UDim2.fromScale(0, 0),
@@ -6261,6 +6383,8 @@ local function build(player: Player, character: Model)
 		Spin = 0.75,
 		ZIndex = 1,
 	})
+
+	tracked[player] = { Billboard = billboard, Viewport = gem, Head = head }
 
 	local prefix = (typeof(mutation) == "string" and mutation ~= "Normal") and (mutation .. " ") or ""
 	UiKit.Label({
@@ -6298,6 +6422,14 @@ function FlexAura.Init()
 		watch(player)
 	end
 	Players.PlayerAdded:Connect(watch)
+	Players.PlayerRemoving:Connect(untrack)
+	-- Twice a second is plenty: this only decides whether a decoration spins.
+	task.spawn(function()
+		while true do
+			task.wait(0.5)
+			gateVisibility()
+		end
+	end)
 end
 
 return FlexAura
@@ -6366,11 +6498,27 @@ function GemView.Create(props: Props): ViewportFrame
 	local speed = props.Spin or 1.1
 	local clock = 0
 	local connection: RBXScriptConnection? = nil
+	local function stop()
+		if connection then
+			connection:Disconnect()
+			connection = nil
+		end
+	end
+	-- Watch ancestry, not viewport.Parent: when an ANCESTOR is removed the
+	-- viewport keeps its own parent, so a Parent check never fires and the spin
+	-- would run forever holding the model in memory. Characters get removed that
+	-- way, and every player wears one of these.
+	viewport.Destroying:Once(stop)
+	viewport.AncestryChanged:Connect(function()
+		if not viewport:IsDescendantOf(game) then
+			stop()
+		end
+	end)
 	connection = RunService.RenderStepped:Connect(function(dt: number)
-		if not viewport.Parent then
-			if connection then
-				connection:Disconnect()
-			end
+		-- A gem nobody can see does not need to turn. With fifteen players
+		-- wearing one of these over their head, the ones behind you, off screen,
+		-- or past the billboard's MaxDistance are the common case.
+		if not viewport.Visible or viewport.AbsoluteSize.X < 1 then
 			return
 		end
 		clock += dt * speed
@@ -6428,12 +6576,16 @@ local function coinGainPopup(anchor: Frame, amount: number)
 		TextColor3 = UiKit.Colors.Good,
 		TextStrokeTransparency = 0.4,
 		Size = UDim2.fromOffset(150, 30),
-		Position = UDim2.new(1, 6, 0, 6),
-		TextXAlignment = Enum.TextXAlignment.Left,
+		-- Rises from inside the pill's right edge rather than out past it. Spawning
+		-- outside overlapped the centred toast column at 812 wide, and the old
+		-- rise to -22 carried it off the top of the screen; -10 keeps every pixel
+		-- on screen (the pill's own top edge is at y=12).
+		Position = UDim2.new(1, -150, 0, 6),
+		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = anchor,
 	})
 	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.new(1, 6, 0, -22),
+		Position = UDim2.new(1, -150, 0, -10),
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 	}):Play()
@@ -6590,7 +6742,11 @@ function Hud.Init(gui: ScreenGui)
 		TextColor3 = Color3.fromRGB(28, 24, 20),
 		BackgroundColor3 = UiKit.Colors.Accent,
 		Size = UDim2.fromOffset(200, 46),
-		Position = UDim2.new(1, -212, 1, -60),
+		-- Clear of the bottom button row's band (y = H-70 .. H-18). At H-60 this
+		-- sat directly over the Store button on any viewport narrower than ~1068
+		-- and, drawing later, swallowed the tap — the Robux store was unreachable
+		-- on phones until the pack was bought.
+		Position = UDim2.new(1, -212, 1, -140),
 		Visible = false,
 		Parent = gui,
 	}) :: TextButton
@@ -7390,12 +7546,22 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		end
 		TweenService:Create(firstHalf, splitInfo, {
 			Position = UDim2.fromScale(0.5, 0.5) + firstTarget,
-			Rotation = firstSpin,
 		}):Play()
 		TweenService:Create(secondHalf, splitInfo, {
 			Position = UDim2.fromScale(0.5, 0.5) + secondTarget,
-			Rotation = secondSpin,
 		}):Play()
+		-- Rotation is held back a beat on purpose. Roblox skips ClipsDescendants
+		-- for any subtree carrying a rotation, so spinning a half the moment it
+		-- leaves would un-clip it and each "hemisphere" would tumble away as a
+		-- whole circle. By 0.3s the rocks are nearly faded and the white flash is
+		-- still over them, so the spin lands without exposing the seam.
+		task.delay(0.3, function()
+			if not firstHalf.Parent then
+				return
+			end
+			TweenService:Create(firstHalf, TweenInfo.new(0.3), { Rotation = firstSpin }):Play()
+			TweenService:Create(secondHalf, TweenInfo.new(0.3), { Rotation = secondSpin }):Play()
+		end)
 		for _, half in { firstHalf, secondHalf } do
 			local rock = half:FindFirstChild("Rock")
 			if rock and rock:IsA("Frame") then
@@ -7649,6 +7815,9 @@ local function oddsBrag(crystal: { [string]: any }): string?
 	if not state then
 		return nil
 	end
+	if crystal.Pity then
+		return nil -- the first-session guaranteed Rare+ beat no odds at all
+	end
 	local baseChance = 0
 	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
 		if entry.Name == crystal.Base then
@@ -7899,7 +8068,9 @@ local function makeCard(
 			BackgroundColor3 = UiKit.Colors.Good,
 			Rotation = -12,
 			Size = UDim2.fromOffset(96, 30),
-			Position = UDim2.new(1, -56, 0, -10),
+			-- Inside the top edge, not straddling it: at 375-height the card top
+			-- sits at y=11 and half the badge was clipped off screen.
+			Position = UDim2.new(1, -56, 0, 14),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			ZIndex = 3,
 			Parent = card,
@@ -7996,14 +8167,20 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 		if bestRank >= 4 then
 			RevealFx.Confetti(overlay, bestColor, bestRank >= 5 and 36 or 20)
 		end
+		-- The server rolls a batch sequentially, so its record climbs as it goes.
+		-- Comparing every card against the same pre-crack snapshot let a 300 and
+		-- a 500 in one triple crack both claim the personal best.
+		local runningBest = previousBest
 		for i, crystal in results do
 			local position = UDim2.new(0.5, -totalWidth // 2 + (i - 1) * (cardWidth + 16) + cardWidth // 2, 0.42, 0)
 			if i == bestIndex and bestRank >= 5 then
 				RevealFx.Sunburst(overlay, position, bestColor)
 			end
+			local bestBefore = runningBest
+			runningBest = math.max(runningBest, crystal.Value)
 			task.delay((i - 1) * 0.18, function()
 				if overlay.Parent then
-					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll, previousBest)
+					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll, bestBefore)
 				end
 			end)
 		end
@@ -8016,7 +8193,13 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 				Text = "Sell All",
 				BackgroundColor3 = UiKit.Colors.Buy,
 				Size = UDim2.fromOffset(220, 48),
-				Position = UDim2.new(0.5, -232, 0.72, 0),
+				-- Anchored to the card block, not to an independent 0.72 of the
+				-- screen: cards are 292 tall centred at 0.42, so anything below
+				-- 0.42H + 146 clears them at any height. At 0.72 scale this row
+				-- landed ON TOP of the per-card Sell/Socket buttons on every phone
+				-- in landscape (H < 447) and, being the higher ZIndex, won the tap —
+				-- so aiming at Socket sold the whole batch instead.
+				Position = UDim2.new(0.5, -232, 0.42, 162),
 				Parent = overlay,
 			})
 			sellAll.ZIndex = 4
@@ -8027,7 +8210,7 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 				BackgroundColor3 = UiKit.Colors.BgLighter,
 				TextColor3 = UiKit.Colors.Text,
 				Size = UDim2.fromOffset(160, 48),
-				Position = UDim2.new(0.5, 12, 0.72, 0),
+				Position = UDim2.new(0.5, 12, 0.42, 162),
 				Parent = overlay,
 			})
 			keepAll.ZIndex = 4
@@ -9210,6 +9393,11 @@ local Toasts = {}
 
 local container: Frame? = nil
 local gui: ScreenGui? = nil
+-- Rare-find callouts get their own layer. The reveal overlay lives on a
+-- DisplayOrder-50 ScreenGui and dims everything under it, so the finder's own
+-- "YOU FOUND" banner was arriving at 35% brightness underneath their reveal —
+-- and ZIndex means nothing across ScreenGuis.
+local announceGui: ScreenGui? = nil
 
 local function pushToast(text: string, color: Color3?)
 	if not container then
@@ -9243,21 +9431,25 @@ Toasts.Push = pushToast
 -- seeing someone else's callout is the most convincing possible proof that the
 -- rare stuff is really in there.
 local function showRareFind(payload: { [string]: any })
-	if not gui then
+	local layer = announceGui
+	if not layer then
 		return
 	end
 	local color = typeof(payload.Color) == "Color3" and payload.Color or UiKit.Colors.Accent
-	local mine = payload.Player == Players.LocalPlayer.DisplayName
+	-- Match on UserId. DisplayNames are not unique, and matching on one meant a
+	-- stranger's Mythic could render as "YOU FOUND" on your screen.
+	local mine = payload.UserId == Players.LocalPlayer.UserId
 	local rank = tonumber(payload.Rank) or 5
 
 	local banner = UiKit.Create("Frame", {
 		Size = UDim2.fromOffset(0, 62),
-		Position = UDim2.new(0.5, 0, 0, 96),
+		-- Below the five-deep toast column (which ends at y=194), not through it
+		Position = UDim2.new(0.5, 0, 0, 300),
 		AnchorPoint = Vector2.new(0.5, 0),
 		BackgroundColor3 = UiKit.Colors.Bg,
 		BackgroundTransparency = 0.08,
 		ZIndex = 20,
-		Parent = gui,
+		Parent = layer,
 	})
 	UiKit.Corner(14).Parent = banner
 	local stroke = UiKit.Stroke(color, 3)
@@ -9353,13 +9545,21 @@ local function showWelcome(report: { [string]: any })
 	local calendarHeight = streak and 92 or 0
 	local popup = UiKit.Create("Frame", {
 		Size = UDim2.fromOffset(470, 96 + #lines * 34 + calendarHeight),
-		Position = UDim2.fromScale(0.5, 0.34),
+		-- Centred, but never above the top edge: the tallest case (lapsed streak
+		-- + offline earnings + calendar) is 290px and used to clip its own title
+		-- off screen on a phone in landscape.
+		Position = UDim2.new(0.5, 0, 0.34, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = UiKit.Colors.Bg,
 		Parent = gui,
 	})
 	UiKit.Corner(14).Parent = popup
 	UiKit.Stroke(UiKit.Colors.Accent, 3).Parent = popup
+	local popupHeight = 96 + #lines * 34 + calendarHeight
+	local viewport = gui.AbsoluteSize.Y
+	if viewport > 0 and 0.34 * viewport - popupHeight / 2 < 8 then
+		popup.Position = UDim2.fromOffset(0, 0) + UDim2.new(0.5, 0, 0, popupHeight // 2 + 8)
+	end
 	UiKit.Label({
 		Text = "Welcome back!",
 		Font = Enum.Font.FredokaOne,
@@ -9441,6 +9641,13 @@ end
 
 function Toasts.Init(screenGui: ScreenGui)
 	gui = screenGui
+	announceGui = UiKit.Create("ScreenGui", {
+		Name = "AnnounceGui",
+		ResetOnSpawn = false,
+		DisplayOrder = 60, -- above the reveal overlay's 50
+		IgnoreGuiInset = true,
+		Parent = screenGui.Parent,
+	}) :: ScreenGui
 	container = UiKit.Create("Frame", {
 		Name = "Toasts",
 		BackgroundTransparency = 1,
@@ -9875,7 +10082,12 @@ local function onMineFx(payload: any)
 	end
 	local color = typeof(payload.Color) == "Color3" and payload.Color or Color3.fromRGB(255, 210, 90)
 	local fraction = tonumber(payload.Fraction) or 0
-	paintDamage(node, fraction)
+	if not payload.Broke then
+		-- On the final hit the server's Break animation owns every part of this
+		-- geode; painting damage over it would snap the rock small and spring it
+		-- back up while the same parts are tweening to invisible.
+		paintDamage(node, fraction)
+	end
 	chips(node, color)
 	if typeof(payload.Damage) == "number" then
 		damageNumber(node, payload.Damage, color)

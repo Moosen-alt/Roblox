@@ -220,7 +220,12 @@ local function onMineFx(payload: any)
 	end
 	local color = typeof(payload.Color) == "Color3" and payload.Color or Color3.fromRGB(255, 210, 90)
 	local fraction = tonumber(payload.Fraction) or 0
-	paintDamage(node, fraction)
+	if not payload.Broke then
+		-- On the final hit the server's Break animation owns every part of this
+		-- geode; painting damage over it would snap the rock small and spring it
+		-- back up while the same parts are tweening to invisible.
+		paintDamage(node, fraction)
+	end
 	chips(node, color)
 	if typeof(payload.Damage) == "number" then
 		damageNumber(node, payload.Damage, color)

@@ -372,34 +372,46 @@ local function container(): Folder
 	return ReplicatedStorage:WaitForChild("Remotes") :: Folder
 end
 
-function Remotes.Event(name: string): RemoteEvent
+-- Both lookups are by name only, and the `::` casts are compile-time fiction —
+-- so a name listed in the wrong registry hands back the wrong class and dies
+-- later at `.OnServerEvent`, deep inside a service, with a message that points
+-- nowhere near the actual mistake. Check the class here instead, where the name
+-- and the expectation are both in view.
+local function typedRemote(name: string, className: string): Instance
 	local folder = container()
 	if RunService:IsServer() then
-		local remote = folder:FindFirstChild(name) :: RemoteEvent?
-		if not remote then
-			local newRemote = Instance.new("RemoteEvent")
-			newRemote.Name = name
-			newRemote.Parent = folder
-			remote = newRemote
+		local existing = folder:FindFirstChild(name)
+		if existing then
+			if not existing:IsA(className) then
+				error(
+					("Remote %q is a %s but was requested as a %s — it is listed in the wrong table in Remotes.luau"):format(
+						name,
+						existing.ClassName,
+						className
+					),
+					3
+				)
+			end
+			return existing
 		end
-		return remote :: RemoteEvent
+		local created = Instance.new(className)
+		created.Name = name
+		created.Parent = folder
+		return created
 	end
-	return folder:WaitForChild(name) :: RemoteEvent
+	local remote = folder:WaitForChild(name)
+	if not remote:IsA(className) then
+		error(("Remote %q is a %s but was requested as a %s"):format(name, remote.ClassName, className), 3)
+	end
+	return remote
+end
+
+function Remotes.Event(name: string): RemoteEvent
+	return typedRemote(name, "RemoteEvent") :: RemoteEvent
 end
 
 function Remotes.Function(name: string): RemoteFunction
-	local folder = container()
-	if RunService:IsServer() then
-		local remote = folder:FindFirstChild(name) :: RemoteFunction?
-		if not remote then
-			local newRemote = Instance.new("RemoteFunction")
-			newRemote.Name = name
-			newRemote.Parent = folder
-			remote = newRemote
-		end
-		return remote :: RemoteFunction
-	end
-	return folder:WaitForChild(name) :: RemoteFunction
+	return typedRemote(name, "RemoteFunction") :: RemoteFunction
 end
 
 function Remotes.Init()
@@ -1028,6 +1040,12 @@ return DataService
 -- Two independent guards mean it can never reach players:
 --   1. It only runs when RunService:IsStudio() is true.
 --   2. Balance.FilmMode ships as false, and CI publishes whatever is committed.
+-- Two further containments, because "Studio only" is not the same as "harmless":
+--   3. The profile loads from ProfileStore's Mock store, so a staged save is
+--      never written to the real one.
+--   4. Leaderboards.Save returns early while film mode is on. Those are separate
+--      OrderedDataStores keyed by your real UserId — without the guard, a film
+--      take published an endgame score to the live boards.
 -- Flip it in Studio, press Play, film, close WITHOUT saving.
 
 local RunService = game:GetService("RunService")
@@ -1083,6 +1101,8 @@ return FilmMode
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 
+local FilmMode = require(script.Parent.FilmMode)
+
 local Leaderboards = {}
 
 local ctx: any = nil
@@ -1100,6 +1120,13 @@ local function store(name: string): OrderedDataStore?
 end
 
 function Leaderboards.Save(player: Player, data: any)
+	-- A staged film-mode save must not reach the real boards either. The Mock
+	-- ProfileStore only isolates the profile; these are separate OrderedDataStores
+	-- keyed by the developer's own UserId, and both the periodic loop and the
+	-- on-leave save would otherwise publish an endgame score to live players.
+	if FilmMode.Active() then
+		return
+	end
 	if stageStore and data.Stats.BestStage > 0 then
 		pcall(function()
 			(stageStore :: OrderedDataStore):SetAsync(tostring(player.UserId), data.Stats.BestStage)
@@ -4181,12 +4208,16 @@ local function coinGainPopup(anchor: Frame, amount: number)
 		TextColor3 = UiKit.Colors.Good,
 		TextStrokeTransparency = 0.4,
 		Size = UDim2.fromOffset(150, 30),
-		Position = UDim2.new(1, 6, 0, 6),
-		TextXAlignment = Enum.TextXAlignment.Left,
+		-- Rises from inside the pill's right edge rather than out past it. Spawning
+		-- outside overlapped the centred toast column at 812 wide, and the old
+		-- rise to -22 carried it off the top of the screen; -10 keeps every pixel
+		-- on screen (the pill's own top edge is at y=12).
+		Position = UDim2.new(1, -150, 0, 6),
+		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = anchor,
 	})
 	TweenService:Create(label, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.new(1, 6, 0, -22),
+		Position = UDim2.new(1, -150, 0, -10),
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 	}):Play()

@@ -23,6 +23,7 @@ export type CrackedCrystal = {
 	Value: number,
 	Tier: string,
 	New: boolean,
+	Pity: boolean?,
 }
 
 local ctx: any = nil
@@ -30,7 +31,20 @@ local rng = Random.new()
 
 -- Mutations that earn a server-wide callout even on a lower-tier base: a
 -- Celestial Quartz is a better story than a plain Opal.
-local LOUD_MUTATIONS: { [string]: boolean } = { Radioactive = true, Celestial = true }
+local LOUD_MUTATIONS: { [string]: boolean } = { Abyssal = true, Moonlit = true }
+
+-- Every roll path must record a personal best the same way, or a crystal can be
+-- announced server-wide and still never become the flex aura, the leaderboard
+-- entry, or the name on the "rarest find" board. Shop, streak and starter-pack
+-- grants all diverged from the crack path before this was hoisted out.
+local function recordRarest(player: Player, data: any, baseName: string, mutName: string, value: number)
+	if value <= data.Stats.RarestValue then
+		return
+	end
+	data.Stats.RarestValue = value
+	data.Stats.RarestName = (mutName ~= "Normal" and (mutName .. " ") or "") .. baseName
+	ctx.Flex.Set(player, baseName, mutName, value)
+end
 
 local function tierRank(tier: string): number
 	for i, name in Crystals.Tiers do
@@ -55,6 +69,10 @@ local function announceRare(player: Player, crystal: CrackedCrystal)
 	end
 	local label = (crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or "") .. crystal.Base
 	Remotes.Event("RareFind"):FireAllClients({
+		-- UserId, not just the name: DisplayNames are not unique, and matching on
+		-- one made a stranger's Mythic render as "YOU FOUND" on someone else's
+		-- screen — fabricated first-person social proof.
+		UserId = player.UserId,
 		Player = player.DisplayName,
 		Label = label,
 		Tier = crystal.Tier,
@@ -72,9 +90,11 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 
 	data.PityCracks += 1
 	local baseName
+	local pity = false
 	if not data.RareGiven and data.PityCracks >= Balance.PityForcedRareCrack then
 		baseName = RarityMath.RollRarePlus(layer, luck, rng)
 		data.RareGiven = true
+		pity = true
 	else
 		baseName = RarityMath.RollBase(layer, luck, rng)
 	end
@@ -95,12 +115,7 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 	end
 
 	local value = ctx.Data.CrystalValue(data, crystal)
-	if value > data.Stats.RarestValue then
-		data.Stats.RarestValue = value
-		data.Stats.RarestName = (mutName ~= "Normal" and (mutName .. " ") or "") .. baseName
-		-- New personal best: swap the crystal floating over their head
-		ctx.Flex.Set(player, baseName, mutName, value)
-	end
+	recordRarest(player, data, baseName, mutName, value)
 
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -112,6 +127,9 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 		Value = value,
 		Tier = def and def.Tier or "Common",
 		New = isNew,
+		-- The first-session guaranteed Rare+ did not beat any odds, so the card
+		-- must not claim it did.
+		Pity = pity,
 	}
 end
 
@@ -179,10 +197,13 @@ function CrackService.GrantFixedCrystal(player: Player, baseName: string, size: 
 	local crystal = { Base = baseName, Mut = "Normal", Size = size, Layer = layer }
 	data.Crystals[id] = crystal
 	local key = Crystals.IndexKey(baseName, "Normal")
-	if not data.Collection[key] then
+	local isNew = not data.Collection[key]
+	if isNew then
 		data.Collection[key] = true
 		data.CollectionCount += 1
 	end
+	local value = ctx.Data.CrystalValue(data, crystal)
+	recordRarest(player, data, baseName, "Normal", value)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -191,9 +212,9 @@ function CrackService.GrantFixedCrystal(player: Player, baseName: string, size: 
 		Mut = "Normal",
 		Size = size,
 		Layer = layer,
-		Value = ctx.Data.CrystalValue(data, crystal),
+		Value = value,
 		Tier = def and def.Tier or "Rare",
-		New = false,
+		New = isNew,
 	}
 end
 
@@ -221,6 +242,8 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 		data.Collection[key] = true
 		data.CollectionCount += 1
 	end
+	local value = ctx.Data.CrystalValue(data, crystal)
+	recordRarest(player, data, baseName, mutName, value)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	local result: CrackedCrystal = {
@@ -229,7 +252,7 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 		Mut = mutName,
 		Size = size,
 		Layer = layer,
-		Value = ctx.Data.CrystalValue(data, crystal),
+		Value = value,
 		Tier = def and def.Tier or "Common",
 		New = isNew,
 	}

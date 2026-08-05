@@ -5,6 +5,8 @@
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 
+local FilmMode = require(script.Parent.FilmMode)
+
 local Leaderboards = {}
 
 local ctx: any = nil
@@ -22,6 +24,13 @@ local function store(name: string): OrderedDataStore?
 end
 
 function Leaderboards.Save(player: Player, data: any)
+	-- A staged film-mode save must not reach the real boards either. The Mock
+	-- ProfileStore only isolates the profile; these are separate OrderedDataStores
+	-- keyed by the developer's own UserId, and both the periodic loop and the
+	-- on-leave save would otherwise publish an endgame score to live players.
+	if FilmMode.Active() then
+		return
+	end
 	if rebirthStore and data.Rebirths > 0 then
 		pcall(function()
 			(rebirthStore :: OrderedDataStore):SetAsync(tostring(player.UserId), data.Rebirths)

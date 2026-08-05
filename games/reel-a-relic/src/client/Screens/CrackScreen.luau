@@ -54,6 +54,9 @@ local function oddsBrag(crystal: { [string]: any }): string?
 	if not state then
 		return nil
 	end
+	if crystal.Pity then
+		return nil -- the first-session guaranteed Rare+ beat no odds at all
+	end
 	local baseChance = 0
 	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
 		if entry.Name == crystal.Base then
@@ -304,7 +307,9 @@ local function makeCard(
 			BackgroundColor3 = UiKit.Colors.Good,
 			Rotation = -12,
 			Size = UDim2.fromOffset(96, 30),
-			Position = UDim2.new(1, -56, 0, -10),
+			-- Inside the top edge, not straddling it: at 375-height the card top
+			-- sits at y=11 and half the badge was clipped off screen.
+			Position = UDim2.new(1, -56, 0, 14),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			ZIndex = 3,
 			Parent = card,
@@ -401,14 +406,20 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 		if bestRank >= 4 then
 			RevealFx.Confetti(overlay, bestColor, bestRank >= 5 and 36 or 20)
 		end
+		-- The server rolls a batch sequentially, so its record climbs as it goes.
+		-- Comparing every card against the same pre-crack snapshot let a 300 and
+		-- a 500 in one triple crack both claim the personal best.
+		local runningBest = previousBest
 		for i, crystal in results do
 			local position = UDim2.new(0.5, -totalWidth // 2 + (i - 1) * (cardWidth + 16) + cardWidth // 2, 0.42, 0)
 			if i == bestIndex and bestRank >= 5 then
 				RevealFx.Sunburst(overlay, position, bestColor)
 			end
+			local bestBefore = runningBest
+			runningBest = math.max(runningBest, crystal.Value)
 			task.delay((i - 1) * 0.18, function()
 				if overlay.Parent then
-					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll, previousBest)
+					makeCard(overlay, crystal, position, cardWidth, handledIds, refreshSellAll, bestBefore)
 				end
 			end)
 		end
@@ -421,7 +432,13 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 				Text = "Sell All",
 				BackgroundColor3 = UiKit.Colors.Buy,
 				Size = UDim2.fromOffset(220, 48),
-				Position = UDim2.new(0.5, -232, 0.72, 0),
+				-- Anchored to the card block, not to an independent 0.72 of the
+				-- screen: cards are 292 tall centred at 0.42, so anything below
+				-- 0.42H + 146 clears them at any height. At 0.72 scale this row
+				-- landed ON TOP of the per-card Sell/Socket buttons on every phone
+				-- in landscape (H < 447) and, being the higher ZIndex, won the tap —
+				-- so aiming at Socket sold the whole batch instead.
+				Position = UDim2.new(0.5, -232, 0.42, 162),
 				Parent = overlay,
 			})
 			sellAll.ZIndex = 4
@@ -432,7 +449,7 @@ local function showReveal(results: { { [string]: any } }, previousBest: number)
 				BackgroundColor3 = UiKit.Colors.BgLighter,
 				TextColor3 = UiKit.Colors.Text,
 				Size = UDim2.fromOffset(160, 48),
-				Position = UDim2.new(0.5, 12, 0.72, 0),
+				Position = UDim2.new(0.5, 12, 0.42, 162),
 				Parent = overlay,
 			})
 			keepAll.ZIndex = 4

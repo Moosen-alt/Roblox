@@ -57,11 +57,27 @@ function GemView.Create(props: Props): ViewportFrame
 	local speed = props.Spin or 1.1
 	local clock = 0
 	local connection: RBXScriptConnection? = nil
+	local function stop()
+		if connection then
+			connection:Disconnect()
+			connection = nil
+		end
+	end
+	-- Watch ancestry, not viewport.Parent: when an ANCESTOR is removed the
+	-- viewport keeps its own parent, so a Parent check never fires and the spin
+	-- would run forever holding the model in memory. Characters get removed that
+	-- way, and every player wears one of these.
+	viewport.Destroying:Once(stop)
+	viewport.AncestryChanged:Connect(function()
+		if not viewport:IsDescendantOf(game) then
+			stop()
+		end
+	end)
 	connection = RunService.RenderStepped:Connect(function(dt: number)
-		if not viewport.Parent then
-			if connection then
-				connection:Disconnect()
-			end
+		-- A gem nobody can see does not need to turn. With fifteen players
+		-- wearing one of these over their head, the ones behind you, off screen,
+		-- or past the billboard's MaxDistance are the common case.
+		if not viewport.Visible or viewport.AbsoluteSize.X < 1 then
 			return
 		end
 		clock += dt * speed

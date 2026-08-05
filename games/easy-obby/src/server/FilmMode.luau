@@ -10,6 +10,12 @@
 -- Two independent guards mean it can never reach players:
 --   1. It only runs when RunService:IsStudio() is true.
 --   2. Balance.FilmMode ships as false, and CI publishes whatever is committed.
+-- Two further containments, because "Studio only" is not the same as "harmless":
+--   3. The profile loads from ProfileStore's Mock store, so a staged save is
+--      never written to the real one.
+--   4. Leaderboards.Save returns early while film mode is on. Those are separate
+--      OrderedDataStores keyed by your real UserId — without the guard, a film
+--      take published an endgame score to the live boards.
 -- Flip it in Studio, press Play, film, close WITHOUT saving.
 
 local RunService = game:GetService("RunService")

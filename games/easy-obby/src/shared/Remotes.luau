@@ -33,34 +33,46 @@ local function container(): Folder
 	return ReplicatedStorage:WaitForChild("Remotes") :: Folder
 end
 
-function Remotes.Event(name: string): RemoteEvent
+-- Both lookups are by name only, and the `::` casts are compile-time fiction —
+-- so a name listed in the wrong registry hands back the wrong class and dies
+-- later at `.OnServerEvent`, deep inside a service, with a message that points
+-- nowhere near the actual mistake. Check the class here instead, where the name
+-- and the expectation are both in view.
+local function typedRemote(name: string, className: string): Instance
 	local folder = container()
 	if RunService:IsServer() then
-		local remote = folder:FindFirstChild(name) :: RemoteEvent?
-		if not remote then
-			local newRemote = Instance.new("RemoteEvent")
-			newRemote.Name = name
-			newRemote.Parent = folder
-			remote = newRemote
+		local existing = folder:FindFirstChild(name)
+		if existing then
+			if not existing:IsA(className) then
+				error(
+					("Remote %q is a %s but was requested as a %s — it is listed in the wrong table in Remotes.luau"):format(
+						name,
+						existing.ClassName,
+						className
+					),
+					3
+				)
+			end
+			return existing
 		end
-		return remote :: RemoteEvent
+		local created = Instance.new(className)
+		created.Name = name
+		created.Parent = folder
+		return created
 	end
-	return folder:WaitForChild(name) :: RemoteEvent
+	local remote = folder:WaitForChild(name)
+	if not remote:IsA(className) then
+		error(("Remote %q is a %s but was requested as a %s"):format(name, remote.ClassName, className), 3)
+	end
+	return remote
+end
+
+function Remotes.Event(name: string): RemoteEvent
+	return typedRemote(name, "RemoteEvent") :: RemoteEvent
 end
 
 function Remotes.Function(name: string): RemoteFunction
-	local folder = container()
-	if RunService:IsServer() then
-		local remote = folder:FindFirstChild(name) :: RemoteFunction?
-		if not remote then
-			local newRemote = Instance.new("RemoteFunction")
-			newRemote.Name = name
-			newRemote.Parent = folder
-			remote = newRemote
-		end
-		return remote :: RemoteFunction
-	end
-	return folder:WaitForChild(name) :: RemoteFunction
+	return typedRemote(name, "RemoteFunction") :: RemoteFunction
 end
 
 function Remotes.Init()

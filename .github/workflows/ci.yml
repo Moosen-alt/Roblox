@@ -46,6 +46,12 @@ jobs:
                    --ignore "src/server/Packages/**" src)
           done
 
+      # Remotes are looked up by name and cast with `::`, so a name in the wrong
+      # registry table type-checks fine and then kills the server script at
+      # runtime. luau-lsp cannot see it; this can.
+      - name: Remote registry consistency
+        run: python3 tests/check-remotes.py $GAMES
+
       - name: Math tests
         run: |
           LUAU=luau sh tests/run.sh

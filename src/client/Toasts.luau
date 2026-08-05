@@ -18,6 +18,11 @@ local Toasts = {}
 
 local container: Frame? = nil
 local gui: ScreenGui? = nil
+-- Rare-find callouts get their own layer. The reveal overlay lives on a
+-- DisplayOrder-50 ScreenGui and dims everything under it, so the finder's own
+-- "YOU FOUND" banner was arriving at 35% brightness underneath their reveal —
+-- and ZIndex means nothing across ScreenGuis.
+local announceGui: ScreenGui? = nil
 
 local function pushToast(text: string, color: Color3?)
 	if not container then
@@ -51,21 +56,25 @@ Toasts.Push = pushToast
 -- seeing someone else's callout is the most convincing possible proof that the
 -- rare stuff is really in there.
 local function showRareFind(payload: { [string]: any })
-	if not gui then
+	local layer = announceGui
+	if not layer then
 		return
 	end
 	local color = typeof(payload.Color) == "Color3" and payload.Color or UiKit.Colors.Accent
-	local mine = payload.Player == Players.LocalPlayer.DisplayName
+	-- Match on UserId. DisplayNames are not unique, and matching on one meant a
+	-- stranger's Mythic could render as "YOU FOUND" on your screen.
+	local mine = payload.UserId == Players.LocalPlayer.UserId
 	local rank = tonumber(payload.Rank) or 5
 
 	local banner = UiKit.Create("Frame", {
 		Size = UDim2.fromOffset(0, 62),
-		Position = UDim2.new(0.5, 0, 0, 96),
+		-- Below the five-deep toast column (which ends at y=194), not through it
+		Position = UDim2.new(0.5, 0, 0, 300),
 		AnchorPoint = Vector2.new(0.5, 0),
 		BackgroundColor3 = UiKit.Colors.Bg,
 		BackgroundTransparency = 0.08,
 		ZIndex = 20,
-		Parent = gui,
+		Parent = layer,
 	})
 	UiKit.Corner(14).Parent = banner
 	local stroke = UiKit.Stroke(color, 3)
@@ -161,13 +170,21 @@ local function showWelcome(report: { [string]: any })
 	local calendarHeight = streak and 92 or 0
 	local popup = UiKit.Create("Frame", {
 		Size = UDim2.fromOffset(470, 96 + #lines * 34 + calendarHeight),
-		Position = UDim2.fromScale(0.5, 0.34),
+		-- Centred, but never above the top edge: the tallest case (lapsed streak
+		-- + offline earnings + calendar) is 290px and used to clip its own title
+		-- off screen on a phone in landscape.
+		Position = UDim2.new(0.5, 0, 0.34, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = UiKit.Colors.Bg,
 		Parent = gui,
 	})
 	UiKit.Corner(14).Parent = popup
 	UiKit.Stroke(UiKit.Colors.Accent, 3).Parent = popup
+	local popupHeight = 96 + #lines * 34 + calendarHeight
+	local viewport = gui.AbsoluteSize.Y
+	if viewport > 0 and 0.34 * viewport - popupHeight / 2 < 8 then
+		popup.Position = UDim2.fromOffset(0, 0) + UDim2.new(0.5, 0, 0, popupHeight // 2 + 8)
+	end
 	UiKit.Label({
 		Text = "Welcome back!",
 		Font = Enum.Font.FredokaOne,
@@ -249,6 +266,13 @@ end
 
 function Toasts.Init(screenGui: ScreenGui)
 	gui = screenGui
+	announceGui = UiKit.Create("ScreenGui", {
+		Name = "AnnounceGui",
+		ResetOnSpawn = false,
+		DisplayOrder = 60, -- above the reveal overlay's 50
+		IgnoreGuiInset = true,
+		Parent = screenGui.Parent,
+	}) :: ScreenGui
 	container = UiKit.Create("Frame", {
 		Name = "Toasts",
 		BackgroundTransparency = 1,

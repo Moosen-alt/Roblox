@@ -96,14 +96,16 @@ You do not have to wait days for a Day 30 streak or get lucky on camera. There i
 → press Play → film → close WITHOUT saving.**
 
 It only works inside Studio and ships as `false`, so there is no way for it to reach the live
-game even if you forget to undo it. What you get the moment you press Play:
+game even if you forget to undo it. It also loads from a throwaway copy of your save and suppresses
+leaderboard writes, so a film take can't touch your real progress or the live boards. What you get the moment you press Play:
 
 | You get | Covers clips |
 |---|---|
 | 5,000,000 coins, top pickaxe, max backpack and racks, 6 rebirths | 6, 10 |
 | Collection at 36/48, with the last 12 genuinely missing | 7 |
 | Day 30 streak popup on join | 8 |
-| 8 hours of offline earnings waiting to collect | 2 |
+| Four relics/crystals already socketed, with 8 hours of earnings waiting | 2 |
+| Your rarest pull already floating over your head | 9 |
 | A server event every ~12 seconds instead of every ~6 minutes | 3 |
 | Deepest layer, so Epic/Legendary pulls come fast | 1, 4, 9 |
 

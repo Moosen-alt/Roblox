@@ -35,6 +35,10 @@ local NODE_COLORS = {
 
 local rng = Random.new(20260804)
 
+-- NOTE: unlike GeodeNode's helper, this one leaves CanQuery at the Roblox
+-- default of true. Anything invisible or overhead that a tap-ray could cross on
+-- its way to a geode must set CanQuery = false explicitly, or it silently eats
+-- the tap (MiningInput drops any hit without a NodeIndex attribute).
 local function part(props: { [string]: any }, parent: Instance): Part
 	local p = Instance.new("Part")
 	p.Anchored = true
@@ -235,6 +239,7 @@ function MapBuilder.Build(): MapRefs
 			Material = Enum.Material.Rock,
 		}, map)
 		stalactite.CanCollide = false
+		stalactite.CanQuery = false
 		if i % 3 == 0 then
 			local tipColor = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)]
 			local tip = part({
@@ -246,6 +251,7 @@ function MapBuilder.Build(): MapRefs
 				Transparency = 0.15,
 			}, map)
 			tip.CanCollide = false
+			tip.CanQuery = false
 			local tipLight = Instance.new("PointLight")
 			tipLight.Color = tipColor
 			tipLight.Range = 28
@@ -278,6 +284,7 @@ function MapBuilder.Build(): MapRefs
 		Transparency = 1,
 	}, map)
 	dustSource.CanCollide = false
+	dustSource.CanQuery = false
 	local dust = Instance.new("ParticleEmitter")
 	dust.Color = ColorSequence.new(Color3.fromRGB(200, 190, 235))
 	dust.Size = NumberSequence.new(0.25, 0.1)
@@ -291,6 +298,7 @@ function MapBuilder.Build(): MapRefs
 	for _, offset in { Vector3.new(-55, 40, -30), Vector3.new(55, 40, -30), Vector3.new(-55, 40, 40), Vector3.new(55, 40, 40) } do
 		local fillPart = part({ Name = "FillLight", Size = Vector3.new(1, 1, 1), Position = offset, Transparency = 1 }, map)
 		fillPart.CanCollide = false
+		fillPart.CanQuery = false
 		local fill = Instance.new("PointLight")
 		fill.Color = Color3.fromRGB(150, 135, 200)
 		fill.Range = 70
@@ -351,8 +359,12 @@ function MapBuilder.Build(): MapRefs
 	-- which are spaced 15 studs apart starting at x = -82.
 	for i = 1, 22 do
 		local x = rng:NextNumber(-96, 96)
-		local nearestNode = math.abs(((x + 82) % 15) - 7.5)
-		if nearestNode < 4 then
+		-- Distance to the nearest REAL deposit column. Deposits sit every 15 studs
+		-- from x = -82, but only twelve of them — a plain modulo invents phantom
+		-- columns past each end and throws away perfectly good spots out at the
+		-- wall edges, so snap to the actual column index and clamp it.
+		local column = math.clamp(math.floor((x + 82) / 15 + 0.5), 0, 11)
+		if math.abs(x - (column * 15 - 82)) < 4 then
 			continue -- too close to a real deposit; would read as tappable
 		end
 		GeodeNode.Buried(

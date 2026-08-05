@@ -12,6 +12,34 @@ local UiKit = require(script.Parent.UiKit)
 local FlexAura = {}
 
 local AURA_NAME = "RarestFindAura"
+local VISIBLE_RANGE = 110 -- matches the billboard's MaxDistance
+
+-- One shared loop gates every aura, rather than fifteen ViewportFrames each
+-- spinning a twenty-part model every frame regardless of whether anyone can see
+-- them. GemView skips work while its viewport is hidden, so flipping Visible
+-- here is what actually buys the frames back.
+local tracked: { [Player]: { Billboard: BillboardGui, Viewport: ViewportFrame, Head: BasePart } } = {}
+
+local function gateVisibility()
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local origin = camera.CFrame.Position
+	for player, aura in tracked do
+		if not aura.Billboard.Parent or not aura.Head.Parent then
+			tracked[player] = nil
+		else
+			local near = (aura.Head.Position - origin).Magnitude <= VISIBLE_RANGE
+			aura.Viewport.Visible = near
+			aura.Billboard.Enabled = near
+		end
+	end
+end
+
+local function untrack(player: Player)
+	tracked[player] = nil
+end
 
 local function clear(character: Model)
 	local head = character:FindFirstChild("Head")
@@ -23,6 +51,7 @@ end
 
 local function build(player: Player, character: Model)
 	clear(character)
+	untrack(player)
 	local base = player:GetAttribute("FlexBase")
 	if typeof(base) ~= "string" or base == "" then
 		return
@@ -45,7 +74,7 @@ local function build(player: Player, character: Model)
 	billboard.MaxDistance = 110
 	billboard.Parent = head
 
-	GemView.Create({
+	local gem = GemView.Create({
 		Parent = billboard,
 		Size = UDim2.fromScale(1, 0.7),
 		Position = UDim2.fromScale(0, 0),
@@ -54,6 +83,8 @@ local function build(player: Player, character: Model)
 		Spin = 0.75,
 		ZIndex = 1,
 	})
+
+	tracked[player] = { Billboard = billboard, Viewport = gem, Head = head }
 
 	local prefix = (typeof(mutation) == "string" and mutation ~= "Normal") and (mutation .. " ") or ""
 	UiKit.Label({
@@ -91,6 +122,14 @@ function FlexAura.Init()
 		watch(player)
 	end
 	Players.PlayerAdded:Connect(watch)
+	Players.PlayerRemoving:Connect(untrack)
+	-- Twice a second is plenty: this only decides whether a decoration spins.
+	task.spawn(function()
+		while true do
+			task.wait(0.5)
+			gateVisibility()
+		end
+	end)
 end
 
 return FlexAura
