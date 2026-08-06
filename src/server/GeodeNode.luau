@@ -87,7 +87,19 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		}, model)
 	end
 
-	-- The opening: a dark hollow with the glow behind it
+	-- The opening. A dark hollow on dark rock is invisible from any distance, so
+	-- a slightly wider neon disc sits just behind it — the sliver that shows past
+	-- the dark centre is a glowing rim, which is what makes a geode legible from
+	-- across the cave without resorting to spokes.
+	part({
+		Name = "RimGlow",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.5, 6.4, 6.4),
+		CFrame = CFrame.new(position + Vector3.new(0, 0, 2.85)) * CFrame.Angles(0, math.rad(90), 0),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Transparency = 0.12,
+	}, model)
 	part({
 		Name = "Hollow",
 		Shape = Enum.PartType.Cylinder,
@@ -140,8 +152,12 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 	})
 	crystal.Name = "Crystal"
 	-- Point the shards out of the wall at the player, then let the client spin
-	-- the whole cluster about that axis (free motion — no replication).
-	crystal:PivotTo(CFrame.new(position + Vector3.new(0, 0, 2.6)) * CFrame.Angles(math.rad(90), 0, 0))
+	-- the whole cluster about that axis (free motion — no replication). The roll
+	-- is random per geode: twelve identically-posed clusters read as wallpaper.
+	crystal:PivotTo(
+		CFrame.new(position + Vector3.new(0, 0, 2.6))
+			* CFrame.Angles(math.rad(90), 0, rng:NextNumber(0, math.pi * 2))
+	)
 	crystal.Parent = model
 	CollectionService:AddTag(crystal, "SpinCrystal")
 	crystal:SetAttribute("SpinSpeed", rng:NextNumber(0.35, 0.7))

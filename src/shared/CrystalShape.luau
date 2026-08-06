@@ -16,7 +16,15 @@ export type Options = {
 	Sparkle: boolean?, -- drifting glints around the cluster
 }
 
-local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Color3): Part
+-- Neon is FULLBRIGHT: Roblox draws it as flat unshaded colour, so no amount of
+-- faceting shows up and a cluster of same-coloured neon parts silhouettes into
+-- one glowing blob. That is the whole reason these read as stickers rather than
+-- crystals.
+--
+-- The fix is not to drop neon — a dark cave needs the glow — but to make each
+-- facet a slightly different shade and transparency. With a fullbright material
+-- colour IS the render, so varying it is what puts the edges back.
+local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Color3, shade: number, clarity: number): Part
 	local p = Instance.new("Part")
 	p.Name = "Facet"
 	p.Anchored = true
@@ -25,8 +33,12 @@ local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Col
 	p.CanTouch = false
 	p.Massless = true
 	p.Material = Enum.Material.Neon
-	p.Color = color
-	p.Transparency = 0.06
+	-- Negative shade darkens toward the crystal's own deep tone, positive lifts
+	-- toward white, so neighbouring facets never merge into one another.
+	p.Color = if shade >= 0
+		then color:Lerp(Color3.new(1, 1, 1), shade)
+		else color:Lerp(Color3.new(0.06, 0.05, 0.12), -shade)
+	p.Transparency = clarity
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Size = size
@@ -37,25 +49,42 @@ end
 
 -- One spike: stacked blocks that shrink as they rise, each turned 45 degrees so
 -- the silhouette reads as a faceted crystal rather than a stick.
-local function spike(parent: Instance, base: CFrame, height: number, width: number, color: Color3, segments: number): Part
+-- One spike: stacked blocks that shrink as they rise, each turned 45 degrees so
+-- the silhouette reads as a faceted crystal rather than a stick. `tone` shifts
+-- the whole spike's shade so it separates from its neighbours in the cluster.
+local function spike(
+	parent: Instance,
+	base: CFrame,
+	height: number,
+	width: number,
+	color: Color3,
+	segments: number,
+	tone: number
+): Part
 	local segHeight = height / (segments + 0.5)
 	local tallest = nil :: Part?
 	for s = 1, segments do
 		local t = (s - 1) / segments
 		local w = width * (1 - t * 0.5)
+		-- Dark at the root, bright at the tip: light looks like it is coming from
+		-- inside the crystal instead of painting it evenly.
 		tallest = facet(
 			parent,
 			base * CFrame.new(0, segHeight * (s - 0.5), 0) * CFrame.Angles(0, math.rad(45), 0),
 			Vector3.new(w, segHeight, w),
-			color
+			color,
+			tone - 0.22 + t * 0.45,
+			0.05 + (1 - t) * 0.12
 		)
 	end
-	-- Chisel tip
+	-- Chisel tip: the brightest, clearest part of the spike
 	local tip = facet(
 		parent,
 		base * CFrame.new(0, segments * segHeight + segHeight * 0.28, 0) * CFrame.Angles(0, math.rad(45), 0),
 		Vector3.new(width * 0.34, segHeight * 0.6, width * 0.34),
-		color
+		color,
+		tone + 0.34,
+		0.02
 	)
 	return tallest or tip
 end
@@ -85,7 +114,9 @@ function CrystalShape.Build(options: Options): Model
 		-- perpendicular to the shard's radial direction.
 		local tiltAxis = Vector3.new(-dir.Z, 0, dir.X)
 		local base = CFrame.new(dir * dist) * CFrame.fromAxisAngle(tiltAxis, -lean)
-		local part = spike(model, base, height, width, options.Color, segments)
+		-- Each shard sits at its own point on the light/dark ramp
+		local tone = rng:NextNumber(-0.18, 0.2)
+		local part = spike(model, base, height, width, options.Color, segments, tone)
 		if isCenter then
 			center = part
 		end
