@@ -573,43 +573,16 @@ function MapBuilder.Build(): MapRefs
 	end
 
 	-- Landmark crystals: giant, turning, impossible to miss on the walk in
-	for _, spot in { Vector3.new(-62, 14, 4), Vector3.new(62, 14, 4), Vector3.new(0, 18, 62) } do
-		makeFloatingCrystal(spot, NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)], rng:NextNumber(2.6, 3.6), map)
+	-- Corners only. One of these used to sit at (0, 18, 62), directly over the
+	-- path between spawn and the stations, where it filled half the screen.
+	for _, spot in { Vector3.new(-88, 16, 30), Vector3.new(88, 16, 30), Vector3.new(-88, 16, -30) } do
+		makeFloatingCrystal(spot, NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)], rng:NextNumber(2, 2.8), map)
 	end
 
-	-- Ore veins glowing through the wall face, each branching once, so the rock
-	-- reads as shot through with mineral rather than painted with stripes.
-	for i = 1, 26 do
-		local x = rng:NextNumber(-95, 95)
-		local y = rng:NextNumber(2, 36)
-		local length = rng:NextNumber(3, 9)
-		local angle = rng:NextNumber(0, math.pi)
-		local color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)]
-		local trunk = CFrame.new(x, y, -64.9) * CFrame.Angles(0, 0, angle)
-		local vein = part({
-			Name = "WallVein" .. i,
-			Size = Vector3.new(0.5, length, 0.6),
-			CFrame = trunk,
-			Color = color,
-			Material = Enum.Material.Neon,
-			Transparency = 0.35,
-		}, map)
-		vein.CanCollide = false
-		vein.CanQuery = false
-		local branch = part({
-			Name = "WallVeinBranch" .. i,
-			Size = Vector3.new(0.4, length * 0.55, 0.5),
-			CFrame = trunk
-				* CFrame.new(0, length * 0.3, 0)
-				* CFrame.Angles(0, 0, rng:NextNumber(0.5, 1.1) * (rng:NextNumber() < 0.5 and -1 or 1))
-				* CFrame.new(0, length * 0.28, 0),
-			Color = color,
-			Material = Enum.Material.Neon,
-			Transparency = 0.45,
-		}, map)
-		branch.CanCollide = false
-		branch.CanQuery = false
-	end
+	-- No glowing veins painted on the rock. Bright neon sticks scattered across
+	-- the face turned the wall into confetti and drowned out the one thing that
+	-- actually matters — the geodes you can mine. The wall earns its look from
+	-- rock, and the light comes from a handful of real formations below.
 
 	-- Geodes still buried in the face. Deliberately dull — see GeodeNode.Buried
 	-- for why these must not look tappable. They sit between the mining spots,
@@ -641,10 +614,13 @@ function MapBuilder.Build(): MapRefs
 	-- it breaks the surface and a couple of broken chunks around it, so it reads
 	-- as something that grew through the wall and shattered it — not a crystal
 	-- decal laid flat on the face.
-	for i = 1, 18 do
-		local x = rng:NextNumber(-98, 98)
-		local y = rng:NextNumber(2, 38)
-		local scale = rng:NextNumber(1.1, 2.6)
+	-- Eight, not eighteen: a few big formations read as a crystal cave, a lot of
+	-- small ones read as noise. Kept high and wide so they frame the mining row
+	-- rather than competing with it.
+	for i = 1, 8 do
+		local x = rng:NextNumber(-96, 96)
+		local y = rng:NextNumber(16, 38)
+		local scale = rng:NextNumber(2.2, 3.4)
 		local yaw = rng:NextNumber(-0.7, 0.7)
 		local pitch = rng:NextNumber(-0.7, 0.7)
 		local root = CFrame.new(x, y, -64.4) * CFrame.Angles(pitch, yaw, 0)

@@ -107,26 +107,32 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		Transparency = 0.55,
 	}, model)
 
-	-- Cracks radiating out of the opening. WorldFx widens these per player as
-	-- they chip away, so the geode visibly gives up.
+	-- Cracks spreading from the opening. WorldFx widens these per player as they
+	-- chip away, so the geode visibly gives up.
+	--
+	-- Fanned across one side at uneven angles, and short enough to stay on the
+	-- rock. Five even spokes reaching past the edge turned every geode into a
+	-- dartboard when you looked down the wall.
 	for v = 1, 5 do
-		local angle = ((v - 1) / 5) * math.pi * 2 + rng:NextNumber(-0.25, 0.25)
-		local length = rng:NextNumber(2.6, 3.8)
+		local angle = math.rad(150) + (v - 1) * math.rad(42) + rng:NextNumber(-0.22, 0.22)
+		local length = rng:NextNumber(0.9, 1.7)
 		part({
 			Name = "Vein" .. v,
 			Size = Vector3.new(0.3, length, 0.4),
 			CFrame = CFrame.new(position + Vector3.new(0, 0, 2.95))
 				* CFrame.Angles(0, 0, -angle)
-				* CFrame.new(0, 2.3 + length / 2, 0),
+				* CFrame.new(0, 2.1 + length / 2, 0),
 			Color = color,
 			Material = Enum.Material.Neon,
-			Transparency = 0.5,
+			Transparency = 0.72,
 		}, model)
 	end
 
 	local crystal = CrystalShape.Build({
 		Color = color,
-		Scale = 0.62,
+		-- The crystals in the mouth are the geode's whole read from a distance,
+		-- now that the cracks are subtle. Make them the thing you actually see.
+		Scale = 0.95,
 		Shards = 5,
 		Segments = 2,
 		Seed = index * 31 + 7,

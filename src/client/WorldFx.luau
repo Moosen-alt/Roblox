@@ -114,7 +114,7 @@ local function paintDamage(node: BasePart, fraction: number)
 	for i, vein in veins do
 		local grow = 1 + fraction * 1.9
 		vein.Size = Vector3.new(0.3 * grow, vein.Size.Y, 0.4 * grow)
-		vein.Transparency = math.max(0.5 - fraction * 0.5, 0)
+		vein.Transparency = math.max(0.72 - fraction * 0.72, 0)
 		-- Cracks light up in sequence as the geode gives way
 		if fraction > (i - 1) / #veins then
 			vein.Material = Enum.Material.Neon
@@ -141,7 +141,7 @@ local function resetDamage(node: BasePart)
 	end
 	for _, vein in veins do
 		vein.Size = Vector3.new(0.3, vein.Size.Y, 0.4)
-		vein.Transparency = 0.5
+		vein.Transparency = 0.72
 	end
 	if core then
 		core.Transparency = 0.55

@@ -371,10 +371,13 @@ function CrystalShape.Build(options: Options): Model
 		local angle = ((i - 1) / shards) * math.pi * 2 + rng:NextNumber(-0.35, 0.35)
 		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
 		local isCenter = i == 1
-		local lean = isCenter and rng:NextNumber(0, 0.12) or rng:NextNumber(0.2, 0.55)
-		local dist = (isCenter and 0 or rng:NextNumber(0.4, 0.85)) * scale
-		local height = (isCenter and rng:NextNumber(3.1, 3.6) or rng:NextNumber(1.5, 2.8)) * scale
-		local width = rng:NextNumber(0.5, 0.8) * scale
+		local lean = isCenter and rng:NextNumber(0, 0.12) or rng:NextNumber(0.2, 0.5)
+		-- Squat and overlapping, not tall and separated. At a 5:1 aspect ratio
+		-- with gaps between them these read as a handful of dropped sticks from
+		-- any distance; ~2.5:1 and touching reads as one crystal formation.
+		local dist = (isCenter and 0 or rng:NextNumber(0.28, 0.58)) * scale
+		local height = (isCenter and rng:NextNumber(2.3, 2.8) or rng:NextNumber(1.2, 2.0)) * scale
+		local width = rng:NextNumber(0.8, 1.1) * scale
 		-- Tilt away from the cluster centre: rotate about the horizontal axis
 		-- perpendicular to the shard's radial direction.
 		local tiltAxis = Vector3.new(-dir.Z, 0, dir.X)
@@ -1869,26 +1872,32 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		Transparency = 0.55,
 	}, model)
 
-	-- Cracks radiating out of the opening. WorldFx widens these per player as
-	-- they chip away, so the geode visibly gives up.
+	-- Cracks spreading from the opening. WorldFx widens these per player as they
+	-- chip away, so the geode visibly gives up.
+	--
+	-- Fanned across one side at uneven angles, and short enough to stay on the
+	-- rock. Five even spokes reaching past the edge turned every geode into a
+	-- dartboard when you looked down the wall.
 	for v = 1, 5 do
-		local angle = ((v - 1) / 5) * math.pi * 2 + rng:NextNumber(-0.25, 0.25)
-		local length = rng:NextNumber(2.6, 3.8)
+		local angle = math.rad(150) + (v - 1) * math.rad(42) + rng:NextNumber(-0.22, 0.22)
+		local length = rng:NextNumber(0.9, 1.7)
 		part({
 			Name = "Vein" .. v,
 			Size = Vector3.new(0.3, length, 0.4),
 			CFrame = CFrame.new(position + Vector3.new(0, 0, 2.95))
 				* CFrame.Angles(0, 0, -angle)
-				* CFrame.new(0, 2.3 + length / 2, 0),
+				* CFrame.new(0, 2.1 + length / 2, 0),
 			Color = color,
 			Material = Enum.Material.Neon,
-			Transparency = 0.5,
+			Transparency = 0.72,
 		}, model)
 	end
 
 	local crystal = CrystalShape.Build({
 		Color = color,
-		Scale = 0.62,
+		-- The crystals in the mouth are the geode's whole read from a distance,
+		-- now that the cracks are subtle. Make them the thing you actually see.
+		Scale = 0.95,
 		Shards = 5,
 		Segments = 2,
 		Seed = index * 31 + 7,
@@ -2804,43 +2813,16 @@ function MapBuilder.Build(): MapRefs
 	end
 
 	-- Landmark crystals: giant, turning, impossible to miss on the walk in
-	for _, spot in { Vector3.new(-62, 14, 4), Vector3.new(62, 14, 4), Vector3.new(0, 18, 62) } do
-		makeFloatingCrystal(spot, NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)], rng:NextNumber(2.6, 3.6), map)
+	-- Corners only. One of these used to sit at (0, 18, 62), directly over the
+	-- path between spawn and the stations, where it filled half the screen.
+	for _, spot in { Vector3.new(-88, 16, 30), Vector3.new(88, 16, 30), Vector3.new(-88, 16, -30) } do
+		makeFloatingCrystal(spot, NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)], rng:NextNumber(2, 2.8), map)
 	end
 
-	-- Ore veins glowing through the wall face, each branching once, so the rock
-	-- reads as shot through with mineral rather than painted with stripes.
-	for i = 1, 26 do
-		local x = rng:NextNumber(-95, 95)
-		local y = rng:NextNumber(2, 36)
-		local length = rng:NextNumber(3, 9)
-		local angle = rng:NextNumber(0, math.pi)
-		local color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)]
-		local trunk = CFrame.new(x, y, -64.9) * CFrame.Angles(0, 0, angle)
-		local vein = part({
-			Name = "WallVein" .. i,
-			Size = Vector3.new(0.5, length, 0.6),
-			CFrame = trunk,
-			Color = color,
-			Material = Enum.Material.Neon,
-			Transparency = 0.35,
-		}, map)
-		vein.CanCollide = false
-		vein.CanQuery = false
-		local branch = part({
-			Name = "WallVeinBranch" .. i,
-			Size = Vector3.new(0.4, length * 0.55, 0.5),
-			CFrame = trunk
-				* CFrame.new(0, length * 0.3, 0)
-				* CFrame.Angles(0, 0, rng:NextNumber(0.5, 1.1) * (rng:NextNumber() < 0.5 and -1 or 1))
-				* CFrame.new(0, length * 0.28, 0),
-			Color = color,
-			Material = Enum.Material.Neon,
-			Transparency = 0.45,
-		}, map)
-		branch.CanCollide = false
-		branch.CanQuery = false
-	end
+	-- No glowing veins painted on the rock. Bright neon sticks scattered across
+	-- the face turned the wall into confetti and drowned out the one thing that
+	-- actually matters — the geodes you can mine. The wall earns its look from
+	-- rock, and the light comes from a handful of real formations below.
 
 	-- Geodes still buried in the face. Deliberately dull — see GeodeNode.Buried
 	-- for why these must not look tappable. They sit between the mining spots,
@@ -2872,10 +2854,13 @@ function MapBuilder.Build(): MapRefs
 	-- it breaks the surface and a couple of broken chunks around it, so it reads
 	-- as something that grew through the wall and shattered it — not a crystal
 	-- decal laid flat on the face.
-	for i = 1, 18 do
-		local x = rng:NextNumber(-98, 98)
-		local y = rng:NextNumber(2, 38)
-		local scale = rng:NextNumber(1.1, 2.6)
+	-- Eight, not eighteen: a few big formations read as a crystal cave, a lot of
+	-- small ones read as noise. Kept high and wide so they frame the mining row
+	-- rather than competing with it.
+	for i = 1, 8 do
+		local x = rng:NextNumber(-96, 96)
+		local y = rng:NextNumber(16, 38)
+		local scale = rng:NextNumber(2.2, 3.4)
 		local yaw = rng:NextNumber(-0.7, 0.7)
 		local pitch = rng:NextNumber(-0.7, 0.7)
 		local root = CFrame.new(x, y, -64.4) * CFrame.Angles(pitch, yaw, 0)
@@ -6931,7 +6916,7 @@ function GemView.Create(props: Props): ViewportFrame
 
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 42
-	camera.CFrame = CFrame.lookAt(Vector3.new(0, 2.1, 7.4), Vector3.new(0, 1.5, 0))
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, 1.8, 6.3), Vector3.new(0, 1.2, 0))
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
 
@@ -10445,7 +10430,7 @@ local function paintDamage(node: BasePart, fraction: number)
 	for i, vein in veins do
 		local grow = 1 + fraction * 1.9
 		vein.Size = Vector3.new(0.3 * grow, vein.Size.Y, 0.4 * grow)
-		vein.Transparency = math.max(0.5 - fraction * 0.5, 0)
+		vein.Transparency = math.max(0.72 - fraction * 0.72, 0)
 		-- Cracks light up in sequence as the geode gives way
 		if fraction > (i - 1) / #veins then
 			vein.Material = Enum.Material.Neon
@@ -10472,7 +10457,7 @@ local function resetDamage(node: BasePart)
 	end
 	for _, vein in veins do
 		vein.Size = Vector3.new(0.3, vein.Size.Y, 0.4)
-		vein.Transparency = 0.5
+		vein.Transparency = 0.72
 	end
 	if core then
 		core.Transparency = 0.55

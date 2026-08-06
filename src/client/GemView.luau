@@ -48,7 +48,7 @@ function GemView.Create(props: Props): ViewportFrame
 
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 42
-	camera.CFrame = CFrame.lookAt(Vector3.new(0, 2.1, 7.4), Vector3.new(0, 1.5, 0))
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, 1.8, 6.3), Vector3.new(0, 1.2, 0))
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
 

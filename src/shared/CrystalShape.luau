@@ -74,10 +74,13 @@ function CrystalShape.Build(options: Options): Model
 		local angle = ((i - 1) / shards) * math.pi * 2 + rng:NextNumber(-0.35, 0.35)
 		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
 		local isCenter = i == 1
-		local lean = isCenter and rng:NextNumber(0, 0.12) or rng:NextNumber(0.2, 0.55)
-		local dist = (isCenter and 0 or rng:NextNumber(0.4, 0.85)) * scale
-		local height = (isCenter and rng:NextNumber(3.1, 3.6) or rng:NextNumber(1.5, 2.8)) * scale
-		local width = rng:NextNumber(0.5, 0.8) * scale
+		local lean = isCenter and rng:NextNumber(0, 0.12) or rng:NextNumber(0.2, 0.5)
+		-- Squat and overlapping, not tall and separated. At a 5:1 aspect ratio
+		-- with gaps between them these read as a handful of dropped sticks from
+		-- any distance; ~2.5:1 and touching reads as one crystal formation.
+		local dist = (isCenter and 0 or rng:NextNumber(0.28, 0.58)) * scale
+		local height = (isCenter and rng:NextNumber(2.3, 2.8) or rng:NextNumber(1.2, 2.0)) * scale
+		local width = rng:NextNumber(0.8, 1.1) * scale
 		-- Tilt away from the cluster centre: rotate about the horizontal axis
 		-- perpendicular to the shard's radial direction.
 		local tiltAxis = Vector3.new(-dir.Z, 0, dir.X)
