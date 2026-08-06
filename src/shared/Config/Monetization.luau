@@ -12,6 +12,19 @@ local Monetization = {}
 Monetization.GroupId = 346261815
 
 -- Gamepasses: { id, suggested price in Robux }
+-- ── FRIENDS & FAMILY COMPS ──────────────────────────────────────────────────
+-- UserIds listed here are treated as owning EVERY gamepass, free. This is the
+-- only way to "gift" store items on Roblox — passes can't be gifted on the
+-- platform, but the game decides what ownership means. In-game only, no Robux
+-- moves, and it's fully reversible: delete the line and the perks are gone the
+-- next time a server starts.
+--
+-- A friend's UserId is the number in their profile URL:
+--   https://www.roblox.com/users/123456789/profile  ->  123456789
+Monetization.CompUserIds = {
+	-- [123456789] = true, -- your friend's name here as a comment
+} :: { [number]: boolean }
+
 Monetization.Gamepasses = {
 	AutoCrack = { Id = 1936664483, Price = 100, Title = "Auto-Crack", Desc = "Geodes crack themselves as you mine." },
 	Coins2x = { Id = 1934463944, Price = 250, Title = "2x Coins", Desc = "Permanently double every coin you earn." },
