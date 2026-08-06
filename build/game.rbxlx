@@ -2311,6 +2311,260 @@ local function makeFloatingCrystal(position: Vector3, color: Color3, scale: numb
 	model:SetAttribute("BobSpeed", rng:NextNumber(0.5, 0.9))
 end
 
+--------------------------------------------------------------------------------
+-- Station furniture. Each station reads as the thing it does — a splitting
+-- block for cracking, shelves of rocks for the racks, a market stall for the
+-- shop, an altar for rebirth — instead of four identical pads with labels.
+--
+-- All of it is visual only: nothing collides (players walk straight through,
+-- nothing to get wedged on) and nothing answers queries (a tap-ray crossing the
+-- cave from the far side can never die on a piece of furniture). The player
+-- approaches from the spawn side (-Z), so furniture sits on the +Z half of the
+-- pad and the front stays open.
+--------------------------------------------------------------------------------
+
+local STONE = Color3.fromRGB(72, 66, 96)
+local WOOD = Color3.fromRGB(112, 84, 58)
+
+local function deco(props: { [string]: any }, parent: Instance): Part
+	local piece = part(props, parent)
+	piece.CanCollide = false
+	piece.CanQuery = false
+	return piece
+end
+
+-- Crack Station: a stone splitting block with a geode already halfway open on
+-- top, and the mallet that did it leaning against the side.
+local function decorateCrack(position: Vector3, color: Color3, parent: Instance)
+	deco({
+		Name = "SplitBlockBase",
+		Size = Vector3.new(3, 1.6, 2.6),
+		Position = position + Vector3.new(0, 1.3, 3.2),
+		Color = STONE,
+		Material = Enum.Material.Slate,
+	}, parent)
+	deco({
+		Name = "SplitBlockTop",
+		Size = Vector3.new(3.8, 0.7, 3.2),
+		Position = position + Vector3.new(0, 2.45, 3.2),
+		Color = STONE,
+		Material = Enum.Material.Slate,
+	}, parent)
+	deco({
+		Name = "SplitGeode",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(2.4, 2.4, 2.4),
+		Position = position + Vector3.new(0, 3.9, 3.2),
+		Color = color:Lerp(Color3.fromRGB(52, 46, 66), 0.8),
+		Material = Enum.Material.Rock,
+	}, parent)
+	local seam = deco({
+		Name = "SplitSeam",
+		Size = Vector3.new(0.3, 2.5, 2),
+		Position = position + Vector3.new(0, 3.9, 3.2),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Transparency = 0.1,
+	}, parent)
+	local glow = Instance.new("PointLight")
+	glow.Color = color
+	glow.Range = 12
+	glow.Brightness = 1.2
+	glow.Parent = seam
+	local handle = deco({
+		Name = "MalletHandle",
+		Size = Vector3.new(0.45, 4.2, 0.45),
+		CFrame = CFrame.new(position + Vector3.new(2.6, 2.2, 2.4)) * CFrame.Angles(0, 0, math.rad(24)),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	deco({
+		Name = "MalletHead",
+		Size = Vector3.new(1.5, 1, 1),
+		CFrame = handle.CFrame * CFrame.new(0, 2.2, 0),
+		Color = STONE,
+		Material = Enum.Material.Slate,
+	}, parent)
+	-- Chips from previous cracks scattered around the block
+	for i = 1, 4 do
+		deco({
+			Name = "SplitShard" .. i,
+			Size = Vector3.new(0.5, 0.4, 0.6),
+			CFrame = CFrame.new(position + Vector3.new(rng:NextNumber(-2.6, 2.6), 0.7, rng:NextNumber(0.4, 1.6)))
+				* CFrame.Angles(0, rng:NextNumber(0, 6.28), 0),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.3,
+		}, parent)
+	end
+end
+
+-- Crystal Racks: an actual rack — two posts, three shelves, rocks growing on
+-- every shelf.
+local function decorateRacks(position: Vector3, _color: Color3, parent: Instance)
+	for _, x in { -3, 3 } do
+		deco({
+			Name = "RackPost",
+			Size = Vector3.new(0.55, 5.4, 0.55),
+			Position = position + Vector3.new(x, 3.2, 3.4),
+			Color = WOOD,
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+	for level = 1, 3 do
+		local shelfY = 0.9 + level * 1.4
+		deco({
+			Name = "RackShelf" .. level,
+			Size = Vector3.new(6.6, 0.35, 1.8),
+			Position = position + Vector3.new(0, shelfY, 3.4),
+			Color = WOOD:Lerp(Color3.new(0, 0, 0), 0.15),
+			Material = Enum.Material.WoodPlanks,
+		}, parent)
+		for slot = 1, 3 do
+			local rock = CrystalShape.Build({
+				Color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)],
+				Scale = rng:NextNumber(0.28, 0.42),
+				Shards = 4,
+				Segments = 2,
+				Seed = level * 17 + slot * 5,
+			})
+			rock.Name = "ShelfRock"
+			rock:PivotTo(
+				CFrame.new(position + Vector3.new(-2.1 + (slot - 1) * 2.1 + rng:NextNumber(-0.3, 0.3), shelfY + 0.2, 3.4))
+			)
+			rock.Parent = parent
+		end
+	end
+end
+
+-- Geode Shop: a market stall — counter out front, striped awning overhead,
+-- geodes for sale on the counter and the back shelf.
+local function decorateShop(position: Vector3, color: Color3, parent: Instance)
+	deco({
+		Name = "ShopCounter",
+		Size = Vector3.new(6, 1.2, 1.6),
+		Position = position + Vector3.new(0, 1.1, 1.1),
+		Color = WOOD,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	local function goods(name: string, x: number, y: number, z: number, tint: Color3)
+		deco({
+			Name = name,
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(1.1, 1.1, 1.1),
+			Position = position + Vector3.new(x, y, z),
+			Color = tint:Lerp(Color3.fromRGB(52, 46, 66), 0.8),
+			Material = Enum.Material.Rock,
+		}, parent)
+		-- A glowing nugget peeking out, so the merchandise reads as geodes
+		deco({
+			Name = name .. "Nugget",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.5, 0.5, 0.5),
+			Position = position + Vector3.new(x + 0.2, y + 0.35, z - 0.25),
+			Color = tint,
+			Material = Enum.Material.Neon,
+			Transparency = 0.15,
+		}, parent)
+	end
+	for i, x in { -1.9, 0, 1.9 } do
+		goods("CounterGeode" .. i, x, 2.25, 1.1, NODE_COLORS[(i * 2) % #NODE_COLORS + 1])
+	end
+	for _, x in { -2.9, 2.9 } do
+		deco({
+			Name = "ShopPost",
+			Size = Vector3.new(0.5, 5.6, 0.5),
+			Position = position + Vector3.new(x, 3.3, 4.2),
+			Color = WOOD,
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+	deco({
+		Name = "ShopShelf",
+		Size = Vector3.new(5.8, 0.35, 1.4),
+		Position = position + Vector3.new(0, 3.2, 4.2),
+		Color = WOOD:Lerp(Color3.new(0, 0, 0), 0.15),
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	goods("ShelfGeodeA", -1.4, 3.95, 4.2, NODE_COLORS[2])
+	goods("ShelfGeodeB", 1.5, 3.95, 4.2, NODE_COLORS[5])
+	-- Striped awning sloping down over the counter
+	for i = 1, 5 do
+		deco({
+			Name = "Awning" .. i,
+			Size = Vector3.new(1.3, 0.2, 3.6),
+			CFrame = CFrame.new(position + Vector3.new(-2.6 + (i - 1) * 1.3, 6, 2.6)) * CFrame.Angles(math.rad(14), 0, 0),
+			Color = if i % 2 == 1 then color else Color3.fromRGB(235, 230, 220),
+			Material = Enum.Material.SmoothPlastic,
+		}, parent)
+	end
+end
+
+-- Recrystallize: a stepped stone altar ringed by standing stones, with a
+-- crystal turning slowly in the air above it — the one station that should
+-- look a little mystical.
+local function decorateRebirth(position: Vector3, color: Color3, parent: Instance)
+	deco({
+		Name = "AltarBase",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.8, 6.6, 6.6),
+		CFrame = CFrame.new(position + Vector3.new(0, 0.9, 3)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = STONE,
+		Material = Enum.Material.Slate,
+	}, parent)
+	deco({
+		Name = "AltarTop",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.8, 4.4, 4.4),
+		CFrame = CFrame.new(position + Vector3.new(0, 1.7, 3)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = STONE:Lerp(color, 0.12),
+		Material = Enum.Material.Slate,
+	}, parent)
+	for i, offset in { Vector3.new(-3.4, 0, 1.4), Vector3.new(-2.2, 0, 4.6), Vector3.new(2.2, 0, 4.6), Vector3.new(3.4, 0, 1.4) } do
+		local stone = deco({
+			Name = "Monolith" .. i,
+			Size = Vector3.new(1, 2.8, 0.8),
+			CFrame = CFrame.new(position + offset + Vector3.new(0, 1.9, 0))
+				* CFrame.Angles(rng:NextNumber(-0.06, 0.06), rng:NextNumber(0, 6.28), rng:NextNumber(-0.06, 0.06)),
+			Color = STONE,
+			Material = Enum.Material.Rock,
+		}, parent)
+		deco({
+			Name = "MonolithTip" .. i,
+			Size = Vector3.new(0.5, 0.4, 0.5),
+			CFrame = stone.CFrame * CFrame.new(0, 1.6, 0),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.2,
+		}, parent)
+	end
+	-- The floating crystal turns and bobs on each client, like everything else
+	-- tagged SpinCrystal — the altar looks alive and costs the server nothing.
+	local crystal = CrystalShape.Build({
+		Color = color,
+		Scale = 0.9,
+		Shards = 5,
+		Segments = 3,
+		Seed = 4242,
+		Glow = 20,
+		Sparkle = true,
+	})
+	crystal.Name = "AltarCrystal"
+	crystal:PivotTo(CFrame.new(position + Vector3.new(0, 3.4, 3)))
+	crystal.Parent = parent
+	CollectionService:AddTag(crystal, "SpinCrystal")
+	crystal:SetAttribute("SpinSpeed", 0.5)
+	crystal:SetAttribute("BobHeight", 0.5)
+	crystal:SetAttribute("BobSpeed", 0.9)
+end
+
+local STATION_DECOR: { [string]: (Vector3, Color3, Instance) -> () } = {
+	Crack = decorateCrack,
+	Racks = decorateRacks,
+	Shop = decorateShop,
+	Rebirth = decorateRebirth,
+}
+
 local function makeStation(position: Vector3, title: string, stationKey: string, color: Color3, parent: Instance): ProximityPrompt
 	local pad = part({
 		Name = title .. "Pad",
@@ -2328,7 +2582,10 @@ local function makeStation(position: Vector3, title: string, stationKey: string,
 		Transparency = 0.25,
 	}, parent)
 	ring.CanCollide = false
-	makeCrystalCluster(position + Vector3.new(0, 1, -3.5), color, 0.9, parent)
+	local decorate = STATION_DECOR[stationKey]
+	if decorate then
+		decorate(position, color, parent)
+	end
 
 	local light = Instance.new("PointLight")
 	light.Color = color

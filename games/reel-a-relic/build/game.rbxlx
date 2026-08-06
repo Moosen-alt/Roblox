@@ -1948,6 +1948,260 @@ local function makePalm(position: Vector3, parent: Instance)
 	end
 end
 
+--------------------------------------------------------------------------------
+-- Station furniture. Each station reads as the thing it does — an open treasure
+-- chest spilling gold, a glass aquarium on a table, a market stall of chests,
+-- and a beached sailboat ready to Set Sail — instead of four identical pads.
+--
+-- All of it is visual only: nothing collides (players walk straight through)
+-- and nothing answers queries (a cast-ray toward the water can never die on a
+-- piece of furniture). Players walk up the beach from the dock (-Z), so the
+-- furniture sits on the +Z half of each pad and the front stays open.
+--------------------------------------------------------------------------------
+
+local WOOD = Color3.fromRGB(120, 88, 54)
+local DARK_WOOD = Color3.fromRGB(92, 64, 40)
+local GOLD = Color3.fromRGB(255, 200, 60)
+
+local function deco(props: { [string]: any }, parent: Instance): Part
+	local piece = part(props, parent)
+	piece.CanCollide = false
+	piece.CanQuery = false
+	return piece
+end
+
+-- Treasure Chests: a big chest mid-open with gold light spilling out, a small
+-- locked one beside it, loose coins in the sand.
+local function decorateCrack(position: Vector3, _color: Color3, parent: Instance)
+	deco({
+		Name = "ChestBase",
+		Size = Vector3.new(3.2, 1.8, 2.2),
+		Position = position + Vector3.new(0, 1.4, 3.2),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	deco({
+		Name = "ChestBand",
+		Size = Vector3.new(0.3, 1.9, 2.3),
+		Position = position + Vector3.new(0, 1.4, 3.2),
+		Color = Color3.fromRGB(70, 70, 80),
+		Material = Enum.Material.Metal,
+	}, parent)
+	local gold = deco({
+		Name = "ChestGold",
+		Size = Vector3.new(2.8, 0.5, 1.8),
+		Position = position + Vector3.new(0, 2.4, 3.2),
+		Color = GOLD,
+		Material = Enum.Material.Neon,
+	}, parent)
+	local glow = Instance.new("PointLight")
+	glow.Color = GOLD
+	glow.Range = 12
+	glow.Brightness = 1.3
+	glow.Parent = gold
+	deco({
+		Name = "ChestLid",
+		Size = Vector3.new(3.2, 0.5, 2.2),
+		CFrame = CFrame.new(position + Vector3.new(0, 2.9, 4.4)) * CFrame.Angles(math.rad(-62), 0, 0),
+		Color = DARK_WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	deco({
+		Name = "SmallChest",
+		Size = Vector3.new(1.8, 1.1, 1.3),
+		Position = position + Vector3.new(2.7, 1.05, 1.6),
+		Color = DARK_WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	deco({
+		Name = "SmallChestLid",
+		Size = Vector3.new(1.9, 0.4, 1.4),
+		Position = position + Vector3.new(2.7, 1.8, 1.6),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	for i = 1, 3 do
+		deco({
+			Name = "LooseCoin" .. i,
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.15, 0.7, 0.7),
+			CFrame = CFrame.new(position + Vector3.new(rng:NextNumber(-2.4, 1.4), 0.58, rng:NextNumber(0.4, 1.8)))
+				* CFrame.Angles(0, 0, math.rad(90)),
+			Color = GOLD,
+			Material = Enum.Material.Metal,
+		}, parent)
+	end
+end
+
+-- Aquarium: a glass tank on a wooden table with a relic glowing inside.
+local function decorateRacks(position: Vector3, _color: Color3, parent: Instance)
+	for _, x in { -2.1, 2.1 } do
+		deco({
+			Name = "TableLeg",
+			Size = Vector3.new(0.5, 0.6, 2.6),
+			Position = position + Vector3.new(x, 0.8, 3.2),
+			Color = DARK_WOOD,
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+	deco({
+		Name = "AquariumTable",
+		Size = Vector3.new(5, 0.6, 3),
+		Position = position + Vector3.new(0, 1.4, 3.2),
+		Color = WOOD,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	deco({
+		Name = "AquariumWater",
+		Size = Vector3.new(4.1, 1.7, 2.1),
+		Position = position + Vector3.new(0, 2.6, 3.2),
+		Color = Color3.fromRGB(70, 160, 235),
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.45,
+	}, parent)
+	deco({
+		Name = "AquariumGlass",
+		Size = Vector3.new(4.4, 2.4, 2.4),
+		Position = position + Vector3.new(0, 2.9, 3.2),
+		Color = Color3.fromRGB(170, 225, 255),
+		Material = Enum.Material.Glass,
+		Transparency = 0.55,
+	}, parent)
+	for i, x in { -0.9, 0.8 } do
+		local relic = CrystalShape.Build({
+			Color = SPOT_COLORS[rng:NextInteger(1, #SPOT_COLORS)],
+			Scale = 0.3,
+			Shards = 4,
+			Segments = 2,
+			Seed = 90 + i * 7,
+			Glow = 8,
+		})
+		relic.Name = "TankRelic"
+		relic:PivotTo(CFrame.new(position + Vector3.new(x, 1.9, 3.2)))
+		relic.Parent = parent
+	end
+end
+
+-- Chest Shop: a market stall — counter out front, striped awning overhead,
+-- chests for sale on the counter and the back shelf.
+local function decorateShop(position: Vector3, color: Color3, parent: Instance)
+	deco({
+		Name = "ShopCounter",
+		Size = Vector3.new(6, 1.2, 1.6),
+		Position = position + Vector3.new(0, 1.1, 1.1),
+		Color = WOOD,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	local function miniChest(name: string, x: number, y: number, z: number)
+		deco({
+			Name = name,
+			Size = Vector3.new(1.5, 0.9, 1.1),
+			Position = position + Vector3.new(x, y, z),
+			Color = DARK_WOOD,
+			Material = Enum.Material.Wood,
+		}, parent)
+		deco({
+			Name = name .. "Lid",
+			Size = Vector3.new(1.6, 0.35, 1.2),
+			Position = position + Vector3.new(x, y + 0.6, z),
+			Color = WOOD,
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+	miniChest("CounterChestA", -1.7, 2.15, 1.1)
+	miniChest("CounterChestB", 1.7, 2.15, 1.1)
+	for _, x in { -2.9, 2.9 } do
+		deco({
+			Name = "ShopPost",
+			Size = Vector3.new(0.5, 5.6, 0.5),
+			Position = position + Vector3.new(x, 3.3, 4.2),
+			Color = WOOD,
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+	deco({
+		Name = "ShopShelf",
+		Size = Vector3.new(5.8, 0.35, 1.4),
+		Position = position + Vector3.new(0, 3.2, 4.2),
+		Color = WOOD:Lerp(Color3.new(0, 0, 0), 0.15),
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	miniChest("ShelfChest", 0, 3.85, 4.2)
+	for i = 1, 5 do
+		deco({
+			Name = "Awning" .. i,
+			Size = Vector3.new(1.3, 0.2, 3.6),
+			CFrame = CFrame.new(position + Vector3.new(-2.6 + (i - 1) * 1.3, 6, 2.6)) * CFrame.Angles(math.rad(14), 0, 0),
+			Color = if i % 2 == 1 then color else Color3.fromRGB(240, 234, 214),
+			Material = Enum.Material.SmoothPlastic,
+		}, parent)
+	end
+end
+
+-- Set Sail: a beached rowboat with its mast up and sail set — ready to go.
+local function decorateRebirth(position: Vector3, color: Color3, parent: Instance)
+	deco({
+		Name = "BoatHull",
+		Size = Vector3.new(5.6, 1.3, 2.6),
+		Position = position + Vector3.new(0, 1.15, 3.2),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	-- Angled end blocks fake the taper of a bow and stern
+	for _, side in { -1, 1 } do
+		deco({
+			Name = "BoatBow",
+			Size = Vector3.new(1.7, 1.3, 1.9),
+			CFrame = CFrame.new(position + Vector3.new(side * 3.1, 1.15, 3.2)) * CFrame.Angles(0, math.rad(side * 40), 0),
+			Color = WOOD,
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+	for _, z in { 2.05, 4.35 } do
+		deco({
+			Name = "BoatRim",
+			Size = Vector3.new(5.8, 0.35, 0.4),
+			Position = position + Vector3.new(0, 1.9, z),
+			Color = DARK_WOOD,
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+	deco({
+		Name = "BoatMast",
+		Size = Vector3.new(0.35, 6, 0.35),
+		Position = position + Vector3.new(0, 4.8, 3.2),
+		Color = DARK_WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	deco({
+		Name = "BoatSail",
+		Size = Vector3.new(3.2, 3.4, 0.15),
+		Position = position + Vector3.new(0, 5.2, 3.35),
+		Color = Color3.fromRGB(240, 234, 214),
+		Material = Enum.Material.SmoothPlastic,
+	}, parent)
+	local pennant = deco({
+		Name = "BoatPennant",
+		Size = Vector3.new(1.1, 0.45, 0.12),
+		Position = position + Vector3.new(0.75, 7.6, 3.2),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Transparency = 0.15,
+	}, parent)
+	local glow = Instance.new("PointLight")
+	glow.Color = color
+	glow.Range = 10
+	glow.Brightness = 0.8
+	glow.Parent = pennant
+end
+
+local STATION_DECOR: { [string]: (Vector3, Color3, Instance) -> () } = {
+	Crack = decorateCrack,
+	Racks = decorateRacks,
+	Shop = decorateShop,
+	Rebirth = decorateRebirth,
+}
+
 local function makeStation(position: Vector3, title: string, stationKey: string, color: Color3, parent: Instance): ProximityPrompt
 	local pad = part({
 		Name = title .. "Pad",
@@ -1965,6 +2219,10 @@ local function makeStation(position: Vector3, title: string, stationKey: string,
 		Transparency = 0.25,
 	}, parent)
 	ring.CanCollide = false
+	local decorate = STATION_DECOR[stationKey]
+	if decorate then
+		decorate(position, color, parent)
+	end
 
 	local light = Instance.new("PointLight")
 	light.Color = color
