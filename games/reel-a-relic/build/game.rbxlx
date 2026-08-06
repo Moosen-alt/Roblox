@@ -528,6 +528,12 @@ function RarityMath.GetBaseOdds(layer: number, luck: number): { OddsEntry }
 			Color = entry.Def.Color,
 		})
 	end
+	-- Sorted by actual chance, not by config order. Luck multiplies Rare+ weights
+	-- only, so at 2x luck an Emerald genuinely does out-drop a Topaz — that is
+	-- luck working. Listing them in config order just made it look like a bug.
+	table.sort(odds, function(a, b)
+		return a.Chance > b.Chance
+	end)
 	return odds
 end
 
@@ -558,12 +564,15 @@ function RarityMath.GetMutationOdds(mutationMult: number): { OddsEntry }
 			Color = def.Color or Color3.new(1, 1, 1),
 		})
 	end
-	table.insert(odds, 1, {
+	table.insert(odds, {
 		Name = "Normal",
 		Tier = "Mutation",
 		Chance = 100 - usedChance,
 		Color = Color3.fromRGB(200, 200, 200),
 	})
+	table.sort(odds, function(a, b)
+		return a.Chance > b.Chance
+	end)
 	return odds
 end
 
@@ -5656,7 +5665,11 @@ end
 -- Seed-rolled deterministic crystal offer: everyone sees the same exact crystal
 -- this window; contents are fully visible before purchase (policy-safe).
 local function rolledCrystalOffer(seedRng: Random, layer: number, priceMult: number): ShopItem
-	local baseName = RarityMath.RollBase(layer, 2, seedRng)
+	-- Rare-or-better only. Rolling the full table meant that half the time this
+	-- slot offered a Quartz for more coins than a Quartz sells for — an offer
+	-- with no reason to exist. The point of a fixed crystal is skipping the
+	-- gamble for something you actually want.
+	local baseName = RarityMath.RollRarePlus(layer, 2, seedRng)
 	local mutName = RarityMath.RollMutation(1, seedRng)
 	local size = 1.0 + seedRng:NextNumber() * 0.2
 	local value = RarityMath.ComputeValue(baseName, mutName, size, layer)
@@ -5701,22 +5714,39 @@ function ShopService.BuildStock(player: Player, data: any): { RestockAt: number,
 			Luck = Balance.ShopPremiumGeodeLuck,
 			Odds = RarityMath.GetBaseOdds(layer, luck * Balance.ShopPremiumGeodeLuck),
 		})
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.6))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.25))
 	else
 		-- Deterministic-only storefront for restricted players (free path = mining).
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.5))
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.6))
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.7))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.15))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.25))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.35))
 	end
 
 	if ctx.Monetization.OwnsPass(player, "Vip") then
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.4))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.1))
 	end
 
 	-- Daily deal: one slot gets 40% off, rotating on a 24h clock.
 	local dealIndex = Random.new(dailySeed()):NextInteger(1, #items)
 	items[dealIndex].Cost = math.max(math.floor(items[dealIndex].Cost * 0.6), 5)
 	items[dealIndex].DailyDeal = true
+
+	-- A bundle must never cost more per geode than buying them one at a time.
+	-- The daily deal is applied to a single slot, so when it landed on the plain
+	-- geode the x3 next to it read as a 40% markup — correct arithmetic, terrible
+	-- offer. Re-derive the bundle from whatever the single ended up costing.
+	local single, bundle = nil, nil
+	for _, item in items do
+		if item.Kind == "Geode" then
+			single = item
+		elseif item.Kind == "GeodeBundle" then
+			bundle = item
+		end
+	end
+	if single and bundle then
+		local count = bundle.Count or 3
+		bundle.Cost = math.min(bundle.Cost, math.max(math.floor(single.Cost * count * 0.85), 5))
+	end
 
 	return {
 		RestockAt = (windowSeed() + 1) * Balance.ShopRestockSeconds,

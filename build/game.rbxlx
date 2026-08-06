@@ -530,6 +530,12 @@ function RarityMath.GetBaseOdds(layer: number, luck: number): { OddsEntry }
 			Color = entry.Def.Color,
 		})
 	end
+	-- Sorted by actual chance, not by config order. Luck multiplies Rare+ weights
+	-- only, so at 2x luck an Emerald genuinely does out-drop a Topaz — that is
+	-- luck working. Listing them in config order just made it look like a bug.
+	table.sort(odds, function(a, b)
+		return a.Chance > b.Chance
+	end)
 	return odds
 end
 
@@ -560,12 +566,15 @@ function RarityMath.GetMutationOdds(mutationMult: number): { OddsEntry }
 			Color = def.Color or Color3.new(1, 1, 1),
 		})
 	end
-	table.insert(odds, 1, {
+	table.insert(odds, {
 		Name = "Normal",
 		Tier = "Mutation",
 		Chance = 100 - usedChance,
 		Color = Color3.fromRGB(200, 200, 200),
 	})
+	table.sort(odds, function(a, b)
+		return a.Chance > b.Chance
+	end)
 	return odds
 end
 
@@ -2859,25 +2868,135 @@ function MapBuilder.Build(): MapRefs
 		)
 	end
 
-	-- Crystal spurs growing straight out of the rock face at odd angles, the
-	-- way they do in a real cave wall.
-	for i = 1, 14 do
+	-- Crystal spurs bursting OUT of the rock. Each one gets a rock collar where
+	-- it breaks the surface and a couple of broken chunks around it, so it reads
+	-- as something that grew through the wall and shattered it — not a crystal
+	-- decal laid flat on the face.
+	for i = 1, 18 do
 		local x = rng:NextNumber(-98, 98)
 		local y = rng:NextNumber(2, 38)
+		local scale = rng:NextNumber(1.1, 2.6)
+		local yaw = rng:NextNumber(-0.7, 0.7)
+		local pitch = rng:NextNumber(-0.7, 0.7)
+		local root = CFrame.new(x, y, -64.4) * CFrame.Angles(pitch, yaw, 0)
+
+		-- The rock breaking outward around the base of the spur
+		local collarSize = 2.6 + scale * 1.3
+		local collar = part({
+			Name = "SpurCollar" .. i,
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(collarSize, collarSize, collarSize * 0.7),
+			CFrame = root,
+			Color = ROCK,
+			Material = Enum.Material.Rock,
+		}, map)
+		collar.CanCollide = false
+		collar.CanQuery = false
+		for chunk = 1, 2 do
+			local chunkSize = rng:NextNumber(1, 2.2)
+			local chunkPart = part({
+				Name = "SpurChunk" .. i .. "_" .. chunk,
+				Size = Vector3.new(chunkSize, chunkSize * 0.8, chunkSize),
+				CFrame = root
+					* CFrame.new(rng:NextNumber(-2.4, 2.4), rng:NextNumber(-2.4, 2.4), rng:NextNumber(0.3, 1.4))
+					* CFrame.Angles(rng:NextNumber(0, 3), rng:NextNumber(0, 3), rng:NextNumber(0, 3)),
+				Color = ROCK,
+				Material = Enum.Material.Rock,
+			}, map)
+			chunkPart.CanCollide = false
+			chunkPart.CanQuery = false
+		end
+
 		local spur = CrystalShape.Build({
 			Color = NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)],
-			Scale = rng:NextNumber(0.5, 1.2),
-			Shards = rng:NextInteger(3, 5),
-			Segments = 2,
+			Scale = scale,
+			Shards = rng:NextInteger(4, 6),
+			Segments = 3,
 			Seed = i * 41 + 3,
+			Glow = 16 + scale * 6,
 		})
 		spur.Name = "WallSpur" .. i
-		spur:PivotTo(
-			CFrame.new(x, y, -64.6)
-				* CFrame.Angles(0, rng:NextNumber(-0.5, 0.5), rng:NextNumber(-0.6, 0.6))
-				* CFrame.Angles(math.rad(90), 0, 0)
-		)
+		-- Rooted slightly INSIDE the wall so the shard bases are buried and only
+		-- the crystal itself sticks into the cave.
+		spur:PivotTo(root * CFrame.new(0, 0, -1.2) * CFrame.Angles(math.rad(90), 0, 0))
 		spur.Parent = map
+	end
+
+	-- Rock shelves jutting out of the side walls, and boulders where they have
+	-- fallen. Depth is what makes a cave feel like a cave — flat walls read as a
+	-- room no matter how much you glue to them.
+	for i = 1, 12 do
+		local onLeft = i % 2 == 0
+		local wallX = onLeft and -106 or 106
+		local z = rng:NextNumber(-60, 70)
+		local ledgeY = rng:NextNumber(6, 34)
+		local depth = rng:NextNumber(5, 11)
+		local ledge = part({
+			Name = "WallLedge" .. i,
+			Size = Vector3.new(depth, rng:NextNumber(1.6, 3.4), rng:NextNumber(7, 16)),
+			CFrame = CFrame.new(wallX + (onLeft and depth / 2 or -depth / 2), ledgeY, z)
+				* CFrame.Angles(0, rng:NextNumber(-0.2, 0.2), rng:NextNumber(-0.12, 0.12)),
+			Color = ROCK,
+			Material = Enum.Material.Rock,
+		}, map)
+		ledge.CanQuery = false
+		-- Something growing on the shelf, so the eye has a reason to go there
+		if i % 3 == 0 then
+			makeCrystalCluster(
+				Vector3.new(wallX + (onLeft and depth - 1 or -(depth - 1)), ledgeY + 1.6, z),
+				NODE_COLORS[rng:NextInteger(1, #NODE_COLORS)],
+				rng:NextNumber(0.7, 1.3),
+				map
+			)
+		end
+	end
+
+	-- Boulders on the floor, biggest near the walls where they would have fallen
+	for i = 1, 16 do
+		local x = rng:NextNumber(-100, 100)
+		local z = rng:NextNumber(-58, 72)
+		if math.abs(x) > 40 or z > 24 then
+			local size = rng:NextNumber(2.4, 6.5)
+			local boulder = part({
+				Name = "Boulder" .. i,
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.new(size, size * rng:NextNumber(0.7, 0.95), size * rng:NextNumber(0.8, 1.1)),
+				CFrame = CFrame.new(x, size * 0.32, z)
+					* CFrame.Angles(rng:NextNumber(0, 3), rng:NextNumber(0, 3), rng:NextNumber(0, 3)),
+				Color = ROCK,
+				Material = Enum.Material.Rock,
+			}, map)
+			boulder.CanQuery = false
+		end
+	end
+
+	-- A few columns running floor to ceiling, where a stalactite and stalagmite
+	-- have met. Nothing sells "underground" like not being able to see straight
+	-- across the room.
+	for i = 1, 4 do
+		local x = (i % 2 == 0 and 1 or -1) * rng:NextNumber(58, 96)
+		local z = rng:NextNumber(-40, 60)
+		local width = rng:NextNumber(3.4, 6)
+		local column = part({
+			Name = "Column" .. i,
+			Size = Vector3.new(width, 52, width),
+			CFrame = CFrame.new(x, 25, z) * CFrame.Angles(rng:NextNumber(-0.03, 0.03), 0, rng:NextNumber(-0.03, 0.03)),
+			Color = ROCK,
+			Material = Enum.Material.Rock,
+		}, map)
+		column.CanQuery = false
+		-- Waist and base flare, so it tapers like dripstone instead of a pillar
+		for _, flare in { { 5, width * 1.5 }, { 20, width * 1.2 }, { 44, width * 1.35 } } do
+			local flarePart = part({
+				Name = "ColumnFlare",
+				Size = Vector3.new(flare[2], rng:NextNumber(2.5, 5), flare[2]),
+				Position = Vector3.new(x, flare[1], z),
+				Color = ROCK,
+				Material = Enum.Material.Rock,
+			}, map)
+			flarePart.CanCollide = false
+			flarePart.CanQuery = false
+		end
 	end
 
 	-- Deposit geodes along the wall face
@@ -6099,7 +6218,11 @@ end
 -- Seed-rolled deterministic crystal offer: everyone sees the same exact crystal
 -- this window; contents are fully visible before purchase (policy-safe).
 local function rolledCrystalOffer(seedRng: Random, layer: number, priceMult: number): ShopItem
-	local baseName = RarityMath.RollBase(layer, 2, seedRng)
+	-- Rare-or-better only. Rolling the full table meant that half the time this
+	-- slot offered a Quartz for more coins than a Quartz sells for — an offer
+	-- with no reason to exist. The point of a fixed crystal is skipping the
+	-- gamble for something you actually want.
+	local baseName = RarityMath.RollRarePlus(layer, 2, seedRng)
 	local mutName = RarityMath.RollMutation(1, seedRng)
 	local size = 1.0 + seedRng:NextNumber() * 0.2
 	local value = RarityMath.ComputeValue(baseName, mutName, size, layer)
@@ -6144,22 +6267,39 @@ function ShopService.BuildStock(player: Player, data: any): { RestockAt: number,
 			Luck = Balance.ShopPremiumGeodeLuck,
 			Odds = RarityMath.GetBaseOdds(layer, luck * Balance.ShopPremiumGeodeLuck),
 		})
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.6))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.25))
 	else
 		-- Deterministic-only storefront for restricted players (free path = mining).
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.5))
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.6))
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.7))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.15))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.25))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.35))
 	end
 
 	if ctx.Monetization.OwnsPass(player, "Vip") then
-		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.4))
+		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.1))
 	end
 
 	-- Daily deal: one slot gets 40% off, rotating on a 24h clock.
 	local dealIndex = Random.new(dailySeed()):NextInteger(1, #items)
 	items[dealIndex].Cost = math.max(math.floor(items[dealIndex].Cost * 0.6), 5)
 	items[dealIndex].DailyDeal = true
+
+	-- A bundle must never cost more per geode than buying them one at a time.
+	-- The daily deal is applied to a single slot, so when it landed on the plain
+	-- geode the x3 next to it read as a 40% markup — correct arithmetic, terrible
+	-- offer. Re-derive the bundle from whatever the single ended up costing.
+	local single, bundle = nil, nil
+	for _, item in items do
+		if item.Kind == "Geode" then
+			single = item
+		elseif item.Kind == "GeodeBundle" then
+			bundle = item
+		end
+	end
+	if single and bundle then
+		local count = bundle.Count or 3
+		bundle.Cost = math.min(bundle.Cost, math.max(math.floor(single.Cost * count * 0.85), 5))
+	end
 
 	return {
 		RestockAt = (windowSeed() + 1) * Balance.ShopRestockSeconds,

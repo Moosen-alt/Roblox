@@ -83,4 +83,43 @@ for _, e in RarityMath.GetMutationOdds(1000) do
 end
 print("PASS mutation chances clamped to [0,100] under extreme boosts")
 
+-- 9. Odds always read as a descending ladder. Luck multiplies Rare+ weights
+-- only, so a Rare genuinely can out-drop an Uncommon — but the panel must still
+-- list biggest-first, or it looks like the odds are broken (which is exactly how
+-- it was reported).
+for layer = 1, 5 do
+	for _, luck in { 1, 2, 10, 60 } do
+		local previous = math.huge
+		for _, e in RarityMath.GetBaseOdds(layer, luck) do
+			assert(e.Chance <= previous + 1e-9, "base odds must be sorted descending")
+			previous = e.Chance
+		end
+	end
+end
+for _, mult in { 1, 5, 100 } do
+	local previous = math.huge
+	for _, e in RarityMath.GetMutationOdds(mult) do
+		assert(e.Chance <= previous + 1e-9, "mutation odds must be sorted descending")
+		previous = e.Chance
+	end
+end
+print("PASS odds sorted descending (all layers/lucks)")
+
+-- 10. A bundle is never worse per unit than buying singles, in any daily-deal
+-- case. The deal hits one slot, so the x3 has to be re-derived from whatever the
+-- single ended up costing — otherwise "Geode 93 / Geode x3 390" ships again.
+local function bundleCost(singleCost: number, rawBundle: number, count: number): number
+	return math.min(rawBundle, math.max(math.floor(singleCost * count * 0.85), 5))
+end
+for _, layer in { 1, 3, 5 } do
+	local base = math.floor(Balance.ShopGeodeBaseCost * Balance.LayerValueMult ^ (layer - 1))
+	for _, dealt in { "none", "single", "bundle" } do
+		local single = dealt == "single" and math.max(math.floor(base * 0.6), 5) or base
+		local raw = dealt == "bundle" and math.max(math.floor(base * 2.5 * 0.6), 5) or math.floor(base * 2.5)
+		local bundle = bundleCost(single, raw, 3)
+		assert(bundle / 3 < single, ("bundle must beat singles per unit (layer %d, deal %s)"):format(layer, dealt))
+	end
+end
+print("PASS geode bundle always beats singles per unit")
+
 print("ALL TESTS PASSED")

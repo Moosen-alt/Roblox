@@ -49,6 +49,12 @@ function RarityMath.GetBaseOdds(layer: number, luck: number): { OddsEntry }
 			Color = entry.Def.Color,
 		})
 	end
+	-- Sorted by actual chance, not by config order. Luck multiplies Rare+ weights
+	-- only, so at 2x luck an Emerald genuinely does out-drop a Topaz — that is
+	-- luck working. Listing them in config order just made it look like a bug.
+	table.sort(odds, function(a, b)
+		return a.Chance > b.Chance
+	end)
 	return odds
 end
 
@@ -79,12 +85,15 @@ function RarityMath.GetMutationOdds(mutationMult: number): { OddsEntry }
 			Color = def.Color or Color3.new(1, 1, 1),
 		})
 	end
-	table.insert(odds, 1, {
+	table.insert(odds, {
 		Name = "Normal",
 		Tier = "Mutation",
 		Chance = 100 - usedChance,
 		Color = Color3.fromRGB(200, 200, 200),
 	})
+	table.sort(odds, function(a, b)
+		return a.Chance > b.Chance
+	end)
 	return odds
 end
 
