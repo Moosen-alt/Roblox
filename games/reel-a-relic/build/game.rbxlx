@@ -2226,22 +2226,28 @@ local STATION_DECOR: { [string]: (Vector3, Color3, Instance) -> () } = {
 }
 
 local function makeStation(position: Vector3, title: string, stationKey: string, color: Color3, parent: Instance): ProximityPrompt
+	-- Round pad with a glowing rim. The old "Ring" was an 11x11 neon SLAB laid
+	-- over a square pad, which rendered as a giant glowing square on the cave
+	-- floor — it read as a crack in the rock, not as a station.
 	local pad = part({
 		Name = title .. "Pad",
-		Size = Vector3.new(10, 1, 10),
-		Position = position,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1, 10, 10),
+		CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = Color3.fromRGB(210, 185, 140),
 		Material = Enum.Material.WoodPlanks,
 	}, parent)
 	local ring = part({
-		Name = "Ring",
-		Size = Vector3.new(11, 0.4, 11),
-		Position = position + Vector3.new(0, 0.4, 0),
+		Name = "Rim",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.6, 11.5, 11.5),
+		CFrame = CFrame.new(position + Vector3.new(0, -0.15, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = color,
 		Material = Enum.Material.Neon,
-		Transparency = 0.25,
+		Transparency = 0.15,
 	}, parent)
 	ring.CanCollide = false
+	ring.CanQuery = false
 	local decorate = STATION_DECOR[stationKey]
 	if decorate then
 		decorate(position, color, parent)

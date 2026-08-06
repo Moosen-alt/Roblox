@@ -87,36 +87,29 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		}, model)
 	end
 
-	-- The opening. A dark hollow on dark rock is invisible from any distance, so
-	-- a slightly wider neon disc sits just behind it — the sliver that shows past
-	-- the dark centre is a glowing rim, which is what makes a geode legible from
-	-- across the cave without resorting to spokes.
+	-- The opening is a glow behind crystals, NOT a hole. An earlier pass put a
+	-- near-black disc in front of the core to read as a cavity; from any distance
+	-- that just made every geode a bright ring around a black centre — twelve
+	-- donuts in a row. The halo sits behind, the core fills the middle, and the
+	-- crystals sit in front of both.
 	part({
 		Name = "RimGlow",
 		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.5, 6.4, 6.4),
-		CFrame = CFrame.new(position + Vector3.new(0, 0, 2.85)) * CFrame.Angles(0, math.rad(90), 0),
+		Size = Vector3.new(0.5, 5.8, 5.8),
+		CFrame = CFrame.new(position + Vector3.new(0, 0, 2.9)) * CFrame.Angles(0, math.rad(90), 0),
 		Color = color,
 		Material = Enum.Material.Neon,
-		Transparency = 0.12,
-	}, model)
-	part({
-		Name = "Hollow",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.7, 5.4, 5.4),
-		CFrame = CFrame.new(position + Vector3.new(0, 0, 3.05)) * CFrame.Angles(0, math.rad(90), 0),
-		Color = Color3.fromRGB(16, 14, 24),
-		Material = Enum.Material.Slate,
+		Transparency = 0.45,
 	}, model)
 
 	local core = part({
 		Name = "Core",
 		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(3.6, 3.6, 3.6),
-		Position = position + Vector3.new(0, 0, 2.2),
+		Size = Vector3.new(4, 4, 4),
+		Position = position + Vector3.new(0, 0, 2.5),
 		Color = color,
 		Material = Enum.Material.Neon,
-		Transparency = 0.55,
+		Transparency = 0.28,
 	}, model)
 
 	-- Cracks spreading from the opening. WorldFx widens these per player as they
@@ -144,7 +137,7 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		Color = color,
 		-- The crystals in the mouth are the geode's whole read from a distance,
 		-- now that the cracks are subtle. Make them the thing you actually see.
-		Scale = 0.95,
+		Scale = 1.15,
 		Shards = 5,
 		Segments = 2,
 		Seed = index * 31 + 7,

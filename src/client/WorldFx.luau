@@ -121,8 +121,8 @@ local function paintDamage(node: BasePart, fraction: number)
 		end
 	end
 	if core then
-		core.Transparency = math.max(0.55 - fraction * 0.5, 0.05)
-		core.Size = Vector3.new(3.6, 3.6, 3.6) * (1 + fraction * 0.25)
+		core.Transparency = math.max(0.28 - fraction * 0.26, 0.02)
+		core.Size = Vector3.new(4, 4, 4) * (1 + fraction * 0.25)
 	end
 	local rock = model:FindFirstChild("Rock")
 	if rock and rock:IsA("BasePart") then
@@ -144,8 +144,8 @@ local function resetDamage(node: BasePart)
 		vein.Transparency = 0.72
 	end
 	if core then
-		core.Transparency = 0.55
-		core.Size = Vector3.new(3.6, 3.6, 3.6)
+		core.Transparency = 0.28
+		core.Size = Vector3.new(4, 4, 4)
 	end
 end
 

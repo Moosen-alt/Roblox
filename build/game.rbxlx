@@ -332,9 +332,12 @@ local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Col
 	p.Material = Enum.Material.Neon
 	-- Negative shade darkens toward the crystal's own deep tone, positive lifts
 	-- toward white, so neighbouring facets never merge into one another.
+	-- Darkening goes toward a DIMMER VERSION OF THE CRYSTAL'S OWN COLOUR, never
+	-- toward black. Lerping to near-black made shard roots disappear against the
+	-- dark inside of a geode, which cost more than the contrast was worth.
 	p.Color = if shade >= 0
 		then color:Lerp(Color3.new(1, 1, 1), shade)
-		else color:Lerp(Color3.new(0.06, 0.05, 0.12), -shade)
+		else color:Lerp(color:Lerp(Color3.new(0, 0, 0), 0.55), -shade * 2)
 	p.Transparency = clarity
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
@@ -344,8 +347,6 @@ local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Col
 	return p
 end
 
--- One spike: stacked blocks that shrink as they rise, each turned 45 degrees so
--- the silhouette reads as a faceted crystal rather than a stick.
 -- One spike: stacked blocks that shrink as they rise, each turned 45 degrees so
 -- the silhouette reads as a faceted crystal rather than a stick. `tone` shifts
 -- the whole spike's shade so it separates from its neighbours in the cluster.
@@ -370,7 +371,7 @@ local function spike(
 			base * CFrame.new(0, segHeight * (s - 0.5), 0) * CFrame.Angles(0, math.rad(45), 0),
 			Vector3.new(w, segHeight, w),
 			color,
-			tone - 0.22 + t * 0.45,
+			tone - 0.14 + t * 0.42,
 			0.05 + (1 - t) * 0.12
 		)
 	end
@@ -1883,36 +1884,29 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		}, model)
 	end
 
-	-- The opening. A dark hollow on dark rock is invisible from any distance, so
-	-- a slightly wider neon disc sits just behind it — the sliver that shows past
-	-- the dark centre is a glowing rim, which is what makes a geode legible from
-	-- across the cave without resorting to spokes.
+	-- The opening is a glow behind crystals, NOT a hole. An earlier pass put a
+	-- near-black disc in front of the core to read as a cavity; from any distance
+	-- that just made every geode a bright ring around a black centre — twelve
+	-- donuts in a row. The halo sits behind, the core fills the middle, and the
+	-- crystals sit in front of both.
 	part({
 		Name = "RimGlow",
 		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.5, 6.4, 6.4),
-		CFrame = CFrame.new(position + Vector3.new(0, 0, 2.85)) * CFrame.Angles(0, math.rad(90), 0),
+		Size = Vector3.new(0.5, 5.8, 5.8),
+		CFrame = CFrame.new(position + Vector3.new(0, 0, 2.9)) * CFrame.Angles(0, math.rad(90), 0),
 		Color = color,
 		Material = Enum.Material.Neon,
-		Transparency = 0.12,
-	}, model)
-	part({
-		Name = "Hollow",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.7, 5.4, 5.4),
-		CFrame = CFrame.new(position + Vector3.new(0, 0, 3.05)) * CFrame.Angles(0, math.rad(90), 0),
-		Color = Color3.fromRGB(16, 14, 24),
-		Material = Enum.Material.Slate,
+		Transparency = 0.45,
 	}, model)
 
 	local core = part({
 		Name = "Core",
 		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(3.6, 3.6, 3.6),
-		Position = position + Vector3.new(0, 0, 2.2),
+		Size = Vector3.new(4, 4, 4),
+		Position = position + Vector3.new(0, 0, 2.5),
 		Color = color,
 		Material = Enum.Material.Neon,
-		Transparency = 0.55,
+		Transparency = 0.28,
 	}, model)
 
 	-- Cracks spreading from the opening. WorldFx widens these per player as they
@@ -1940,7 +1934,7 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		Color = color,
 		-- The crystals in the mouth are the geode's whole read from a distance,
 		-- now that the cracks are subtle. Make them the thing you actually see.
-		Scale = 0.95,
+		Scale = 1.15,
 		Shards = 5,
 		Segments = 2,
 		Seed = index * 31 + 7,
@@ -2646,22 +2640,28 @@ local STATION_DECOR: { [string]: (Vector3, Color3, Instance) -> () } = {
 }
 
 local function makeStation(position: Vector3, title: string, stationKey: string, color: Color3, parent: Instance): ProximityPrompt
+	-- Round pad with a glowing rim. The old "Ring" was an 11x11 neon SLAB laid
+	-- over a square pad, which rendered as a giant glowing square on the cave
+	-- floor — it read as a crack in the rock, not as a station.
 	local pad = part({
 		Name = title .. "Pad",
-		Size = Vector3.new(10, 1, 10),
-		Position = position,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1, 10, 10),
+		CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = Color3.fromRGB(40, 38, 60),
 		Material = Enum.Material.Slate,
 	}, parent)
 	local ring = part({
-		Name = "Ring",
-		Size = Vector3.new(11, 0.4, 11),
-		Position = position + Vector3.new(0, 0.4, 0),
+		Name = "Rim",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.6, 11.5, 11.5),
+		CFrame = CFrame.new(position + Vector3.new(0, -0.15, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = color,
 		Material = Enum.Material.Neon,
-		Transparency = 0.25,
+		Transparency = 0.15,
 	}, parent)
 	ring.CanCollide = false
+	ring.CanQuery = false
 	local decorate = STATION_DECOR[stationKey]
 	if decorate then
 		decorate(position, color, parent)
@@ -10484,8 +10484,8 @@ local function paintDamage(node: BasePart, fraction: number)
 		end
 	end
 	if core then
-		core.Transparency = math.max(0.55 - fraction * 0.5, 0.05)
-		core.Size = Vector3.new(3.6, 3.6, 3.6) * (1 + fraction * 0.25)
+		core.Transparency = math.max(0.28 - fraction * 0.26, 0.02)
+		core.Size = Vector3.new(4, 4, 4) * (1 + fraction * 0.25)
 	end
 	local rock = model:FindFirstChild("Rock")
 	if rock and rock:IsA("BasePart") then
@@ -10507,8 +10507,8 @@ local function resetDamage(node: BasePart)
 		vein.Transparency = 0.72
 	end
 	if core then
-		core.Transparency = 0.55
-		core.Size = Vector3.new(3.6, 3.6, 3.6)
+		core.Transparency = 0.28
+		core.Size = Vector3.new(4, 4, 4)
 	end
 end
 

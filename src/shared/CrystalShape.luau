@@ -35,9 +35,12 @@ local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Col
 	p.Material = Enum.Material.Neon
 	-- Negative shade darkens toward the crystal's own deep tone, positive lifts
 	-- toward white, so neighbouring facets never merge into one another.
+	-- Darkening goes toward a DIMMER VERSION OF THE CRYSTAL'S OWN COLOUR, never
+	-- toward black. Lerping to near-black made shard roots disappear against the
+	-- dark inside of a geode, which cost more than the contrast was worth.
 	p.Color = if shade >= 0
 		then color:Lerp(Color3.new(1, 1, 1), shade)
-		else color:Lerp(Color3.new(0.06, 0.05, 0.12), -shade)
+		else color:Lerp(color:Lerp(Color3.new(0, 0, 0), 0.55), -shade * 2)
 	p.Transparency = clarity
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
@@ -47,8 +50,6 @@ local function facet(parent: Instance, cframe: CFrame, size: Vector3, color: Col
 	return p
 end
 
--- One spike: stacked blocks that shrink as they rise, each turned 45 degrees so
--- the silhouette reads as a faceted crystal rather than a stick.
 -- One spike: stacked blocks that shrink as they rise, each turned 45 degrees so
 -- the silhouette reads as a faceted crystal rather than a stick. `tone` shifts
 -- the whole spike's shade so it separates from its neighbours in the cluster.
@@ -73,7 +74,7 @@ local function spike(
 			base * CFrame.new(0, segHeight * (s - 0.5), 0) * CFrame.Angles(0, math.rad(45), 0),
 			Vector3.new(w, segHeight, w),
 			color,
-			tone - 0.22 + t * 0.45,
+			tone - 0.14 + t * 0.42,
 			0.05 + (1 - t) * 0.12
 		)
 	end
