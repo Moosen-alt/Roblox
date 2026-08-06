@@ -18,11 +18,12 @@ local ctx: any = nil
 local passCache: { [Player]: { [string]: boolean } } = {}
 
 function MonetizationService.OwnsPass(player: Player, key: string): boolean
-	-- Friends-and-family comp: listed UserIds own every pass, free. Checked
-	-- before the Id gate so comps work even for passes not yet created on the
-	-- platform. Nothing is persisted, so removing a UserId from the list takes
-	-- the perks away again on the next server.
-	if Monetization.CompUserIds[player.UserId] then
+	-- Friends-and-family comp: `true` comps every pass, a table comps only the
+	-- listed keys. Checked before the Id gate so comps work even for passes not
+	-- yet created on the platform. Nothing is persisted, so removing a UserId
+	-- from the list takes the perks away again on the next server.
+	local comp = Monetization.CompUserIds[player.UserId]
+	if comp == true or (typeof(comp) == "table" and (comp :: { [string]: boolean })[key] == true) then
 		return true
 	end
 	local id = Monetization.PassIdByKey(key)

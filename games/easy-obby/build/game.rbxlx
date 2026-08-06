@@ -107,17 +107,18 @@ local Monetization = {}
 Monetization.GroupId = 346261815
 
 -- ── FRIENDS & FAMILY COMPS ──────────────────────────────────────────────────
--- UserIds listed here are treated as owning EVERY gamepass, free. This is the
--- only way to "gift" store items on Roblox — passes can't be gifted on the
--- platform, but the game decides what ownership means. In-game only, no Robux
--- moves, and it's fully reversible: delete the line and the perks are gone the
--- next time a server starts.
+-- UserIds listed here get gamepasses free. `true` comps EVERY pass; a table
+-- comps only the listed ones. This is the only way to "gift" store items on
+-- Roblox — passes can't be gifted on the platform, but the game decides what
+-- ownership means. In-game only, no Robux moves, and it's fully reversible:
+-- delete the line and the perks are gone the next time a server starts.
 --
 -- A friend's UserId is the number in their profile URL:
 --   https://www.roblox.com/users/123456789/profile  ->  123456789
 Monetization.CompUserIds = {
-	-- [123456789] = true, -- your friend's name here as a comment
-} :: { [number]: boolean }
+	-- [123456789] = true, -- everything, free
+	-- [123456789] = { TripleCrack = true, Vip = true }, -- just these
+} :: { [number]: boolean | { [string]: boolean } }
 
 Monetization.Gamepasses = {
 	SpeedCoil = { Id = 0, Price = 49, Title = "Speed Coil", Desc = "+8 walkspeed, forever. The classic." },
@@ -1251,11 +1252,12 @@ local ctx: any = nil
 local passCache: { [Player]: { [string]: boolean } } = {}
 
 function MonetizationService.OwnsPass(player: Player, key: string): boolean
-	-- Friends-and-family comp: listed UserIds own every pass, free. Checked
-	-- before the Id gate so comps work even for passes not yet created on the
-	-- platform. Nothing is persisted, so removing a UserId from the list takes
-	-- the perks away again on the next server.
-	if Monetization.CompUserIds[player.UserId] then
+	-- Friends-and-family comp: `true` comps every pass, a table comps only the
+	-- listed keys. Checked before the Id gate so comps work even for passes not
+	-- yet created on the platform. Nothing is persisted, so removing a UserId
+	-- from the list takes the perks away again on the next server.
+	local comp = Monetization.CompUserIds[player.UserId]
+	if comp == true or (typeof(comp) == "table" and (comp :: { [string]: boolean })[key] == true) then
 		return true
 	end
 	local id = Monetization.PassIdByKey(key)
