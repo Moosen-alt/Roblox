@@ -48,6 +48,12 @@ finish. This is the strongest honest retention lever a simulator has: streaks re
 and events reward being online at the right moment, but only a checklist gives a returning
 player something to aim at.
 
+**Redeem codes** — a 🎁 CODES button on the HUD. Six launch codes are live; add more by editing
+`src/shared/Config/Codes.luau` and pushing (CI republishes automatically). Rewards scale with the
+deepest water you have unlocked, so one code stays worth redeeming at every stage. Put the code
+list in the **game description**: that is what the codes sites scrape, and searching
+"<game> codes" is a discovery channel a new game can win outright.
+
 Also: Feeding Frenzy / Moon Tide server events, clock-synced Chest Shop, daily streaks.
 
 ## Products to create (paste IDs into `src/shared/Config/Monetization.luau`)
@@ -138,5 +144,7 @@ paid random items (chests bought with earnable coins — odds shown, policy-gate
 - [ ] Finish one → a toast fires immediately, the CLAIM button lights up, coins land on claim
 - [ ] Rejoin mid-day: the SAME three quests come back with progress intact (they are seeded
       per player per day, so quests cannot be rerolled by rejoining)
+- [ ] Codes: `reelgood` in any casing redeems; the same code a second time is refused
+- [ ] A nonsense code gives a clear error and does NOT consume anything
 - [ ] Buy the last authored rod, then buy again: a generated tier appears with a real name,
       better numbers and a higher price — the button never dead-ends

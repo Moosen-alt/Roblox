@@ -31,6 +31,7 @@ local FUNCTIONS = {
 	"BuyArea", -- (areaIndex) -> ok, err  (coins; permanent, survives Set Sail)
 	"TravelArea", -- (areaIndex) -> ok, err  (sail to water you already own)
 	"ClaimQuest", -- (questIndex) -> ok, err  (daily objective reward)
+	"RedeemCode", -- (codeString) -> ok, message  (one redemption per player, server-checked)
 }
 
 local Remotes = {}

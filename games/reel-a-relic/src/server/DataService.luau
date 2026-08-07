@@ -44,6 +44,10 @@ local TEMPLATE = {
 	-- Daily objectives. Day is the same day number the streak uses, so both roll
 	-- over together and a player never has two different "days" running.
 	Quests = { Day = 0, Ids = {} :: { string }, Progress = {} :: { number }, Claimed = {} :: { boolean } },
+	-- Codes already redeemed, keyed by the code's canonical (upper-case) form.
+	-- Reconcile backfills this for existing saves, so nobody loses a redemption
+	-- and nobody gets to re-redeem one they already used.
+	Redeemed = {} :: { [string]: boolean },
 	Funnel = {} :: { [string]: boolean },
 	PityCracks = 0,
 	RareGiven = false,

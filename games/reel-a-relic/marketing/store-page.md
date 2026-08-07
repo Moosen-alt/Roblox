@@ -48,6 +48,7 @@ something; how well you fight decides how much.
 ⛵ Set Sail to reset your run for a permanent +25% coins — and you KEEP every ocean you bought
 🌠 Random server events — Feeding Frenzy (10x luck!) and Moon Tide (5x auras!)
 ✅ 3 daily quests every day — finish them for big coin payouts
+🎁 REDEEM CODES for free coins and chests — new ones posted in the group!
 🕐 The shop restocks every 5 minutes and a new Daily Deal drops every day
 🔥 Daily streak rewards with big milestones at day 7, 14, and 30
 🏆 Global leaderboards — Top Voyagers and Rarest Finds
@@ -178,9 +179,8 @@ events reward being online at the right moment — neither gives a returning
 player something to *aim at*. Three finishable objectives do, and a checklist is
 the strongest honest retention lever a simulator has.
 
-**The gap that remains is codes.** Roblox players actively search
-`"<game name> codes"` — it is free discovery, a reason to follow the socials, and
-a lever to spike concurrent players on update day. Worth building next.
+**Codes are now built too.** See "Running codes" below — that closes the last
+gap in the ladder.
 
 ## If you only create three products, create these
 
@@ -217,3 +217,59 @@ audience this age — and because Roblox enforces several of them.
 The honest version is also the durable one: Roblox suppresses metadata that
 mismatches gameplay, and refund complaints and bad reviews cost more than the
 purchases they extract.
+
+
+## Running codes
+
+Codes are a **marketing instrument** that happens to pay coins. Three things they
+do that nothing else in the game does:
+
+1. **Free discovery.** Players actively search `"reel a relic codes"`. A codes
+   page or a short video that ranks for that brings players who were never going
+   to find this through Roblox search — and it is the one search term where a
+   brand-new game can outrank established ones, because nobody else has written
+   the page yet.
+2. **A reason to follow.** Codes get announced in the group and on socials, so
+   "join for codes" is a real offer rather than a request for a favour.
+3. **A CCU lever you can pull on demand.** Dropping a code is the cheapest way to
+   pull lapsed players back on an update day, and concurrent players is what the
+   front page actually sorts on. Never drop one into a quiet week — spend it the
+   day an update ships, so the returning players find something new.
+
+### The workflow
+
+Edit `src/shared/Config/Codes.luau`, add a row, push. CI republishes the place
+automatically — no Studio, no code changes anywhere else:
+
+```lua
+{ Code = "SUMMER2026", Coins = 3, Chests = 2, Note = "Happy summer!" },
+```
+
+`Coins` is a **multiplier, not an amount** — the payout scales with the deepest
+water the player has unlocked, so one code is worth having on day 1 and still
+worth having on day 30. A flat number can only ever be right once.
+
+`tests/check-codes.py` runs in CI and fails the build on a duplicate code, a code
+that pays nothing, or a missing note. Every one of those failures is silent in
+game: a duplicate means the second row never fires, and a payless code burns the
+player's single redemption and hands back nothing.
+
+### Rules
+
+- **Never give a gamepass or anything bought with Robux.** It devalues a purchase
+  somebody actually made, and they will notice.
+- **Keep two or three evergreen codes alive forever.** A player who finds a
+  year-old video and types a dead code has just had a bad first impression, and
+  that video is still doing free work for you.
+- **Announce, then let it spread.** Codes work because other people write them
+  down. Post it once and let the codes sites index it.
+- **One redemption per player, server-enforced.** Already handled — the client
+  only ever sends a string; it never learns which codes exist or what they pay.
+
+### Launch set (already live)
+
+`REELGOOD` · `FIRSTCAST` · `KELPFOREST` · `ABYSS` · `TIDEJEWEL` · `LIKEANDFAV`
+
+Put these in the **game description**. That is the single highest-value place for
+them: it is what the codes sites scrape, and it is where a player who just
+searched for codes will actually look.

@@ -38,6 +38,7 @@ local IndexScreen = require(script.Screens.IndexScreen)
 local RebirthScreen = require(script.Screens.RebirthScreen)
 local DockScreen = require(script.Screens.DockScreen)
 local QuestsScreen = require(script.Screens.QuestsScreen)
+local CodesScreen = require(script.Screens.CodesScreen)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -67,6 +68,7 @@ IndexScreen.Init(gui)
 RebirthScreen.Init(gui)
 DockScreen.Init(gui)
 QuestsScreen.Init(gui)
+CodesScreen.Init(gui)
 
 -- Walking up to a station and triggering its prompt opens the matching screen.
 local STATION_SCREENS: { [string]: string } = {

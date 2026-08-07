@@ -59,6 +59,13 @@ jobs:
       - name: Collectible model coverage
         run: python3 tests/check-models.py $GAMES
 
+      # Config/Codes.luau is the one file meant to be edited live, in a hurry,
+      # on an update day - and every way to get it wrong is silent. A duplicate
+      # code makes the second row dead; a code with no reward burns the player's
+      # single redemption and pays nothing.
+      - name: Redeem code table
+        run: python3 tests/check-codes.py $GAMES
+
       - name: Math tests
         run: |
           LUAU=luau sh tests/run.sh

@@ -309,6 +309,11 @@ Balance.QuestCount = 3
 Balance.QuestRewardBase = 900
 Balance.QuestRewardPerLayer = 2.6 -- reward = base * this ^ (layer - 1)
 
+-- Redeem codes scale the same way and for the same reason: a flat coin number
+-- is either irrelevant on day 30 or game-breaking on day 1. See Config/Codes.
+Balance.CodeRewardBase = 1200
+Balance.CodeRewardPerLayer = 2.6
+
 export type QuestDef = {
 	Id: string,
 	Kind: string, -- Catch | Chest | Perfect | Rare

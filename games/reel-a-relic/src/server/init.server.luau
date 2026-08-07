@@ -9,6 +9,7 @@ local Remotes = require(Shared.Remotes)
 local AnalyticsService = require(script.AnalyticsService)
 local AreaService = require(script.AreaService)
 local AutoCastService = require(script.AutoCastService)
+local CodeService = require(script.CodeService)
 local CrackService = require(script.CrackService)
 local DataService = require(script.DataService)
 local EventService = require(script.EventService)
@@ -44,6 +45,7 @@ local ctx: any = {
 	Monetization = MonetizationService,
 	Policy = PolicyGuard,
 	Quests = QuestService,
+	Codes = CodeService,
 	RodVis = RodVisual,
 	Analytics = AnalyticsService,
 	Flex = FlexAura,
@@ -82,6 +84,7 @@ UpgradeService.Init(ctx)
 ShopService.Init(ctx)
 StreakService.Init(ctx)
 QuestService.Init(ctx)
+CodeService.Init(ctx)
 MiningService.Init(ctx, map.Nodes)
 AreaService.SetOrigins(map.Origins)
 AreaService.Init(ctx)

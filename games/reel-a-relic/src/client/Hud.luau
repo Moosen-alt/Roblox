@@ -88,6 +88,25 @@ function Hud.Init(gui: ScreenGui)
 	geodesLabel = pill(gui, UDim2.fromOffset(12, 58), Color3.fromRGB(170, 110, 240))
 	streakLabel = pill(gui, UDim2.fromOffset(12, 104), UiKit.Colors.Good)
 	local boost = pill(gui, UDim2.fromOffset(12, 150), UiKit.Colors.Robux)
+
+	-- Codes lives in the pill stack rather than the bottom row: nine buttons
+	-- across the foot of a phone screen is already too many, and a player
+	-- arriving with a code from a video is looking for a gift icon anyway.
+	local codesButton = UiKit.Create("TextButton", {
+		Text = "🎁 CODES",
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(28, 24, 20),
+		BackgroundColor3 = Color3.fromRGB(255, 214, 90),
+		Size = UDim2.fromOffset(120, 34),
+		Position = UDim2.fromOffset(12, 196),
+		Parent = gui,
+	}) :: TextButton
+	UiKit.Corner(10).Parent = codesButton
+	UiKit.Pad(6).Parent = codesButton
+	codesButton.Activated:Connect(function()
+		ScreenManager.Toggle("Codes")
+	end)
 	local boostFrame = boost.Parent :: Frame
 	boostFrame.Visible = false
 
@@ -137,18 +156,21 @@ function Hud.Init(gui: ScreenGui)
 		end
 	end)
 
-	-- Bottom button row. Seven buttons at 92 + six 8px gaps = 692, so the row is
-	-- 700 wide: the layout centres its children and would silently overflow a
-	-- frame sized for the old six.
+	-- Bottom button row, sized FROM the button list rather than hard-coded.
+	-- It used to be a fixed 700 for seven buttons, with a comment warning that
+	-- the layout centres its children and silently overflows a frame sized for
+	-- the wrong count — and then adding an eighth button did exactly that. A
+	-- width nobody has to remember to update cannot go stale.
+	local BUTTON_W, BUTTON_GAP = 92, 8
 	local row = UiKit.Create("Frame", {
-		Size = UDim2.fromOffset(700, 56),
-		Position = UDim2.new(0.5, -350, 1, -70),
+		Size = UDim2.fromOffset(0, 56),
+		Position = UDim2.new(0.5, 0, 1, -70),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	})
 	local layout = Instance.new("UIListLayout")
 	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.Padding = UDim.new(0, 8)
+	layout.Padding = UDim.new(0, BUTTON_GAP)
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.Parent = row
 	local buttons = {
@@ -161,6 +183,10 @@ function Hud.Init(gui: ScreenGui)
 		{ Label = "Set Sail", Screen = "Rebirth", Color = Color3.fromRGB(255, 120, 255) },
 		{ Label = "Store", Screen = "Store", Color = UiKit.Colors.Accent },
 	}
+	local rowWidth = #buttons * BUTTON_W + (#buttons - 1) * BUTTON_GAP
+	row.Size = UDim2.fromOffset(rowWidth, 56)
+	row.Position = UDim2.new(0.5, -rowWidth * 0.5, 1, -70)
+
 	for i, def in buttons do
 		local button = UiKit.Create("TextButton", {
 			Text = def.Label,
@@ -168,7 +194,7 @@ function Hud.Init(gui: ScreenGui)
 			TextScaled = true,
 			TextColor3 = Color3.fromRGB(28, 24, 20),
 			BackgroundColor3 = def.Color,
-			Size = UDim2.fromOffset(92, 52),
+			Size = UDim2.fromOffset(BUTTON_W, 52),
 			LayoutOrder = i,
 			Parent = row,
 		})
