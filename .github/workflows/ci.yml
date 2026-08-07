@@ -101,6 +101,11 @@ jobs:
       #   GEODE_UNIVERSE_ID / GEODE_PLACE_ID   - Crack a Geode
       #   REEL_UNIVERSE_ID  / REEL_PLACE_ID    - Reel a Relic
       #   OBBY_UNIVERSE_ID  / OBBY_PLACE_ID    - Easy Obby
+      #
+      # Only the API KEY is actually secret. Universe and place IDs are public —
+      # the place ID is the number in the game's own URL — so Reel a Relic's are
+      # written in below as a fallback, and it publishes without anyone having to
+      # add a secret first. A secret of the same name still wins if one is set.
       - name: Publish Crack a Geode to Roblox (if configured)
         if: (github.event_name == 'push' && vars.AUTO_PUBLISH != 'false') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         env:
@@ -113,8 +118,9 @@ jobs:
         if: (github.event_name == 'push' && vars.AUTO_PUBLISH != 'false') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-          UNIVERSE_ID: ${{ secrets.REEL_UNIVERSE_ID }}
-          PLACE_ID: ${{ secrets.REEL_PLACE_ID }}
+          # https://www.roblox.com/games/84472237297273/Reel-a-Relic
+          UNIVERSE_ID: ${{ secrets.REEL_UNIVERSE_ID || '10645988430' }}
+          PLACE_ID: ${{ secrets.REEL_PLACE_ID || '84472237297273' }}
         run: bash .github/scripts/publish-place.sh games/reel-a-relic/build/game.rbxlx
 
       - name: Publish Easy Obby to Roblox (if configured)
