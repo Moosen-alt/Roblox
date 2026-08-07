@@ -3651,11 +3651,20 @@ local Remotes = require(Shared.Remotes)
 local MiningService = {}
 
 local BITE_WINDOW = 1.2 -- seconds the flash stays catchable
-local CLAIM_TIMEOUT = 20 -- seconds before an untended cast releases the spot
+local CLAIM_TIMEOUT = 20 -- seconds without a click before an idle cast is released
+-- A few studs of slack past the cast range, so shuffling on the spot or a bit of
+-- position lag never yanks the line out of the water mid-fish.
+local CLAIM_SLACK = 8
 
 type SpotState = {
 	OwnerUserId: number?,
 	BiteAt: number?, -- os.clock() when the bite window opens
+	-- os.clock() of the angler's last actual ACTION on this spot. Deliberately
+	-- separate from BiteAt: a missed window pushes BiteAt forward to auto-recast,
+	-- so measuring the claim timeout from BiteAt meant the claim renewed itself
+	-- every few seconds and never expired. One cast held a spot forever, from
+	-- anywhere on the map, until the player left the server.
+	ActedAt: number,
 	Resolved: boolean,
 	BaseColor: Color3,
 	Area: number,
@@ -3884,11 +3893,15 @@ local function onSpotClicked(spot: BasePart, player: Player): boolean
 		end
 		state.OwnerUserId = player.UserId
 		state.Resolved = false
+		state.ActedAt = os.clock()
 		state.BiteAt = os.clock() + biteDelay(data)
 		setCast(spot, player)
 		return true
 	elseif state.OwnerUserId == player.UserId then
 		local now = os.clock()
+		-- Any click on your own line counts as being present, so the idle timeout
+		-- only fires on someone who has genuinely stopped fishing.
+		state.ActedAt = now
 		if state.BiteAt and now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW then
 			landCatch(spot, state, player)
 			return true
@@ -3932,6 +3945,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 		spots[spot] = {
 			OwnerUserId = nil,
 			BiteAt = nil,
+			ActedAt = 0,
 			Resolved = true,
 			BaseColor = spot.Color,
 			Area = area,
@@ -3970,21 +3984,33 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 		for spot, state in spots do
 			if state.OwnerUserId and state.BiteAt then
 				local owner = Players:GetPlayerByUserId(state.OwnerUserId)
-				if not owner then
+				-- Walk away and your line comes with you. Without this a cast held
+				-- its buoy from anywhere on the map — including from another area —
+				-- and kept auto-recasting at water the angler had long since left.
+				local data = owner and ctx.Data.Get(owner)
+				local character = owner and owner.Character
+				local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				local strayed = not root
+					or (root.Position - spot.Position).Magnitude > Balance.CastRange + CLAIM_SLACK
+					or (data ~= nil and state.Area ~= ctx.Data.Layer(data))
+
+				if not owner or strayed then
+					setIdle(spot, state)
+				elseif now - state.ActedAt > CLAIM_TIMEOUT then
+					-- Still standing there, but has not touched it in a while.
 					setIdle(spot, state)
 				elseif now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW then
 					if spot.Color ~= Color3.fromRGB(255, 255, 255) then
 						setBite(spot, owner)
 					end
 				elseif now > state.BiteAt + BITE_WINDOW then
-					-- missed the window: it got away, auto-recast for the same angler
-					if now > state.BiteAt + CLAIM_TIMEOUT then
-						setIdle(spot, state)
-					else
-						spot.Color = state.BaseColor
-						setCast(spot, owner)
-						state.BiteAt = now + biteDelay(ctx.Data.Get(owner))
-					end
+					-- missed the window: it got away, auto-recast for the same
+					-- angler. ActedAt is NOT touched here — an auto-recast is the
+					-- game acting, not the player, so it must not keep the claim
+					-- alive on its own.
+					spot.Color = state.BaseColor
+					setCast(spot, owner)
+					state.BiteAt = now + biteDelay(data)
 				end
 			end
 		end
