@@ -4,11 +4,18 @@ Everything in this game is built from Roblox primitives in code, which needs no
 asset pipeline and has a hard ceiling: primitives read as *stylised*, never as
 *sculpted*. This is the list for lifting that ceiling.
 
-**A full pack of 69 original OBJ models already ships in
-[`assets/mesh-source/`](../../assets/mesh-source/)** — 33 fish, 28 relics and the
-geode game's 8 crystals, every name matching the configs exactly, normalised to a
-1-unit maximum dimension, centred, Y-up, fish nose-along +X. Two ways to get them
-into the game:
+**Two packs of original OBJ models already ship in
+[`assets/mesh-source/`](../../assets/mesh-source/):**
+
+- **Collectibles (69)** — 33 fish, 28 relics and the geode game's 8 crystals,
+  every name matching the configs exactly, normalised to a 1-unit maximum
+  dimension, centred, Y-up, fish nose-along +X.
+- **World decoration (69)**, in `world/` — 30 for this game's five areas, 39 for
+  the geode layers. These are *not* normalised: they are authored at their real
+  relative sizes, so `tools/build-meshes.py` measures each one and generates its
+  extents into `Config/Meshes.luau`, and placement asks for a height in studs.
+
+Two ways to get them into the game:
 
 | | |
 | --- | --- |
