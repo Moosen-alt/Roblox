@@ -155,6 +155,31 @@ if Balance.Backpack then
 	print("PASS backpack ladder never ends (checked 40 tiers past the authored list)")
 end
 
+-- What a rod BUYS must keep improving, not just what it costs. The original bug
+-- was not a missing tier — the tiers existed — it was `math.clamp(...)` and
+-- `math.min(...)` pinning both rod benefits at around damage 30, so the eighth
+-- rod and the fortieth played identically. A ladder that never ends is worthless
+-- if its rungs stop doing anything, so assert strict monotonicity across the
+-- whole damage range the generated tiers can reach.
+if Balance.RodBiteFactor then
+	local previousBite = Balance.RodBiteFactor(0)
+	local previousCatch = Balance.RodExtraCatch(0)
+	local damage = 1
+	for _ = 1, 60 do
+		local bite = Balance.RodBiteFactor(damage)
+		local catch = Balance.RodExtraCatch(damage)
+		assert(bite < previousBite, "bite factor stopped improving at damage " .. damage)
+		assert(bite >= Balance.BiteFloor, "bite factor fell through its floor at damage " .. damage)
+		assert(catch >= previousCatch, "extra catch went backwards at damage " .. damage)
+		previousBite, previousCatch = bite, catch
+		damage *= 1.55
+	end
+	-- And it must still start where the game already was: the freebie rod should
+	-- not have been quietly buffed by fixing the top of the ladder.
+	assert(Balance.RodExtraCatch(1) < 0.05, "the starter rod got buffed; it should still be ~2% double hook")
+	print("PASS rod benefits improve forever and the starter rod is unchanged")
+end
+
 -- Every layer needs a name, including the generated deep ones.
 if Balance.LayerName then
 	local seen = {}

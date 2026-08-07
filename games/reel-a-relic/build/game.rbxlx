@@ -91,6 +91,34 @@ Balance.Pickaxes = {
 	{ Name = "Poseidon's Rod", Damage = 1000, Cost = 19_000_000_000, Color = Color3.fromRGB(120, 255, 255), Material = Enum.Material.Neon, Glow = true },
 }
 
+-- What a rod's Damage actually buys. These are curves, not clamps, and that is
+-- the point: the old maths was `math.clamp(1 - damage * 0.015, 0.5, 1)` for bite
+-- speed and `math.min(damage * 0.02, 0.6)` for the double hook, both of which
+-- pinned at around damage 30 — so every rod past the eighth tier bought you
+-- literally nothing. Players noticed, correctly, that upgrading stopped working.
+--
+-- Asymptotes fix it honestly. Bite delay approaches BiteFloor without ever
+-- reaching it and extra catches grow with the logarithm of damage, so tier 40 is
+-- still a real improvement over tier 39 — small, but never zero, and never a
+-- wall you hit without being told.
+Balance.BiteFloor = 0.45 -- fastest possible bite, as a fraction of the base wait
+Balance.BiteSharpness = 0.08 -- how quickly early rods approach that floor
+Balance.ExtraCatchScale = 0.35 -- catches per landing grow as log(1 + damage) * this
+-- Subtracted so the STARTER rod lands on the old 2% double-hook chance exactly.
+-- Without it the fix would have quietly buffed the first ten minutes of the game
+-- by 10x, which is not what "upgrades stopped working" asked for.
+Balance.ExtraCatchBase = 0.22
+
+function Balance.RodBiteFactor(damage: number): number
+	return Balance.BiteFloor + (1 - Balance.BiteFloor) / (1 + math.max(damage, 0) * Balance.BiteSharpness)
+end
+
+-- Average extra fish on a landing. The whole part is guaranteed, the fraction is
+-- the chance of one more — so 1.9 means "always +1, and 90% of the time +2".
+function Balance.RodExtraCatch(damage: number): number
+	return math.max(math.log(1 + math.max(damage, 0)) * Balance.ExtraCatchScale - Balance.ExtraCatchBase, 0)
+end
+
 Balance.PickaxeDamageGrowth = 1.55
 Balance.PickaxeCostGrowth = 3.85
 local ROD_TITLES = { "Ascendant", "Celestial", "Infinite", "Leviathan's", "Sovereign", "Worldtide" }
@@ -593,6 +621,213 @@ return CrystalShape
       </Item>
       <Item class="ModuleScript" referent="7">
         <Properties>
+          <string name="Name">FishShape</string>
+          <string name="Source"><![CDATA[--!strict
+-- Shared fish geometry: a recognisable fish built from primitives (no asset
+-- uploads). One builder feeds the reveal card viewports, the aquarium tank, the
+-- trophy over your head and the landmarks above the water — so a Rainbow Trout
+-- is the same fish everywhere in the game.
+--
+-- This replaces CrystalShape for anything that represents a CATCH. A fishing
+-- game whose fish render as glowing gems is a re-skin wearing a fishing hat;
+-- the silhouette is the single cheapest thing that makes it its own game.
+
+local FishShape = {}
+
+export type Options = {
+	Color: Color3,
+	Scale: number?, -- overall size multiplier (1 ~= 3.5 studs nose to tail)
+	Seed: number?,
+	Glow: number?, -- PointLight range at the body (nil/0 = no light)
+	Sparkle: boolean?, -- drifting glints (used for mutated/rare fish)
+	Neon: boolean?, -- deep-water species that light themselves
+}
+
+-- Unlike the crystals, fish must NOT be fullbright. Neon renders flat and
+-- unshaded, which is what turned every crystal cluster into one glowing blob —
+-- on a fish it would erase the body/fin/tail separation that makes it read as a
+-- fish at all. SmoothPlastic takes the light, so the form survives.
+local function piece(parent: Instance, props: { [string]: any }): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false -- a cast must never land on a decoration fish
+	p.CanTouch = false
+	p.Massless = true
+	p.Material = Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in props do
+		if key ~= "Parent" then
+			(p :: any)[key] = value
+		end
+	end
+	p.Parent = parent
+	return p
+end
+
+-- Fins and tail are a saturated, darker version of the body so they separate
+-- from it without introducing a second unrelated colour.
+local function finColor(body: Color3): Color3
+	return body:Lerp(Color3.fromRGB(20, 18, 34), 0.42)
+end
+
+-- Nose points +X, so a camera on +Z sees the fish side-on — the only angle a
+-- fish is recognisable from.
+function FishShape.Build(options: Options): Model
+	local model = Instance.new("Model")
+	model.Name = "Fish"
+
+	local scale = options.Scale or 1
+	local rng = Random.new(options.Seed or 5)
+	local color = options.Color
+	local fin = finColor(color)
+	local material = if options.Neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+
+	-- Body: an ellipsoid, deeper than it is wide. Roblox scales a Ball part
+	-- non-uniformly, so this is one part rather than a stack of them.
+	local bodyLength = rng:NextNumber(2.6, 3.0) * scale
+	local bodyHeight = rng:NextNumber(1.4, 1.8) * scale
+	local bodyWidth = rng:NextNumber(0.72, 0.95) * scale
+	local body = piece(model, {
+		Name = "Body",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(bodyLength, bodyHeight, bodyWidth),
+		CFrame = CFrame.new(0, 0, 0),
+		Color = color,
+		Material = material,
+	})
+
+	-- Pale belly. A flattened ellipsoid tucked under the body is the whole
+	-- difference between "a fish" and "a coloured blob with fins".
+	piece(model, {
+		Name = "Belly",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(bodyLength * 0.82, bodyHeight * 0.52, bodyWidth * 0.94),
+		CFrame = CFrame.new(-bodyLength * 0.04, -bodyHeight * 0.3, 0),
+		Color = color:Lerp(Color3.new(1, 1, 1), 0.55),
+		Material = material,
+	})
+
+	-- Snout: a smaller ellipsoid at the front, so the head tapers instead of
+	-- ending in the same round curve as the tail.
+	piece(model, {
+		Name = "Snout",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(bodyLength * 0.42, bodyHeight * 0.62, bodyWidth * 0.72),
+		CFrame = CFrame.new(bodyLength * 0.42, -bodyHeight * 0.05, 0),
+		Color = color,
+		Material = material,
+	})
+
+	-- Tail: a narrow stalk into a forked fin. The fork is the strongest read in
+	-- the silhouette, so it is deliberately oversized.
+	local tailX = -bodyLength * 0.52
+	piece(model, {
+		Name = "TailStalk",
+		Size = Vector3.new(bodyLength * 0.26, bodyHeight * 0.34, bodyWidth * 0.42),
+		CFrame = CFrame.new(tailX, 0, 0),
+		Color = color,
+		Material = material,
+	})
+	for i, lean in { 0.55, -0.55 } do
+		piece(model, {
+			Name = "TailFin" .. i,
+			Size = Vector3.new(bodyLength * 0.52, bodyHeight * 0.62, bodyWidth * 0.16),
+			CFrame = CFrame.new(tailX - bodyLength * 0.24, lean * bodyHeight * 0.34, 0)
+				* CFrame.Angles(0, 0, lean * 0.75),
+			Color = fin,
+			Material = material,
+		})
+	end
+
+	-- Dorsal fin, swept back
+	piece(model, {
+		Name = "Dorsal",
+		Size = Vector3.new(bodyLength * 0.46, bodyHeight * 0.5, bodyWidth * 0.15),
+		CFrame = CFrame.new(-bodyLength * 0.04, bodyHeight * 0.56, 0) * CFrame.Angles(0, 0, -0.35),
+		Color = fin,
+		Material = material,
+	})
+	-- Pectoral fins, one each side, angled down and back
+	for i, side in { 1, -1 } do
+		piece(model, {
+			Name = "Pectoral" .. i,
+			Size = Vector3.new(bodyLength * 0.3, bodyHeight * 0.14, bodyWidth * 0.5),
+			CFrame = CFrame.new(bodyLength * 0.1, -bodyHeight * 0.2, side * bodyWidth * 0.42)
+				* CFrame.Angles(side * 0.5, 0, -0.3),
+			Color = fin,
+			Material = material,
+		})
+	end
+
+	-- Eyes: the single detail that turns a shape into an animal. One per side.
+	for _, side in { 1, -1 } do
+		piece(model, {
+			Name = "Eye",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(bodyHeight * 0.3, bodyHeight * 0.3, bodyHeight * 0.3),
+			CFrame = CFrame.new(bodyLength * 0.42, bodyHeight * 0.16, side * bodyWidth * 0.3),
+			Color = Color3.fromRGB(250, 250, 252),
+			Material = Enum.Material.SmoothPlastic,
+		})
+		piece(model, {
+			Name = "Pupil",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(bodyHeight * 0.17, bodyHeight * 0.17, bodyHeight * 0.17),
+			CFrame = CFrame.new(bodyLength * 0.45, bodyHeight * 0.16, side * bodyWidth * 0.37),
+			Color = Color3.fromRGB(18, 16, 26),
+			Material = Enum.Material.SmoothPlastic,
+		})
+	end
+
+	-- A couple of bands across the body. Seeded, so the same species always gets
+	-- the same markings rather than reshuffling every time it is drawn.
+	local bands = rng:NextInteger(0, 3)
+	for i = 1, bands do
+		local at = -bodyLength * 0.22 + (i - 1) * bodyLength * 0.2
+		piece(model, {
+			Name = "Band" .. i,
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(bodyLength * 0.09, bodyHeight * 0.96, bodyWidth * 1.02),
+			CFrame = CFrame.new(at, bodyHeight * 0.04, 0),
+			Color = color:Lerp(Color3.fromRGB(30, 26, 44), 0.35),
+			Material = material,
+		})
+	end
+
+	if options.Glow and options.Glow > 0 then
+		local light = Instance.new("PointLight")
+		light.Color = color
+		light.Range = options.Glow
+		light.Brightness = 1.3
+		light.Shadows = false
+		light.Parent = body
+	end
+	if options.Sparkle then
+		local glints = Instance.new("ParticleEmitter")
+		glints.Color = ColorSequence.new(color)
+		glints.LightEmission = 1
+		glints.Size = NumberSequence.new(0.3 * scale, 0)
+		glints.Transparency = NumberSequence.new(0.1, 1)
+		glints.Lifetime = NumberRange.new(0.7, 1.5)
+		glints.Rate = 7
+		glints.Speed = NumberRange.new(0.5, 1.6)
+		glints.SpreadAngle = Vector2.new(60, 60)
+		glints.Parent = body
+	end
+
+	model.PrimaryPart = body
+	model.WorldPivot = CFrame.new()
+	return model
+end
+
+return FishShape
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="8">
+        <Properties>
           <string name="Name">Format</string>
           <string name="Source"><![CDATA[--!strict
 local Format = {}
@@ -648,7 +883,7 @@ return Format
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">RarityMath</string>
           <string name="Source"><![CDATA[--!strict
@@ -808,7 +1043,7 @@ return RarityMath
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--!strict
@@ -916,11 +1151,11 @@ return Remotes
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="10">
+  <Item class="ServerScriptService" referent="11">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="11">
+    <Item class="Script" referent="12">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -1016,7 +1251,7 @@ DataService.Init(ctx)
 print("[ReelARelic] Server ready.")
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">AnalyticsService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1069,7 +1304,7 @@ return AnalyticsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">AreaService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1215,7 +1450,7 @@ return AreaService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">AutoCastService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1306,7 +1541,7 @@ return AutoCastService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">CrackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1703,7 +1938,7 @@ return CrackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[--!strict
@@ -2054,7 +2289,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">EventService</string>
           <string name="Source"><![CDATA[--!strict
@@ -2124,7 +2359,7 @@ return EventService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">FilmMode</string>
           <string name="Source"><![CDATA[--!strict
@@ -2267,7 +2502,7 @@ return FilmMode
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">FlexAura</string>
           <string name="Source"><![CDATA[--!strict
@@ -2331,7 +2566,7 @@ return FlexAura
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">Leaderboards</string>
           <string name="Source"><![CDATA[--!strict
@@ -2457,7 +2692,7 @@ return Leaderboards
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -2472,7 +2707,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
-local CrystalShape = require(Shared.CrystalShape)
+local FishShape = require(Shared.FishShape)
 
 local MapBuilder = {}
 
@@ -2532,14 +2767,6 @@ local AREA_THEMES: { AreaTheme } = {
 	},
 }
 
-local SPOT_COLORS = {
-	Color3.fromRGB(255, 120, 120),
-	Color3.fromRGB(120, 220, 255),
-	Color3.fromRGB(255, 200, 60),
-	Color3.fromRGB(120, 255, 160),
-	Color3.fromRGB(255, 150, 220),
-	Color3.fromRGB(180, 160, 255),
-}
 
 local rng = Random.new(20260804)
 
@@ -2605,6 +2832,11 @@ end
 -- piece of furniture). Players walk up the beach from the dock (-Z), so the
 -- furniture sits on the +Z half of each pad and the front stays open.
 --------------------------------------------------------------------------------
+
+-- The aquarium's glass volume, shared between the builder here and the client
+-- that swims fish inside it (AquariumView reads the tagged part's own Size, so
+-- this constant only has to be right in one place).
+local TANK_SIZE = Vector3.new(9, 5.2, 3.6)
 
 local WOOD = Color3.fromRGB(120, 88, 54)
 local DARK_WOOD = Color3.fromRGB(92, 64, 40)
@@ -2682,51 +2914,77 @@ end
 
 -- Aquarium: a glass tank on a wooden table with a relic glowing inside.
 local function decorateRacks(position: Vector3, _color: Color3, parent: Instance)
-	for _, x in { -2.1, 2.1 } do
+	for _, x in { -3.8, 3.8 } do
 		deco({
 			Name = "TableLeg",
-			Size = Vector3.new(0.5, 0.6, 2.6),
-			Position = position + Vector3.new(x, 0.8, 3.2),
+			Size = Vector3.new(0.6, 1.1, 3),
+			Position = position + Vector3.new(x, 0.55, 3.2),
 			Color = DARK_WOOD,
 			Material = Enum.Material.Wood,
 		}, parent)
 	end
 	deco({
 		Name = "AquariumTable",
-		Size = Vector3.new(5, 0.6, 3),
-		Position = position + Vector3.new(0, 1.4, 3.2),
+		Size = Vector3.new(9.6, 0.7, 3.9),
+		Position = position + Vector3.new(0, 1.45, 3.2),
 		Color = WOOD,
 		Material = Enum.Material.WoodPlanks,
 	}, parent)
-	deco({
+	-- A big tank, because the fish in it have to be legible from outside the
+	-- glass. The old one was 4x2 studs with two ornaments glued in it; you could
+	-- not have told eight fish apart in there, let alone watched them swim.
+	local tankCenter = position + Vector3.new(0, 3.6, 3.2)
+	local water = deco({
 		Name = "AquariumWater",
-		Size = Vector3.new(4.1, 1.7, 2.1),
-		Position = position + Vector3.new(0, 2.6, 3.2),
+		Size = Vector3.new(TANK_SIZE.X - 0.4, TANK_SIZE.Y - 0.5, TANK_SIZE.Z - 0.4),
+		Position = tankCenter - Vector3.new(0, 0.2, 0),
 		Color = Color3.fromRGB(70, 160, 235),
 		Material = Enum.Material.SmoothPlastic,
-		Transparency = 0.45,
+		Transparency = 0.62,
 	}, parent)
 	deco({
 		Name = "AquariumGlass",
-		Size = Vector3.new(4.4, 2.4, 2.4),
-		Position = position + Vector3.new(0, 2.9, 3.2),
+		Size = TANK_SIZE,
+		Position = tankCenter,
 		Color = Color3.fromRGB(170, 225, 255),
 		Material = Enum.Material.Glass,
-		Transparency = 0.55,
+		Transparency = 0.72,
 	}, parent)
-	for i, x in { -0.9, 0.8 } do
-		local relic = CrystalShape.Build({
-			Color = SPOT_COLORS[rng:NextInteger(1, #SPOT_COLORS)],
-			Scale = 0.3,
-			Shards = 4,
-			Segments = 2,
-			Seed = 90 + i * 7,
-			Glow = 8,
-		})
-		relic.Name = "TankRelic"
-		relic:PivotTo(CFrame.new(position + Vector3.new(x, 1.9, 3.2)))
-		relic.Parent = parent
+	-- The client fills this with THIS player's socketed fish — racks are per
+	-- player, so the tank has to be, and a local fill costs the server nothing.
+	CollectionService:AddTag(water, "AquariumTank")
+
+	-- Gravel, plants and a bubble stream, so an empty tank still looks like a
+	-- tank rather than a blue box waiting for content.
+	deco({
+		Name = "TankGravel",
+		Size = Vector3.new(TANK_SIZE.X - 0.5, 0.4, TANK_SIZE.Z - 0.5),
+		Position = tankCenter - Vector3.new(0, TANK_SIZE.Y / 2 - 0.35, 0),
+		Color = Color3.fromRGB(198, 176, 140),
+		Material = Enum.Material.Sand,
+	}, parent)
+	for i = 1, 5 do
+		local height = rng:NextNumber(1.2, 2.6)
+		deco({
+			Name = "TankPlant" .. i,
+			Size = Vector3.new(0.22, height, 0.22),
+			CFrame = CFrame.new(
+				tankCenter + Vector3.new(rng:NextNumber(-3, 3), -TANK_SIZE.Y / 2 + height / 2 + 0.5, rng:NextNumber(-1, 1))
+			) * CFrame.Angles(0, rng:NextNumber(0, 3), rng:NextNumber(-0.25, 0.25)),
+			Color = Color3.fromRGB(60, 150, 90),
+			Material = Enum.Material.Grass,
+		}, parent)
 	end
+	local bubbles = Instance.new("ParticleEmitter")
+	bubbles.Color = ColorSequence.new(Color3.fromRGB(220, 245, 255))
+	bubbles.Size = NumberSequence.new(0.12, 0.02)
+	bubbles.Transparency = NumberSequence.new(0.4, 1)
+	bubbles.Lifetime = NumberRange.new(1.4, 2.2)
+	bubbles.Rate = 7
+	bubbles.Speed = NumberRange.new(1.4, 2.4)
+	bubbles.SpreadAngle = Vector2.new(6, 6)
+	bubbles.Acceleration = Vector3.new(0, 2, 0)
+	bubbles.Parent = water
 end
 
 -- Chest Shop: a market stall — counter out front, striped awning overhead,
@@ -2946,6 +3204,180 @@ local function makeBoard(position: Vector3, lookAt: Vector3, title: string, pare
 	return board
 end
 
+--------------------------------------------------------------------------------
+-- Scenery. An empty sand rectangle with twelve glowing balls on it is a test
+-- level, not a place — and the areas need to look DIFFERENT from each other or
+-- paying 45,000 coins to reach the next one buys you a recolour.
+--
+-- Everything here is decoration: no collision, no raycast queries. A cast that
+-- died on a rock or a crate would be a bug the player could not see the cause of.
+--------------------------------------------------------------------------------
+
+-- Sea stacks: weathered rock pillars standing out of the water. Cheap, big, and
+-- they give the horizon something to be other than empty.
+local function makeSeaStack(at: Vector3, height: number, tint: Color3, parent: Instance)
+	local segments = math.max(math.floor(height / 5), 2)
+	for i = 1, segments do
+		local t = (i - 1) / segments
+		local width = (7 - t * 4) * rng:NextNumber(0.85, 1.15)
+		local rock = deco({
+			Name = "StackRock",
+			Size = Vector3.new(width, height / segments + 1, width * rng:NextNumber(0.8, 1.2)),
+			CFrame = CFrame.new(at + Vector3.new(rng:NextNumber(-1, 1), (i - 0.5) * (height / segments), rng:NextNumber(-1, 1)))
+				* CFrame.Angles(rng:NextNumber(-0.08, 0.08), rng:NextNumber(0, 3), rng:NextNumber(-0.08, 0.08)),
+			Color = Color3.fromRGB(96, 92, 100):Lerp(tint, 0.25),
+			Material = Enum.Material.Rock,
+		}, parent)
+		rock.CanCollide = false
+	end
+end
+
+-- A tall strand of kelp or coral, swaying is left to the client tag.
+local function makeStrand(at: Vector3, height: number, color: Color3, material: Enum.Material, parent: Instance)
+	local segments = math.max(math.floor(height / 3), 2)
+	for i = 1, segments do
+		local lean = (i / segments) * rng:NextNumber(-0.5, 0.5)
+		deco({
+			Name = "Strand",
+			Size = Vector3.new(0.7, height / segments + 0.4, 0.35),
+			CFrame = CFrame.new(at + Vector3.new(lean * 2, (i - 0.5) * (height / segments), 0))
+				* CFrame.Angles(0, rng:NextNumber(0, 3), lean),
+			Color = color:Lerp(Color3.new(0, 0, 0), (i / segments) * 0.2),
+			Material = material,
+		}, parent)
+	end
+end
+
+-- Dockside clutter: a crate, a barrel and a coil of rope. Small props at human
+-- scale are what make a big empty space read as somewhere people work.
+local function makeDockClutter(at: Vector3, parent: Instance)
+	deco({
+		Name = "Crate",
+		Size = Vector3.new(2.2, 2.2, 2.2),
+		CFrame = CFrame.new(at) * CFrame.Angles(0, rng:NextNumber(0, 3), 0),
+		Color = WOOD,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	deco({
+		Name = "Barrel",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(2.4, 1.7, 1.7),
+		CFrame = CFrame.new(at + Vector3.new(2.6, -0.2, 0.6)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = DARK_WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	for i = 1, 3 do
+		deco({
+			Name = "Rope" .. i,
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.18, 1.6 - i * 0.25, 1.6 - i * 0.25),
+			CFrame = CFrame.new(at + Vector3.new(-2.4, -0.95 + i * 0.18, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(196, 176, 130),
+			Material = Enum.Material.Fabric,
+		}, parent)
+	end
+end
+
+local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
+	-- Sea stacks out in the water, off to both sides so they frame the fishing
+	-- arc instead of standing in it.
+	for i = 1, 6 do
+		local side = if i % 2 == 0 then 1 else -1
+		makeSeaStack(
+			Vector3.new(ox + side * rng:NextNumber(58, 120), -3, oz - rng:NextNumber(30, 130)),
+			rng:NextNumber(14, 34),
+			theme.Water,
+			parent
+		)
+	end
+
+	-- Growth on the sea floor, themed per area: palms up top already, kelp and
+	-- coral below the surface. Deep areas get glowing strands instead, which is
+	-- most of what makes the Trench and the Abyss feel like different water.
+	local strandColor, strandMaterial
+	if index <= 1 then
+		strandColor, strandMaterial = Color3.fromRGB(90, 190, 120), Enum.Material.Grass
+	elseif index == 2 then
+		strandColor, strandMaterial = Color3.fromRGB(60, 150, 90), Enum.Material.Grass
+	elseif index == 3 then
+		strandColor, strandMaterial = Color3.fromRGB(255, 130, 180), Enum.Material.Neon
+	else
+		strandColor, strandMaterial = theme.Spots[1], Enum.Material.Neon
+	end
+	for _ = 1, 26 do
+		local at = Vector3.new(ox + rng:NextNumber(-120, 120), -5.5, oz - rng:NextNumber(10, 140))
+		makeStrand(at, rng:NextNumber(4, 11), strandColor, strandMaterial, parent)
+	end
+
+	-- Beached rocks and driftwood on the sand
+	for _ = 1, 14 do
+		local size = rng:NextNumber(1.6, 5)
+		deco({
+			Name = "ShoreRock",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(size, size * rng:NextNumber(0.5, 0.8), size * rng:NextNumber(0.7, 1.2)),
+			CFrame = CFrame.new(ox + rng:NextNumber(-120, 120), rng:NextNumber(-0.4, 0.4), oz + rng:NextNumber(15, 105))
+				* CFrame.Angles(rng:NextNumber(0, 3), rng:NextNumber(0, 3), rng:NextNumber(0, 3)),
+			Color = Color3.fromRGB(104, 100, 108):Lerp(theme.Sand, 0.3),
+			Material = Enum.Material.Rock,
+		}, parent)
+	end
+
+	-- Mooring posts down both sides of the dock, with lanterns on the deep ones
+	for i = 1, 6 do
+		local z = oz - 6 - i * 8
+		for _, side in { -1, 1 } do
+			local post = deco({
+				Name = "MooringPost",
+				Size = Vector3.new(0.8, 4.5, 0.8),
+				Position = Vector3.new(ox + side * 8.4, 1.2, z),
+				Color = DARK_WOOD,
+				Material = Enum.Material.Wood,
+			}, parent)
+			if i % 2 == 0 then
+				local lamp = deco({
+					Name = "Lantern",
+					Shape = Enum.PartType.Ball,
+					Size = Vector3.new(0.9, 0.9, 0.9),
+					Position = post.Position + Vector3.new(0, 2.8, 0),
+					Color = theme.Spots[1],
+					Material = Enum.Material.Neon,
+				}, parent)
+				local light = Instance.new("PointLight")
+				light.Color = theme.Spots[1]
+				light.Range = 16
+				light.Brightness = 1.1
+				light.Shadows = false
+				light.Parent = lamp
+			end
+		end
+	end
+
+	makeDockClutter(Vector3.new(ox - 11, 1.6, oz - 12), parent)
+	makeDockClutter(Vector3.new(ox + 12, 1.6, oz - 30), parent)
+
+	-- A giant fish of the area's own colour, turning above the water. It is the
+	-- landmark you can see from the previous dock, and it advertises what lives
+	-- here far better than the price on the Dock Master's list does.
+	for _, at in { Vector3.new(ox - 52, 15, oz - 62), Vector3.new(ox + 52, 15, oz - 62) } do
+		local trophy = FishShape.Build({
+			Color = theme.Spots[rng:NextInteger(1, #theme.Spots)],
+			Scale = rng:NextNumber(3.4, 4.6),
+			Seed = math.floor(at.X * 7 + at.Z),
+			Glow = 30,
+			Sparkle = true,
+			Neon = index >= 4,
+		})
+		trophy.Name = "Landmark" .. index
+		trophy:PivotTo(CFrame.new(at))
+		trophy.Parent = parent
+		CollectionService:AddTag(trophy, "SpinCrystal")
+		trophy:SetAttribute("SpinSpeed", rng:NextNumber(0.12, 0.22))
+		trophy:SetAttribute("BobHeight", rng:NextNumber(1.4, 2.4))
+		trophy:SetAttribute("BobSpeed", rng:NextNumber(0.4, 0.7))
+	end
+end
+
 -- One area: its own water, its own beach, its own dock, its own twelve buoys.
 -- Areas are built side by side along X rather than stitched together, because
 -- travel between them is by boat (a teleport) — there is no walk to preserve, so
@@ -3001,15 +3433,33 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 	for _ = 1, theme.Palms do
 		makePalm(Vector3.new(ox + rng:NextNumber(-110, 110), 0, oz + rng:NextNumber(40, 100)), parent)
 	end
+	scatterScenery(index, theme, ox, oz, parent)
 
-	-- A sign at the head of the dock, so you always know what water you are in.
+	-- An ARCH over the head of the dock, not a board across it. The first version
+	-- was a solid 18x5 part standing at walking height in the middle of the only
+	-- path to the water — you could not get past it to fish. Posts to either side
+	-- of the dock, the board slung between them well overhead, and nothing on it
+	-- collides or answers a raycast, so it can never block a walk or eat a cast.
+	for _, side in { -1, 1 } do
+		local post = part({
+			Name = "ArchPost" .. index,
+			Size = Vector3.new(0.9, 13, 0.9),
+			Position = Vector3.new(ox + side * 8.6, 6.5, oz - 4),
+			Color = Color3.fromRGB(90, 65, 45),
+			Material = Enum.Material.Wood,
+		}, parent)
+		post.CanCollide = false
+		post.CanQuery = false
+	end
 	local sign = part({
 		Name = "AreaSign" .. index,
-		Size = Vector3.new(18, 5, 0.6),
-		CFrame = CFrame.lookAt(Vector3.new(ox, 6, oz - 4), Vector3.new(ox, 6, oz - 40)),
+		Size = Vector3.new(18, 4, 0.6),
+		CFrame = CFrame.lookAt(Vector3.new(ox, 12, oz - 4), Vector3.new(ox, 12, oz - 40)),
 		Color = Color3.fromRGB(90, 65, 45),
 		Material = Enum.Material.Wood,
 	}, parent)
+	sign.CanCollide = false
+	sign.CanQuery = false
 	local signGui = Instance.new("SurfaceGui")
 	signGui.Face = Enum.NormalId.Front
 	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -3062,27 +3512,6 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 		spot:SetAttribute("BobHeight", rng:NextNumber(0.5, 0.9))
 		spot:SetAttribute("BobSpeed", rng:NextNumber(0.9, 1.5))
 		table.insert(nodes, spot)
-	end
-
-	-- Landmark crystals turning above the water: something to look at on the walk
-	-- down the dock, and a hint of what is down there.
-	for _, at in { Vector3.new(ox - 46, 12, oz - 58), Vector3.new(ox + 46, 12, oz - 58) } do
-		local crystal = CrystalShape.Build({
-			Color = theme.Spots[rng:NextInteger(1, #theme.Spots)],
-			Scale = rng:NextNumber(2.4, 3.2),
-			Shards = 6,
-			Segments = 3,
-			Seed = math.floor(at.X * 7 + at.Z),
-			Glow = 34,
-			Sparkle = true,
-		})
-		crystal.Name = "Landmark" .. index
-		crystal:PivotTo(CFrame.new(at))
-		crystal.Parent = parent
-		CollectionService:AddTag(crystal, "SpinCrystal")
-		crystal:SetAttribute("SpinSpeed", rng:NextNumber(0.18, 0.32))
-		crystal:SetAttribute("BobHeight", rng:NextNumber(1.2, 2.2))
-		crystal:SetAttribute("BobSpeed", rng:NextNumber(0.5, 0.8))
 	end
 
 	return nodes
@@ -3171,7 +3600,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">MiningService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3301,8 +3730,22 @@ local function rodDamage(data: any): number
 end
 
 local function biteDelay(data: any?): number
-	local speedup = data and math.clamp(1 - rodDamage(data) * 0.015, 0.5, 1) or 1
+	local speedup = if data then Balance.RodBiteFactor(rodDamage(data)) else 1
 	return rng:NextNumber(1.5, 4.0) * speedup
+end
+
+-- How many fish come up on one landing. The whole part of the rod's extra-catch
+-- value is guaranteed, the fraction is a roll — so upgrading always moves this
+-- number, however slightly, rather than stopping dead at a cap.
+local function catchCount(data: any): number
+	local extra = Balance.RodExtraCatch(rodDamage(data))
+	local guaranteed = math.floor(extra)
+	local chance = extra - guaranteed
+	local total = 1 + guaranteed
+	if rng:NextNumber() < chance then
+		total += 1
+	end
+	return total
 end
 
 local function landCatch(spot: BasePart, state: SpotState, player: Player)
@@ -3321,11 +3764,7 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 		return
 	end
 
-	local caught = 1
-	if rng:NextNumber() < math.min(rodDamage(data) * 0.02, 0.6) then
-		caught += 1 -- strong rods sometimes bring up two
-	end
-	caught = math.min(caught, space)
+	local caught = math.min(catchCount(data), space)
 
 	local chests = 0
 	local fish: { any } = {}
@@ -3361,8 +3800,11 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 		catchEffects(spot, label, first.Color or Color3.fromRGB(160, 220, 255))
 	end
 	if caught > 1 then
+		-- Late rods land five or six at a time, and calling that a "double hook"
+		-- reads as a string nobody updated.
+		local shout = if caught == 2 then "DOUBLE HOOK!" elseif caught <= 4 then "BIG HAUL!" else "THE WHOLE SHOAL!"
 		Remotes.Event("Notify"):FireClient(player, {
-			Text = "DOUBLE HOOK! +" .. caught .. " on the line!",
+			Text = ("%s  +%d on the line!"):format(shout, caught),
 			Color = Color3.fromRGB(120, 255, 200),
 		})
 	end
@@ -3522,7 +3964,7 @@ return MiningService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">MonetizationService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3708,11 +4150,11 @@ return MonetizationService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="24">
+      <Item class="Folder" referent="25">
         <Properties>
           <string name="Name">Packages</string>
         </Properties>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">ProfileStore</string>
             <string name="Source">--[[
@@ -5961,7 +6403,7 @@ return ProfileStore</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">PolicyGuard</string>
           <string name="Source"><![CDATA[--!strict
@@ -6013,7 +6455,7 @@ return PolicyGuard
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">RackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6188,7 +6630,7 @@ return RackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6274,7 +6716,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">RodVisual</string>
           <string name="Source"><![CDATA[--!strict
@@ -6318,6 +6760,10 @@ local function joint(part0: BasePart, part1: BasePart, offset: CFrame)
 	motor.Parent = part0
 end
 
+-- A rod, not a stick. Cork grip, a reel with a spool you can see, line guides up
+-- a blank that visibly tapers, and a line hanging off the tip to a bobber. The
+-- guides and the taper are what read as "fishing rod" at a glance; the hanging
+-- line is what makes it feel alive while you walk around with it.
 local function buildTool(tier: { [string]: any }): Tool
 	local tool = Instance.new("Tool")
 	tool.Name = tier.Name
@@ -6329,14 +6775,83 @@ local function buildTool(tier: { [string]: any }): Tool
 
 	local accentColor = tier.Color or Color3.fromRGB(190, 190, 200)
 	local accentMaterial = tier.Material or Enum.Material.Metal
+	local CORK = Color3.fromRGB(196, 160, 108)
+	local BLANK = Color3.fromRGB(58, 48, 44)
 
-	local handle = toolPart("Handle", Vector3.new(0.25, 5, 0.25), Color3.fromRGB(133, 95, 60), Enum.Material.Wood, tool)
-	local wrap = toolPart("GripWrap", Vector3.new(0.34, 1, 0.34), accentColor, accentMaterial, tool)
-	joint(handle, wrap, CFrame.new(0, -1.6, 0))
-	local reel = toolPart("Reel", Vector3.new(0.4, 0.4, 0.25), accentColor, accentMaterial, tool)
-	joint(handle, reel, CFrame.new(0.28, -1, 0))
-	local tip = toolPart("Tip", Vector3.new(0.32, 0.32, 0.32), accentColor, Enum.Material.Neon, tool)
-	joint(handle, tip, CFrame.new(0, 2.55, 0))
+	-- The Handle IS the grip, so Roblox puts the cork in the hand and everything
+	-- else hangs off it in the right place.
+	local handle = toolPart("Handle", Vector3.new(0.34, 1.5, 0.34), CORK, Enum.Material.Wood, tool)
+
+	-- Reel seat + spool, just above the grip on the right, where a reel goes.
+	local seat = toolPart("ReelSeat", Vector3.new(0.3, 0.5, 0.3), accentColor, accentMaterial, tool)
+	joint(handle, seat, CFrame.new(0, 0.95, 0))
+	local spool = toolPart("Spool", Vector3.new(0.7, 0.7, 0.34), accentColor, accentMaterial, tool)
+	spool.Shape = Enum.PartType.Cylinder
+	joint(handle, spool, CFrame.new(0.3, 0.9, 0) * CFrame.Angles(0, 0, math.rad(90)))
+	local knob = toolPart("ReelKnob", Vector3.new(0.14, 0.14, 0.3), Color3.fromRGB(40, 36, 34), Enum.Material.SmoothPlastic, tool)
+	joint(handle, knob, CFrame.new(0.52, 1.08, 0))
+
+	-- Blank: three sections that get thinner as they rise. A rod that tapers
+	-- reads as a rod; a uniform pole reads as a broom.
+	local sections = {
+		{ length = 1.9, thick = 0.2, at = 1.75 },
+		{ length = 1.9, thick = 0.145, at = 3.6 },
+		{ length = 1.7, thick = 0.095, at = 5.35 },
+	}
+	for i, section in sections do
+		local part = toolPart(
+			"Blank" .. i,
+			Vector3.new(section.thick, section.length, section.thick),
+			BLANK:Lerp(accentColor, i * 0.16),
+			Enum.Material.SmoothPlastic,
+			tool
+		)
+		joint(handle, part, CFrame.new(0, section.at, 0))
+		-- A guide ring near the top of each section, which is where they go.
+		local guide = toolPart(
+			"Guide" .. i,
+			Vector3.new(0.07, 0.3, 0.3),
+			accentColor,
+			accentMaterial,
+			tool
+		)
+		guide.Shape = Enum.PartType.Cylinder
+		joint(handle, guide, CFrame.new(0, section.at + section.length * 0.42, 0.1) * CFrame.Angles(0, math.rad(90), 0))
+	end
+
+	local tip = toolPart("Tip", Vector3.new(0.16, 0.16, 0.16), accentColor, Enum.Material.Neon, tool)
+	joint(handle, tip, CFrame.new(0, 6.25, 0))
+
+	-- The line: a Beam, not a thin part. Beams sag between their attachments, so
+	-- the line hangs the way a line hangs instead of standing out rigid — and it
+	-- costs one instance rather than a chain of segments.
+	local bobber = toolPart("Bobber", Vector3.new(0.34, 0.34, 0.34), Color3.fromRGB(230, 60, 60), Enum.Material.SmoothPlastic, tool)
+	bobber.Shape = Enum.PartType.Ball
+	joint(handle, bobber, CFrame.new(0, 4.5, 0.85))
+	local bobberBase = toolPart("BobberBase", Vector3.new(0.3, 0.16, 0.3), Color3.fromRGB(248, 248, 250), Enum.Material.SmoothPlastic, tool)
+	bobberBase.Shape = Enum.PartType.Ball
+	joint(handle, bobberBase, CFrame.new(0, 4.36, 0.85))
+
+	local fromTip = Instance.new("Attachment")
+	fromTip.Parent = tip
+	local toBobber = Instance.new("Attachment")
+	toBobber.Parent = bobber
+
+	local line = Instance.new("Beam")
+	line.Name = "Line"
+	line.Attachment0 = fromTip
+	line.Attachment1 = toBobber
+	line.Width0 = 0.035
+	line.Width1 = 0.035
+	line.FaceCamera = true
+	line.Transparency = NumberSequence.new(0.15)
+	line.LightInfluence = 1
+	line.Color = ColorSequence.new(if tier.Glow then accentColor else Color3.fromRGB(238, 240, 245))
+	-- Sag: pull the curve control points down so the slack hangs below the
+	-- straight line between tip and bobber.
+	line.CurveSize0 = -0.8
+	line.CurveSize1 = -0.8
+	line.Parent = tip
 
 	if tier.Glow then
 		local light = Instance.new("PointLight")
@@ -6416,7 +6931,7 @@ return RodVisual
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6658,7 +7173,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">Spotlight</string>
           <string name="Source"><![CDATA[--!strict
@@ -6723,7 +7238,7 @@ return Spotlight
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6818,7 +7333,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6893,16 +7408,16 @@ return UpgradeService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="34">
+  <Item class="StarterPlayer" referent="35">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterWalkSpeed">20</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="35">
+    <Item class="StarterPlayerScripts" referent="36">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="36">
+      <Item class="LocalScript" referent="37">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -6930,6 +7445,7 @@ local State = require(script.State)
 local ScreenManager = require(script.ScreenManager)
 local FlexAura = require(script.FlexAura)
 local WorldFx = require(script.WorldFx)
+local AquariumView = require(script.AquariumView)
 local MiningInput = require(script.MiningInput)
 local ObjectiveBanner = require(script.ObjectiveBanner)
 local RebirthFx = require(script.RebirthFx)
@@ -6955,6 +7471,7 @@ gui.Parent = playerGui
 
 State.Init()
 WorldFx.Init()
+AquariumView.Init()
 FlexAura.Init()
 MiningInput.Init()
 Toasts.Init(gui)
@@ -6989,7 +7506,183 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt)
 end)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
+          <Properties>
+            <string name="Name">AquariumView</string>
+            <string name="Source"><![CDATA[--!strict
+-- The aquarium tank, filled with the fish YOU have on display.
+--
+-- Racks are per player, so the tank has to be: what you see swimming is your own
+-- socketed fish, not a shared decoration and not the player standing next to
+-- you. That makes this client-side work by necessity — and by luck, because a
+-- tank that costs the server nothing can afford to actually animate.
+--
+-- The point of it is simple: a number on a screen saying "4 / 8 tanks" is not a
+-- reason to socket a fifth fish. Watching the tank get busier is.
+
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Crystals = require(Shared.Config.Crystals)
+local FishShape = require(Shared.FishShape)
+local State = require(script.Parent.State)
+
+local AquariumView = {}
+
+type Swimmer = {
+	Model: Model,
+	Center: Vector3,
+	Radius: Vector3, -- how far it may drift on each axis
+	Speed: number,
+	Phase: number,
+	Depth: number,
+}
+
+local tank: BasePart? = nil
+local swimmers: { Swimmer } = {}
+local container: Folder? = nil
+local rng = Random.new()
+-- What the tank is currently showing, so an identical state push doesn't rebuild
+-- eight models sixty times a second.
+local signature = ""
+
+local function clear()
+	if container then
+		container:Destroy()
+		container = nil
+	end
+	table.clear(swimmers)
+end
+
+-- One fish per occupied rack slot, spread across the tank's volume so they do
+-- not stack into one spot when several are added at once.
+local function rebuild(state: any)
+	local water = tank
+	if not water then
+		return
+	end
+	clear()
+
+	local folder = Instance.new("Folder")
+	folder.Name = "AquariumFish"
+	folder.Parent = water
+	container = folder
+
+	local slots: { string } = {}
+	for slot in state.Racks do
+		table.insert(slots, slot)
+	end
+	table.sort(slots)
+
+	local size = water.Size
+	for index, slot in slots do
+		local rack = state.Racks[slot]
+		local fish = rack and state.Crystals[rack.CrystalId]
+		if fish then
+			local def = Crystals.GetBase(fish.Base)
+			local mutation = Crystals.GetMutation(fish.Mut)
+			local model = FishShape.Build({
+				-- Aura tints the fish rather than replacing its colour, so a
+				-- Gilded trout still looks like a trout.
+				Color = if mutation and mutation.Color
+					then (def and def.Color or Color3.new(1, 1, 1)):Lerp(mutation.Color, 0.55)
+					else (def and def.Color or Color3.fromRGB(200, 200, 200)),
+				-- Tank fish are small; the tank is ~9 studs across and has to hold
+				-- eight of them without becoming a traffic jam.
+				Scale = 0.26 * math.clamp(fish.Size or 1, 0.9, 2.2),
+				Seed = index * 13 + #fish.Base,
+				Sparkle = fish.Mut ~= "Normal",
+			})
+			model.Parent = folder
+
+			-- Lanes: each fish gets its own height band and its own orbit, so
+			-- eight of them read as a school rather than as one blur.
+			local lane = (index - 0.5) / math.max(#slots, 1)
+			table.insert(swimmers, {
+				Model = model,
+				Center = water.Position + Vector3.new(0, (lane - 0.5) * (size.Y * 0.55), 0),
+				Radius = Vector3.new(size.X * 0.3, size.Y * 0.12, size.Z * 0.22),
+				Speed = rng:NextNumber(0.35, 0.62),
+				Phase = rng:NextNumber(0, math.pi * 2),
+				Depth = rng:NextNumber(-0.6, 0.6),
+			})
+		end
+	end
+end
+
+-- Cheap identity for "what should be in the tank": rebuild only when the set of
+-- displayed fish actually changes, not on every coin tick.
+local function signatureOf(state: any): string
+	local parts: { string } = {}
+	for slot, rack in state.Racks do
+		local fish = state.Crystals[rack.CrystalId]
+		if fish then
+			table.insert(parts, ("%s:%s|%s|%.2f"):format(slot, fish.Base, fish.Mut, fish.Size or 1))
+		end
+	end
+	table.sort(parts)
+	return table.concat(parts, ",")
+end
+
+function AquariumView.Init()
+	local function adopt(instance: Instance)
+		if instance:IsA("BasePart") and not tank then
+			tank = instance
+			signature = ""
+			local state = State.Get()
+			if state then
+				signature = signatureOf(state)
+				rebuild(state)
+			end
+		end
+	end
+	for _, tagged in CollectionService:GetTagged("AquariumTank") do
+		adopt(tagged)
+	end
+	CollectionService:GetInstanceAddedSignal("AquariumTank"):Connect(adopt)
+
+	State.Changed:Connect(function(state)
+		if not tank or not state or not state.Racks or not state.Crystals then
+			return
+		end
+		local next = signatureOf(state)
+		if next ~= signature then
+			signature = next
+			rebuild(state)
+		end
+	end)
+
+	local clock = 0
+	RunService.RenderStepped:Connect(function(dt: number)
+		if #swimmers == 0 then
+			return
+		end
+		clock += dt
+		for _, swimmer in swimmers do
+			local t = clock * swimmer.Speed + swimmer.Phase
+			-- A flattened figure-of-eight: it turns at the ends of the tank the
+			-- way a fish does, instead of orbiting like a carousel horse.
+			local x = math.sin(t) * swimmer.Radius.X
+			local y = math.sin(t * 2.1) * swimmer.Radius.Y
+			local z = math.sin(t * 0.7 + swimmer.Depth) * swimmer.Radius.Z
+			-- Face along the path. The nose is +X, and the fish is moving in the
+			-- direction the sine is heading, so cos gives the heading directly.
+			local heading = if math.cos(t) >= 0 then 0 else math.pi
+			swimmer.Model:PivotTo(
+				CFrame.new(swimmer.Center + Vector3.new(x, y, z))
+					* CFrame.Angles(0, heading, math.sin(t * 2.1) * 0.12)
+			)
+		end
+	end)
+end
+
+return AquariumView
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">FlexAura</string>
             <string name="Source"><![CDATA[--!strict
@@ -7130,19 +7823,22 @@ return FlexAura
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">GemView</string>
             <string name="Source"><![CDATA[--!strict
--- A real, rotating 3D crystal rendered inside a UI frame. Reveal cards used to
--- show a tilted coloured square; this shows the actual rock, turning, catching
--- the light — the thing worth screenshotting.
+-- A real, swimming 3D fish rendered inside a UI frame. Reveal cards, the Index
+-- and the trophy over your head all draw through here, so what you catch and
+-- what you see are the same object.
+--
+-- (Module name stays GemView — it is the engine's "collectible in a viewport"
+-- widget, the same way Crystals holds fish and CrackService opens chests.)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local CrystalShape = require(Shared.CrystalShape)
+local FishShape = require(Shared.FishShape)
 
 local GemView = {}
 
@@ -7155,7 +7851,7 @@ export type Props = {
 	ZIndex: number?,
 	Spin: number?,
 	Seed: number?,
-	Shards: number?,
+	Shards: number?, -- kept for call-site compatibility; unused by the fish build
 }
 
 function GemView.Create(props: Props): ViewportFrame
@@ -7166,24 +7862,26 @@ function GemView.Create(props: Props): ViewportFrame
 	viewport.AnchorPoint = props.AnchorPoint or Vector2.new(0, 0)
 	viewport.BackgroundTransparency = 1
 	viewport.ZIndex = props.ZIndex or 2
-	-- Neon renders flat-bright in a viewport; full ambient keeps the facets from
-	-- going muddy on low graphics settings.
-	viewport.Ambient = Color3.fromRGB(255, 255, 255)
-	viewport.LightColor = Color3.fromRGB(255, 255, 255)
-	viewport.LightDirection = Vector3.new(-0.4, -1, -0.6)
+	-- Partial ambient, not full. The crystals needed full ambient because Neon
+	-- renders flat and went muddy without it; a fish is SmoothPlastic and needs
+	-- the opposite — enough directional light to separate body from fin from
+	-- tail. Blow the ambient out and the silhouette flattens into one shape.
+	viewport.Ambient = Color3.fromRGB(150, 158, 175)
+	viewport.LightColor = Color3.fromRGB(255, 252, 240)
+	viewport.LightDirection = Vector3.new(-0.35, -1, -0.55)
 
-	local model = CrystalShape.Build({
+	local model = FishShape.Build({
 		Color = props.Color,
 		Scale = 1,
-		Shards = props.Shards or 5,
-		Segments = 3,
 		Seed = props.Seed or 11,
 	})
 	model.Parent = viewport
 
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 42
-	camera.CFrame = CFrame.lookAt(Vector3.new(0, 2.1, 7.4), Vector3.new(0, 1.5, 0))
+	-- Slightly off the beam and a touch above: dead side-on reads as a sticker,
+	-- and dead front-on hides the whole fish behind its own nose.
+	camera.CFrame = CFrame.lookAt(Vector3.new(1.6, 1.4, 6.6), Vector3.new(0, 0, 0))
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
 
@@ -7199,7 +7897,7 @@ function GemView.Create(props: Props): ViewportFrame
 		end
 	end
 	-- Watch ancestry, not viewport.Parent: when an ANCESTOR is removed the
-	-- viewport keeps its own parent, so a Parent check never fires and the spin
+	-- viewport keeps its own parent, so a Parent check never fires and the swim
 	-- would run forever holding the model in memory. Characters get removed that
 	-- way, and every player wears one of these.
 	viewport.Destroying:Once(stop)
@@ -7209,14 +7907,19 @@ function GemView.Create(props: Props): ViewportFrame
 		end
 	end)
 	connection = RunService.RenderStepped:Connect(function(dt: number)
-		-- A gem nobody can see does not need to turn. With fifteen players
+		-- A fish nobody can see does not need to swim. With fifteen players
 		-- wearing one of these over their head, the ones behind you, off screen,
 		-- or past the billboard's MaxDistance are the common case.
 		if not viewport.Visible or viewport.AbsoluteSize.X < 1 then
 			return
 		end
 		clock += dt * speed
-		model:PivotTo(CFrame.Angles(0, clock, 0))
+		-- Turning on the spot, but leaning and bobbing with it, so it reads as
+		-- swimming rather than as a model on a turntable.
+		model:PivotTo(
+			CFrame.new(0, math.sin(clock * 1.6) * 0.16, 0)
+				* CFrame.Angles(0, clock, math.sin(clock * 2.2) * 0.13)
+		)
 	end)
 
 	return viewport
@@ -7226,7 +7929,7 @@ return GemView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -7634,7 +8337,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">MiningInput</string>
             <string name="Source"><![CDATA[--!strict
@@ -7747,7 +8450,7 @@ return MiningInput
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">ObjectiveBanner</string>
             <string name="Source"><![CDATA[--!strict
@@ -7841,7 +8544,7 @@ return ObjectiveBanner
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -7880,7 +8583,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">RebirthFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -8069,7 +8772,7 @@ return RebirthFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -8088,6 +8791,14 @@ RevealFx.ShellStroke = Color3.fromRGB(255, 200, 60)
 -- How the shell comes apart. A geode cracks down the middle into two
 -- hemispheres; a treasure chest hinges its lid up instead.
 RevealFx.SplitVertical = true -- chests hinge their lid open
+-- What the shell IS. "Geode" is a round rock; "Chest" is a banded wooden box
+-- with a lock. Both use the same clipped-halves machinery — only the shape
+-- drawn inside each half differs — because that machinery is the part that was
+-- hard to get right (see the no-rotation note further down).
+RevealFx.ShellStyle = "Chest"
+RevealFx.ChestWood = Color3.fromRGB(122, 80, 44)
+RevealFx.ChestDarkWood = Color3.fromRGB(88, 56, 30)
+RevealFx.ChestBand = Color3.fromRGB(230, 178, 62)
 
 local TICK_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 local THUD_SOUND = "rbxasset://sounds/snap.mp3"
@@ -8143,9 +8854,74 @@ end
 
 local GEODE_SIZE = 180
 
--- One half of the shell: a clipped frame showing exactly half of the rounded
--- shape, so the two of them sit flush as one object until they come apart.
--- `isFirst` is the left half when splitting sideways, the top half when hinging.
+-- The wooden slats, iron bands and lock plate that make the shell read as a
+-- treasure chest rather than a brown circle. Drawn onto the full-size shape
+-- inside a half, so the clip cuts through them exactly like it cuts the box.
+-- `isLid` gets the curved top and the keyhole; the base gets the feet.
+local function dressAsChest(box: Frame, isLid: boolean)
+	box.BackgroundColor3 = RevealFx.ChestWood
+	local corner = box:FindFirstChildOfClass("UICorner")
+	if corner then
+		-- A chest has a rounded lid and a square base. One radius for the whole
+		-- box is close enough at this size and keeps it one frame.
+		corner.CornerRadius = UDim.new(0, if isLid then 34 else 10)
+	end
+
+	-- Plank seams: darker horizontal lines across the wood.
+	for i = 1, 3 do
+		local plank = Instance.new("Frame")
+		plank.AnchorPoint = Vector2.new(0.5, 0.5)
+		plank.Position = UDim2.fromScale(0.5, 0.22 + (i - 1) * 0.26)
+		plank.Size = UDim2.new(1, 0, 0, 3)
+		plank.BackgroundColor3 = RevealFx.ChestDarkWood
+		plank.BorderSizePixel = 0
+		plank.ZIndex = 3
+		plank.Parent = box
+	end
+
+	-- Iron bands: two vertical straps holding the box together, which is the
+	-- detail that says "chest" fastest at a glance.
+	for _, at in { 0.22, 0.78 } do
+		local band = Instance.new("Frame")
+		band.AnchorPoint = Vector2.new(0.5, 0.5)
+		band.Position = UDim2.fromScale(at, 0.5)
+		band.Size = UDim2.new(0, 16, 1, 0)
+		band.BackgroundColor3 = RevealFx.ChestBand
+		band.BorderSizePixel = 0
+		band.ZIndex = 4
+		band.Parent = box
+	end
+
+	-- The lock: a gold plate straddling the seam, with a dark keyhole.
+	local plate = Instance.new("Frame")
+	plate.AnchorPoint = Vector2.new(0.5, 0.5)
+	plate.Position = UDim2.fromScale(0.5, if isLid then 0.94 else 0.06)
+	plate.Size = UDim2.fromOffset(40, 34)
+	plate.BackgroundColor3 = RevealFx.ChestBand
+	plate.BorderSizePixel = 0
+	plate.ZIndex = 5
+	plate.Parent = box
+	local plateCorner = Instance.new("UICorner")
+	plateCorner.CornerRadius = UDim.new(0, 6)
+	plateCorner.Parent = plate
+	if not isLid then
+		local keyhole = Instance.new("Frame")
+		keyhole.AnchorPoint = Vector2.new(0.5, 0.5)
+		keyhole.Position = UDim2.fromScale(0.5, 0.6)
+		keyhole.Size = UDim2.fromOffset(9, 13)
+		keyhole.BackgroundColor3 = Color3.fromRGB(40, 28, 16)
+		keyhole.BorderSizePixel = 0
+		keyhole.ZIndex = 6
+		keyhole.Parent = plate
+		local keyCorner = Instance.new("UICorner")
+		keyCorner.CornerRadius = UDim.new(0, 4)
+		keyCorner.Parent = keyhole
+	end
+end
+
+-- One half of the shell: a clipped frame showing exactly half of the shape, so
+-- the two of them sit flush as one object until they come apart. `isFirst` is
+-- the left half when splitting sideways, the LID when hinging.
 local function makeHalf(parent: Frame, isFirst: boolean): Frame
 	local vertical = RevealFx.SplitVertical
 	local half = Instance.new("Frame")
@@ -8178,6 +8954,10 @@ local function makeHalf(parent: Frame, isFirst: boolean): Frame
 	stroke.Color = RevealFx.ShellStroke
 	stroke.Thickness = 5
 	stroke.Parent = rock
+
+	if RevealFx.ShellStyle == "Chest" then
+		dressAsChest(rock, isFirst)
+	end
 
 	return half
 end
@@ -8229,21 +9009,48 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 	local interiorCorner = Instance.new("UICorner")
 	interiorCorner.CornerRadius = UDim.new(1, 0)
 	interiorCorner.Parent = interior
-	-- Crystal teeth lining the cavity, so the open geode is jagged rather than
-	-- a plain coloured disc.
-	local toothRng = Random.new(7)
-	for i = 1, 14 do
-		local angle = (i / 14) * math.pi * 2
-		local tooth = Instance.new("Frame")
-		tooth.AnchorPoint = Vector2.new(0.5, 0.5)
-		tooth.Position = UDim2.new(0.5, math.cos(angle) * 62, 0.5, math.sin(angle) * 62)
-		tooth.Size = UDim2.fromOffset(toothRng:NextInteger(10, 18), toothRng:NextInteger(22, 40))
-		tooth.Rotation = math.deg(angle) + 90
-		tooth.BackgroundColor3 = Color3.new(1, 1, 1):Lerp(options.Color, 0.55)
-		tooth.BackgroundTransparency = 0.15
-		tooth.BorderSizePixel = 0
-		tooth.ZIndex = 2
-		tooth.Parent = interior
+
+	local fillRng = Random.new(7)
+	if RevealFx.ShellStyle == "Chest" then
+		interiorCorner.CornerRadius = UDim.new(0, 12)
+		-- A chest is full of treasure, not lined with rock. Coins heaped toward
+		-- the bottom so the pile has a shape instead of being scattered evenly.
+		for i = 1, 22 do
+			local coin = Instance.new("Frame")
+			coin.AnchorPoint = Vector2.new(0.5, 0.5)
+			local size = fillRng:NextInteger(14, 26)
+			coin.Position = UDim2.fromScale(
+				fillRng:NextNumber(0.14, 0.86),
+				fillRng:NextNumber(0.42, 0.9) + fillRng:NextNumber(0, 0.08)
+			)
+			coin.Size = UDim2.fromOffset(size, size)
+			coin.Rotation = fillRng:NextInteger(0, 179)
+			coin.BackgroundColor3 = if i % 4 == 0
+				then Color3.new(1, 1, 1):Lerp(options.Color, 0.5)
+				else RevealFx.ChestBand:Lerp(Color3.new(1, 1, 1), fillRng:NextNumber(0, 0.35))
+			coin.BorderSizePixel = 0
+			coin.ZIndex = 2
+			coin.Parent = interior
+			local coinCorner = Instance.new("UICorner")
+			coinCorner.CornerRadius = UDim.new(1, 0)
+			coinCorner.Parent = coin
+		end
+	else
+		-- Crystal teeth lining the cavity, so the open geode is jagged rather
+		-- than a plain coloured disc.
+		for i = 1, 14 do
+			local angle = (i / 14) * math.pi * 2
+			local tooth = Instance.new("Frame")
+			tooth.AnchorPoint = Vector2.new(0.5, 0.5)
+			tooth.Position = UDim2.new(0.5, math.cos(angle) * 62, 0.5, math.sin(angle) * 62)
+			tooth.Size = UDim2.fromOffset(fillRng:NextInteger(10, 18), fillRng:NextInteger(22, 40))
+			tooth.Rotation = math.deg(angle) + 90
+			tooth.BackgroundColor3 = Color3.new(1, 1, 1):Lerp(options.Color, 0.55)
+			tooth.BackgroundTransparency = 0.15
+			tooth.BorderSizePixel = 0
+			tooth.ZIndex = 2
+			tooth.Parent = interior
+		end
 	end
 
 	local firstHalf = makeHalf(geode, true) -- left, or the lid when hinged
@@ -8484,7 +9291,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -8541,11 +9348,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="46">
+        <Item class="Folder" referent="48">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="47">
+          <Item class="ModuleScript" referent="49">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9172,7 +9979,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="48">
+          <Item class="ModuleScript" referent="50">
             <Properties>
               <string name="Name">DockScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9323,7 +10130,7 @@ return DockScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="49">
+          <Item class="ModuleScript" referent="51">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9462,7 +10269,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="50">
+          <Item class="ModuleScript" referent="52">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9754,7 +10561,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9852,7 +10659,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -10113,7 +10920,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="53">
+          <Item class="ModuleScript" referent="55">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -10295,7 +11102,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -10342,7 +11149,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -10694,7 +11501,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="58">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -10854,7 +11661,7 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="57">
+        <Item class="ModuleScript" referent="59">
           <Properties>
             <string name="Name">WorldFx</string>
             <string name="Source"><![CDATA[--!strict

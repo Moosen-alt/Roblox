@@ -125,8 +125,22 @@ local function rodDamage(data: any): number
 end
 
 local function biteDelay(data: any?): number
-	local speedup = data and math.clamp(1 - rodDamage(data) * 0.015, 0.5, 1) or 1
+	local speedup = if data then Balance.RodBiteFactor(rodDamage(data)) else 1
 	return rng:NextNumber(1.5, 4.0) * speedup
+end
+
+-- How many fish come up on one landing. The whole part of the rod's extra-catch
+-- value is guaranteed, the fraction is a roll — so upgrading always moves this
+-- number, however slightly, rather than stopping dead at a cap.
+local function catchCount(data: any): number
+	local extra = Balance.RodExtraCatch(rodDamage(data))
+	local guaranteed = math.floor(extra)
+	local chance = extra - guaranteed
+	local total = 1 + guaranteed
+	if rng:NextNumber() < chance then
+		total += 1
+	end
+	return total
 end
 
 local function landCatch(spot: BasePart, state: SpotState, player: Player)
@@ -145,11 +159,7 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 		return
 	end
 
-	local caught = 1
-	if rng:NextNumber() < math.min(rodDamage(data) * 0.02, 0.6) then
-		caught += 1 -- strong rods sometimes bring up two
-	end
-	caught = math.min(caught, space)
+	local caught = math.min(catchCount(data), space)
 
 	local chests = 0
 	local fish: { any } = {}
@@ -185,8 +195,11 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 		catchEffects(spot, label, first.Color or Color3.fromRGB(160, 220, 255))
 	end
 	if caught > 1 then
+		-- Late rods land five or six at a time, and calling that a "double hook"
+		-- reads as a string nobody updated.
+		local shout = if caught == 2 then "DOUBLE HOOK!" elseif caught <= 4 then "BIG HAUL!" else "THE WHOLE SHOAL!"
 		Remotes.Event("Notify"):FireClient(player, {
-			Text = "DOUBLE HOOK! +" .. caught .. " on the line!",
+			Text = ("%s  +%d on the line!"):format(shout, caught),
 			Color = Color3.fromRGB(120, 255, 200),
 		})
 	end

@@ -10,7 +10,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
-local CrystalShape = require(Shared.CrystalShape)
+local FishShape = require(Shared.FishShape)
 
 local MapBuilder = {}
 
@@ -70,14 +70,6 @@ local AREA_THEMES: { AreaTheme } = {
 	},
 }
 
-local SPOT_COLORS = {
-	Color3.fromRGB(255, 120, 120),
-	Color3.fromRGB(120, 220, 255),
-	Color3.fromRGB(255, 200, 60),
-	Color3.fromRGB(120, 255, 160),
-	Color3.fromRGB(255, 150, 220),
-	Color3.fromRGB(180, 160, 255),
-}
 
 local rng = Random.new(20260804)
 
@@ -143,6 +135,11 @@ end
 -- piece of furniture). Players walk up the beach from the dock (-Z), so the
 -- furniture sits on the +Z half of each pad and the front stays open.
 --------------------------------------------------------------------------------
+
+-- The aquarium's glass volume, shared between the builder here and the client
+-- that swims fish inside it (AquariumView reads the tagged part's own Size, so
+-- this constant only has to be right in one place).
+local TANK_SIZE = Vector3.new(9, 5.2, 3.6)
 
 local WOOD = Color3.fromRGB(120, 88, 54)
 local DARK_WOOD = Color3.fromRGB(92, 64, 40)
@@ -220,51 +217,77 @@ end
 
 -- Aquarium: a glass tank on a wooden table with a relic glowing inside.
 local function decorateRacks(position: Vector3, _color: Color3, parent: Instance)
-	for _, x in { -2.1, 2.1 } do
+	for _, x in { -3.8, 3.8 } do
 		deco({
 			Name = "TableLeg",
-			Size = Vector3.new(0.5, 0.6, 2.6),
-			Position = position + Vector3.new(x, 0.8, 3.2),
+			Size = Vector3.new(0.6, 1.1, 3),
+			Position = position + Vector3.new(x, 0.55, 3.2),
 			Color = DARK_WOOD,
 			Material = Enum.Material.Wood,
 		}, parent)
 	end
 	deco({
 		Name = "AquariumTable",
-		Size = Vector3.new(5, 0.6, 3),
-		Position = position + Vector3.new(0, 1.4, 3.2),
+		Size = Vector3.new(9.6, 0.7, 3.9),
+		Position = position + Vector3.new(0, 1.45, 3.2),
 		Color = WOOD,
 		Material = Enum.Material.WoodPlanks,
 	}, parent)
-	deco({
+	-- A big tank, because the fish in it have to be legible from outside the
+	-- glass. The old one was 4x2 studs with two ornaments glued in it; you could
+	-- not have told eight fish apart in there, let alone watched them swim.
+	local tankCenter = position + Vector3.new(0, 3.6, 3.2)
+	local water = deco({
 		Name = "AquariumWater",
-		Size = Vector3.new(4.1, 1.7, 2.1),
-		Position = position + Vector3.new(0, 2.6, 3.2),
+		Size = Vector3.new(TANK_SIZE.X - 0.4, TANK_SIZE.Y - 0.5, TANK_SIZE.Z - 0.4),
+		Position = tankCenter - Vector3.new(0, 0.2, 0),
 		Color = Color3.fromRGB(70, 160, 235),
 		Material = Enum.Material.SmoothPlastic,
-		Transparency = 0.45,
+		Transparency = 0.62,
 	}, parent)
 	deco({
 		Name = "AquariumGlass",
-		Size = Vector3.new(4.4, 2.4, 2.4),
-		Position = position + Vector3.new(0, 2.9, 3.2),
+		Size = TANK_SIZE,
+		Position = tankCenter,
 		Color = Color3.fromRGB(170, 225, 255),
 		Material = Enum.Material.Glass,
-		Transparency = 0.55,
+		Transparency = 0.72,
 	}, parent)
-	for i, x in { -0.9, 0.8 } do
-		local relic = CrystalShape.Build({
-			Color = SPOT_COLORS[rng:NextInteger(1, #SPOT_COLORS)],
-			Scale = 0.3,
-			Shards = 4,
-			Segments = 2,
-			Seed = 90 + i * 7,
-			Glow = 8,
-		})
-		relic.Name = "TankRelic"
-		relic:PivotTo(CFrame.new(position + Vector3.new(x, 1.9, 3.2)))
-		relic.Parent = parent
+	-- The client fills this with THIS player's socketed fish — racks are per
+	-- player, so the tank has to be, and a local fill costs the server nothing.
+	CollectionService:AddTag(water, "AquariumTank")
+
+	-- Gravel, plants and a bubble stream, so an empty tank still looks like a
+	-- tank rather than a blue box waiting for content.
+	deco({
+		Name = "TankGravel",
+		Size = Vector3.new(TANK_SIZE.X - 0.5, 0.4, TANK_SIZE.Z - 0.5),
+		Position = tankCenter - Vector3.new(0, TANK_SIZE.Y / 2 - 0.35, 0),
+		Color = Color3.fromRGB(198, 176, 140),
+		Material = Enum.Material.Sand,
+	}, parent)
+	for i = 1, 5 do
+		local height = rng:NextNumber(1.2, 2.6)
+		deco({
+			Name = "TankPlant" .. i,
+			Size = Vector3.new(0.22, height, 0.22),
+			CFrame = CFrame.new(
+				tankCenter + Vector3.new(rng:NextNumber(-3, 3), -TANK_SIZE.Y / 2 + height / 2 + 0.5, rng:NextNumber(-1, 1))
+			) * CFrame.Angles(0, rng:NextNumber(0, 3), rng:NextNumber(-0.25, 0.25)),
+			Color = Color3.fromRGB(60, 150, 90),
+			Material = Enum.Material.Grass,
+		}, parent)
 	end
+	local bubbles = Instance.new("ParticleEmitter")
+	bubbles.Color = ColorSequence.new(Color3.fromRGB(220, 245, 255))
+	bubbles.Size = NumberSequence.new(0.12, 0.02)
+	bubbles.Transparency = NumberSequence.new(0.4, 1)
+	bubbles.Lifetime = NumberRange.new(1.4, 2.2)
+	bubbles.Rate = 7
+	bubbles.Speed = NumberRange.new(1.4, 2.4)
+	bubbles.SpreadAngle = Vector2.new(6, 6)
+	bubbles.Acceleration = Vector3.new(0, 2, 0)
+	bubbles.Parent = water
 end
 
 -- Chest Shop: a market stall — counter out front, striped awning overhead,
@@ -484,6 +507,180 @@ local function makeBoard(position: Vector3, lookAt: Vector3, title: string, pare
 	return board
 end
 
+--------------------------------------------------------------------------------
+-- Scenery. An empty sand rectangle with twelve glowing balls on it is a test
+-- level, not a place — and the areas need to look DIFFERENT from each other or
+-- paying 45,000 coins to reach the next one buys you a recolour.
+--
+-- Everything here is decoration: no collision, no raycast queries. A cast that
+-- died on a rock or a crate would be a bug the player could not see the cause of.
+--------------------------------------------------------------------------------
+
+-- Sea stacks: weathered rock pillars standing out of the water. Cheap, big, and
+-- they give the horizon something to be other than empty.
+local function makeSeaStack(at: Vector3, height: number, tint: Color3, parent: Instance)
+	local segments = math.max(math.floor(height / 5), 2)
+	for i = 1, segments do
+		local t = (i - 1) / segments
+		local width = (7 - t * 4) * rng:NextNumber(0.85, 1.15)
+		local rock = deco({
+			Name = "StackRock",
+			Size = Vector3.new(width, height / segments + 1, width * rng:NextNumber(0.8, 1.2)),
+			CFrame = CFrame.new(at + Vector3.new(rng:NextNumber(-1, 1), (i - 0.5) * (height / segments), rng:NextNumber(-1, 1)))
+				* CFrame.Angles(rng:NextNumber(-0.08, 0.08), rng:NextNumber(0, 3), rng:NextNumber(-0.08, 0.08)),
+			Color = Color3.fromRGB(96, 92, 100):Lerp(tint, 0.25),
+			Material = Enum.Material.Rock,
+		}, parent)
+		rock.CanCollide = false
+	end
+end
+
+-- A tall strand of kelp or coral, swaying is left to the client tag.
+local function makeStrand(at: Vector3, height: number, color: Color3, material: Enum.Material, parent: Instance)
+	local segments = math.max(math.floor(height / 3), 2)
+	for i = 1, segments do
+		local lean = (i / segments) * rng:NextNumber(-0.5, 0.5)
+		deco({
+			Name = "Strand",
+			Size = Vector3.new(0.7, height / segments + 0.4, 0.35),
+			CFrame = CFrame.new(at + Vector3.new(lean * 2, (i - 0.5) * (height / segments), 0))
+				* CFrame.Angles(0, rng:NextNumber(0, 3), lean),
+			Color = color:Lerp(Color3.new(0, 0, 0), (i / segments) * 0.2),
+			Material = material,
+		}, parent)
+	end
+end
+
+-- Dockside clutter: a crate, a barrel and a coil of rope. Small props at human
+-- scale are what make a big empty space read as somewhere people work.
+local function makeDockClutter(at: Vector3, parent: Instance)
+	deco({
+		Name = "Crate",
+		Size = Vector3.new(2.2, 2.2, 2.2),
+		CFrame = CFrame.new(at) * CFrame.Angles(0, rng:NextNumber(0, 3), 0),
+		Color = WOOD,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	deco({
+		Name = "Barrel",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(2.4, 1.7, 1.7),
+		CFrame = CFrame.new(at + Vector3.new(2.6, -0.2, 0.6)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = DARK_WOOD,
+		Material = Enum.Material.Wood,
+	}, parent)
+	for i = 1, 3 do
+		deco({
+			Name = "Rope" .. i,
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.18, 1.6 - i * 0.25, 1.6 - i * 0.25),
+			CFrame = CFrame.new(at + Vector3.new(-2.4, -0.95 + i * 0.18, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(196, 176, 130),
+			Material = Enum.Material.Fabric,
+		}, parent)
+	end
+end
+
+local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
+	-- Sea stacks out in the water, off to both sides so they frame the fishing
+	-- arc instead of standing in it.
+	for i = 1, 6 do
+		local side = if i % 2 == 0 then 1 else -1
+		makeSeaStack(
+			Vector3.new(ox + side * rng:NextNumber(58, 120), -3, oz - rng:NextNumber(30, 130)),
+			rng:NextNumber(14, 34),
+			theme.Water,
+			parent
+		)
+	end
+
+	-- Growth on the sea floor, themed per area: palms up top already, kelp and
+	-- coral below the surface. Deep areas get glowing strands instead, which is
+	-- most of what makes the Trench and the Abyss feel like different water.
+	local strandColor, strandMaterial
+	if index <= 1 then
+		strandColor, strandMaterial = Color3.fromRGB(90, 190, 120), Enum.Material.Grass
+	elseif index == 2 then
+		strandColor, strandMaterial = Color3.fromRGB(60, 150, 90), Enum.Material.Grass
+	elseif index == 3 then
+		strandColor, strandMaterial = Color3.fromRGB(255, 130, 180), Enum.Material.Neon
+	else
+		strandColor, strandMaterial = theme.Spots[1], Enum.Material.Neon
+	end
+	for _ = 1, 26 do
+		local at = Vector3.new(ox + rng:NextNumber(-120, 120), -5.5, oz - rng:NextNumber(10, 140))
+		makeStrand(at, rng:NextNumber(4, 11), strandColor, strandMaterial, parent)
+	end
+
+	-- Beached rocks and driftwood on the sand
+	for _ = 1, 14 do
+		local size = rng:NextNumber(1.6, 5)
+		deco({
+			Name = "ShoreRock",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(size, size * rng:NextNumber(0.5, 0.8), size * rng:NextNumber(0.7, 1.2)),
+			CFrame = CFrame.new(ox + rng:NextNumber(-120, 120), rng:NextNumber(-0.4, 0.4), oz + rng:NextNumber(15, 105))
+				* CFrame.Angles(rng:NextNumber(0, 3), rng:NextNumber(0, 3), rng:NextNumber(0, 3)),
+			Color = Color3.fromRGB(104, 100, 108):Lerp(theme.Sand, 0.3),
+			Material = Enum.Material.Rock,
+		}, parent)
+	end
+
+	-- Mooring posts down both sides of the dock, with lanterns on the deep ones
+	for i = 1, 6 do
+		local z = oz - 6 - i * 8
+		for _, side in { -1, 1 } do
+			local post = deco({
+				Name = "MooringPost",
+				Size = Vector3.new(0.8, 4.5, 0.8),
+				Position = Vector3.new(ox + side * 8.4, 1.2, z),
+				Color = DARK_WOOD,
+				Material = Enum.Material.Wood,
+			}, parent)
+			if i % 2 == 0 then
+				local lamp = deco({
+					Name = "Lantern",
+					Shape = Enum.PartType.Ball,
+					Size = Vector3.new(0.9, 0.9, 0.9),
+					Position = post.Position + Vector3.new(0, 2.8, 0),
+					Color = theme.Spots[1],
+					Material = Enum.Material.Neon,
+				}, parent)
+				local light = Instance.new("PointLight")
+				light.Color = theme.Spots[1]
+				light.Range = 16
+				light.Brightness = 1.1
+				light.Shadows = false
+				light.Parent = lamp
+			end
+		end
+	end
+
+	makeDockClutter(Vector3.new(ox - 11, 1.6, oz - 12), parent)
+	makeDockClutter(Vector3.new(ox + 12, 1.6, oz - 30), parent)
+
+	-- A giant fish of the area's own colour, turning above the water. It is the
+	-- landmark you can see from the previous dock, and it advertises what lives
+	-- here far better than the price on the Dock Master's list does.
+	for _, at in { Vector3.new(ox - 52, 15, oz - 62), Vector3.new(ox + 52, 15, oz - 62) } do
+		local trophy = FishShape.Build({
+			Color = theme.Spots[rng:NextInteger(1, #theme.Spots)],
+			Scale = rng:NextNumber(3.4, 4.6),
+			Seed = math.floor(at.X * 7 + at.Z),
+			Glow = 30,
+			Sparkle = true,
+			Neon = index >= 4,
+		})
+		trophy.Name = "Landmark" .. index
+		trophy:PivotTo(CFrame.new(at))
+		trophy.Parent = parent
+		CollectionService:AddTag(trophy, "SpinCrystal")
+		trophy:SetAttribute("SpinSpeed", rng:NextNumber(0.12, 0.22))
+		trophy:SetAttribute("BobHeight", rng:NextNumber(1.4, 2.4))
+		trophy:SetAttribute("BobSpeed", rng:NextNumber(0.4, 0.7))
+	end
+end
+
 -- One area: its own water, its own beach, its own dock, its own twelve buoys.
 -- Areas are built side by side along X rather than stitched together, because
 -- travel between them is by boat (a teleport) — there is no walk to preserve, so
@@ -539,15 +736,33 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 	for _ = 1, theme.Palms do
 		makePalm(Vector3.new(ox + rng:NextNumber(-110, 110), 0, oz + rng:NextNumber(40, 100)), parent)
 	end
+	scatterScenery(index, theme, ox, oz, parent)
 
-	-- A sign at the head of the dock, so you always know what water you are in.
+	-- An ARCH over the head of the dock, not a board across it. The first version
+	-- was a solid 18x5 part standing at walking height in the middle of the only
+	-- path to the water — you could not get past it to fish. Posts to either side
+	-- of the dock, the board slung between them well overhead, and nothing on it
+	-- collides or answers a raycast, so it can never block a walk or eat a cast.
+	for _, side in { -1, 1 } do
+		local post = part({
+			Name = "ArchPost" .. index,
+			Size = Vector3.new(0.9, 13, 0.9),
+			Position = Vector3.new(ox + side * 8.6, 6.5, oz - 4),
+			Color = Color3.fromRGB(90, 65, 45),
+			Material = Enum.Material.Wood,
+		}, parent)
+		post.CanCollide = false
+		post.CanQuery = false
+	end
 	local sign = part({
 		Name = "AreaSign" .. index,
-		Size = Vector3.new(18, 5, 0.6),
-		CFrame = CFrame.lookAt(Vector3.new(ox, 6, oz - 4), Vector3.new(ox, 6, oz - 40)),
+		Size = Vector3.new(18, 4, 0.6),
+		CFrame = CFrame.lookAt(Vector3.new(ox, 12, oz - 4), Vector3.new(ox, 12, oz - 40)),
 		Color = Color3.fromRGB(90, 65, 45),
 		Material = Enum.Material.Wood,
 	}, parent)
+	sign.CanCollide = false
+	sign.CanQuery = false
 	local signGui = Instance.new("SurfaceGui")
 	signGui.Face = Enum.NormalId.Front
 	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -600,27 +815,6 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 		spot:SetAttribute("BobHeight", rng:NextNumber(0.5, 0.9))
 		spot:SetAttribute("BobSpeed", rng:NextNumber(0.9, 1.5))
 		table.insert(nodes, spot)
-	end
-
-	-- Landmark crystals turning above the water: something to look at on the walk
-	-- down the dock, and a hint of what is down there.
-	for _, at in { Vector3.new(ox - 46, 12, oz - 58), Vector3.new(ox + 46, 12, oz - 58) } do
-		local crystal = CrystalShape.Build({
-			Color = theme.Spots[rng:NextInteger(1, #theme.Spots)],
-			Scale = rng:NextNumber(2.4, 3.2),
-			Shards = 6,
-			Segments = 3,
-			Seed = math.floor(at.X * 7 + at.Z),
-			Glow = 34,
-			Sparkle = true,
-		})
-		crystal.Name = "Landmark" .. index
-		crystal:PivotTo(CFrame.new(at))
-		crystal.Parent = parent
-		CollectionService:AddTag(crystal, "SpinCrystal")
-		crystal:SetAttribute("SpinSpeed", rng:NextNumber(0.18, 0.32))
-		crystal:SetAttribute("BobHeight", rng:NextNumber(1.2, 2.2))
-		crystal:SetAttribute("BobSpeed", rng:NextNumber(0.5, 0.8))
 	end
 
 	return nodes

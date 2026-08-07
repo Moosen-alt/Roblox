@@ -14,6 +14,14 @@ RevealFx.ShellStroke = Color3.fromRGB(255, 200, 60)
 -- How the shell comes apart. A geode cracks down the middle into two
 -- hemispheres; a treasure chest hinges its lid up instead.
 RevealFx.SplitVertical = true -- chests hinge their lid open
+-- What the shell IS. "Geode" is a round rock; "Chest" is a banded wooden box
+-- with a lock. Both use the same clipped-halves machinery — only the shape
+-- drawn inside each half differs — because that machinery is the part that was
+-- hard to get right (see the no-rotation note further down).
+RevealFx.ShellStyle = "Chest"
+RevealFx.ChestWood = Color3.fromRGB(122, 80, 44)
+RevealFx.ChestDarkWood = Color3.fromRGB(88, 56, 30)
+RevealFx.ChestBand = Color3.fromRGB(230, 178, 62)
 
 local TICK_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 local THUD_SOUND = "rbxasset://sounds/snap.mp3"
@@ -69,9 +77,74 @@ end
 
 local GEODE_SIZE = 180
 
--- One half of the shell: a clipped frame showing exactly half of the rounded
--- shape, so the two of them sit flush as one object until they come apart.
--- `isFirst` is the left half when splitting sideways, the top half when hinging.
+-- The wooden slats, iron bands and lock plate that make the shell read as a
+-- treasure chest rather than a brown circle. Drawn onto the full-size shape
+-- inside a half, so the clip cuts through them exactly like it cuts the box.
+-- `isLid` gets the curved top and the keyhole; the base gets the feet.
+local function dressAsChest(box: Frame, isLid: boolean)
+	box.BackgroundColor3 = RevealFx.ChestWood
+	local corner = box:FindFirstChildOfClass("UICorner")
+	if corner then
+		-- A chest has a rounded lid and a square base. One radius for the whole
+		-- box is close enough at this size and keeps it one frame.
+		corner.CornerRadius = UDim.new(0, if isLid then 34 else 10)
+	end
+
+	-- Plank seams: darker horizontal lines across the wood.
+	for i = 1, 3 do
+		local plank = Instance.new("Frame")
+		plank.AnchorPoint = Vector2.new(0.5, 0.5)
+		plank.Position = UDim2.fromScale(0.5, 0.22 + (i - 1) * 0.26)
+		plank.Size = UDim2.new(1, 0, 0, 3)
+		plank.BackgroundColor3 = RevealFx.ChestDarkWood
+		plank.BorderSizePixel = 0
+		plank.ZIndex = 3
+		plank.Parent = box
+	end
+
+	-- Iron bands: two vertical straps holding the box together, which is the
+	-- detail that says "chest" fastest at a glance.
+	for _, at in { 0.22, 0.78 } do
+		local band = Instance.new("Frame")
+		band.AnchorPoint = Vector2.new(0.5, 0.5)
+		band.Position = UDim2.fromScale(at, 0.5)
+		band.Size = UDim2.new(0, 16, 1, 0)
+		band.BackgroundColor3 = RevealFx.ChestBand
+		band.BorderSizePixel = 0
+		band.ZIndex = 4
+		band.Parent = box
+	end
+
+	-- The lock: a gold plate straddling the seam, with a dark keyhole.
+	local plate = Instance.new("Frame")
+	plate.AnchorPoint = Vector2.new(0.5, 0.5)
+	plate.Position = UDim2.fromScale(0.5, if isLid then 0.94 else 0.06)
+	plate.Size = UDim2.fromOffset(40, 34)
+	plate.BackgroundColor3 = RevealFx.ChestBand
+	plate.BorderSizePixel = 0
+	plate.ZIndex = 5
+	plate.Parent = box
+	local plateCorner = Instance.new("UICorner")
+	plateCorner.CornerRadius = UDim.new(0, 6)
+	plateCorner.Parent = plate
+	if not isLid then
+		local keyhole = Instance.new("Frame")
+		keyhole.AnchorPoint = Vector2.new(0.5, 0.5)
+		keyhole.Position = UDim2.fromScale(0.5, 0.6)
+		keyhole.Size = UDim2.fromOffset(9, 13)
+		keyhole.BackgroundColor3 = Color3.fromRGB(40, 28, 16)
+		keyhole.BorderSizePixel = 0
+		keyhole.ZIndex = 6
+		keyhole.Parent = plate
+		local keyCorner = Instance.new("UICorner")
+		keyCorner.CornerRadius = UDim.new(0, 4)
+		keyCorner.Parent = keyhole
+	end
+end
+
+-- One half of the shell: a clipped frame showing exactly half of the shape, so
+-- the two of them sit flush as one object until they come apart. `isFirst` is
+-- the left half when splitting sideways, the LID when hinging.
 local function makeHalf(parent: Frame, isFirst: boolean): Frame
 	local vertical = RevealFx.SplitVertical
 	local half = Instance.new("Frame")
@@ -104,6 +177,10 @@ local function makeHalf(parent: Frame, isFirst: boolean): Frame
 	stroke.Color = RevealFx.ShellStroke
 	stroke.Thickness = 5
 	stroke.Parent = rock
+
+	if RevealFx.ShellStyle == "Chest" then
+		dressAsChest(rock, isFirst)
+	end
 
 	return half
 end
@@ -155,21 +232,48 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 	local interiorCorner = Instance.new("UICorner")
 	interiorCorner.CornerRadius = UDim.new(1, 0)
 	interiorCorner.Parent = interior
-	-- Crystal teeth lining the cavity, so the open geode is jagged rather than
-	-- a plain coloured disc.
-	local toothRng = Random.new(7)
-	for i = 1, 14 do
-		local angle = (i / 14) * math.pi * 2
-		local tooth = Instance.new("Frame")
-		tooth.AnchorPoint = Vector2.new(0.5, 0.5)
-		tooth.Position = UDim2.new(0.5, math.cos(angle) * 62, 0.5, math.sin(angle) * 62)
-		tooth.Size = UDim2.fromOffset(toothRng:NextInteger(10, 18), toothRng:NextInteger(22, 40))
-		tooth.Rotation = math.deg(angle) + 90
-		tooth.BackgroundColor3 = Color3.new(1, 1, 1):Lerp(options.Color, 0.55)
-		tooth.BackgroundTransparency = 0.15
-		tooth.BorderSizePixel = 0
-		tooth.ZIndex = 2
-		tooth.Parent = interior
+
+	local fillRng = Random.new(7)
+	if RevealFx.ShellStyle == "Chest" then
+		interiorCorner.CornerRadius = UDim.new(0, 12)
+		-- A chest is full of treasure, not lined with rock. Coins heaped toward
+		-- the bottom so the pile has a shape instead of being scattered evenly.
+		for i = 1, 22 do
+			local coin = Instance.new("Frame")
+			coin.AnchorPoint = Vector2.new(0.5, 0.5)
+			local size = fillRng:NextInteger(14, 26)
+			coin.Position = UDim2.fromScale(
+				fillRng:NextNumber(0.14, 0.86),
+				fillRng:NextNumber(0.42, 0.9) + fillRng:NextNumber(0, 0.08)
+			)
+			coin.Size = UDim2.fromOffset(size, size)
+			coin.Rotation = fillRng:NextInteger(0, 179)
+			coin.BackgroundColor3 = if i % 4 == 0
+				then Color3.new(1, 1, 1):Lerp(options.Color, 0.5)
+				else RevealFx.ChestBand:Lerp(Color3.new(1, 1, 1), fillRng:NextNumber(0, 0.35))
+			coin.BorderSizePixel = 0
+			coin.ZIndex = 2
+			coin.Parent = interior
+			local coinCorner = Instance.new("UICorner")
+			coinCorner.CornerRadius = UDim.new(1, 0)
+			coinCorner.Parent = coin
+		end
+	else
+		-- Crystal teeth lining the cavity, so the open geode is jagged rather
+		-- than a plain coloured disc.
+		for i = 1, 14 do
+			local angle = (i / 14) * math.pi * 2
+			local tooth = Instance.new("Frame")
+			tooth.AnchorPoint = Vector2.new(0.5, 0.5)
+			tooth.Position = UDim2.new(0.5, math.cos(angle) * 62, 0.5, math.sin(angle) * 62)
+			tooth.Size = UDim2.fromOffset(fillRng:NextInteger(10, 18), fillRng:NextInteger(22, 40))
+			tooth.Rotation = math.deg(angle) + 90
+			tooth.BackgroundColor3 = Color3.new(1, 1, 1):Lerp(options.Color, 0.55)
+			tooth.BackgroundTransparency = 0.15
+			tooth.BorderSizePixel = 0
+			tooth.ZIndex = 2
+			tooth.Parent = interior
+		end
 	end
 
 	local firstHalf = makeHalf(geode, true) -- left, or the lid when hinged

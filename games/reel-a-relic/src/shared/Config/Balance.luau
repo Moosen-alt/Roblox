@@ -75,6 +75,34 @@ Balance.Pickaxes = {
 	{ Name = "Poseidon's Rod", Damage = 1000, Cost = 19_000_000_000, Color = Color3.fromRGB(120, 255, 255), Material = Enum.Material.Neon, Glow = true },
 }
 
+-- What a rod's Damage actually buys. These are curves, not clamps, and that is
+-- the point: the old maths was `math.clamp(1 - damage * 0.015, 0.5, 1)` for bite
+-- speed and `math.min(damage * 0.02, 0.6)` for the double hook, both of which
+-- pinned at around damage 30 — so every rod past the eighth tier bought you
+-- literally nothing. Players noticed, correctly, that upgrading stopped working.
+--
+-- Asymptotes fix it honestly. Bite delay approaches BiteFloor without ever
+-- reaching it and extra catches grow with the logarithm of damage, so tier 40 is
+-- still a real improvement over tier 39 — small, but never zero, and never a
+-- wall you hit without being told.
+Balance.BiteFloor = 0.45 -- fastest possible bite, as a fraction of the base wait
+Balance.BiteSharpness = 0.08 -- how quickly early rods approach that floor
+Balance.ExtraCatchScale = 0.35 -- catches per landing grow as log(1 + damage) * this
+-- Subtracted so the STARTER rod lands on the old 2% double-hook chance exactly.
+-- Without it the fix would have quietly buffed the first ten minutes of the game
+-- by 10x, which is not what "upgrades stopped working" asked for.
+Balance.ExtraCatchBase = 0.22
+
+function Balance.RodBiteFactor(damage: number): number
+	return Balance.BiteFloor + (1 - Balance.BiteFloor) / (1 + math.max(damage, 0) * Balance.BiteSharpness)
+end
+
+-- Average extra fish on a landing. The whole part is guaranteed, the fraction is
+-- the chance of one more — so 1.9 means "always +1, and 90% of the time +2".
+function Balance.RodExtraCatch(damage: number): number
+	return math.max(math.log(1 + math.max(damage, 0)) * Balance.ExtraCatchScale - Balance.ExtraCatchBase, 0)
+end
+
 Balance.PickaxeDamageGrowth = 1.55
 Balance.PickaxeCostGrowth = 3.85
 local ROD_TITLES = { "Ascendant", "Celestial", "Infinite", "Leviathan's", "Sovereign", "Worldtide" }
