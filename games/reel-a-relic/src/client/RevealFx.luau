@@ -6,6 +6,8 @@
 
 local TweenService = game:GetService("TweenService")
 
+local ChestView = require(script.Parent.ChestView)
+
 local RevealFx = {}
 
 -- Theme knobs (the fishing re-theme overrides these)
@@ -19,6 +21,16 @@ RevealFx.SplitVertical = true -- chests hinge their lid open
 -- drawn inside each half differs — because that machinery is the part that was
 -- hard to get right (see the no-rotation note further down).
 RevealFx.ShellStyle = "Chest"
+
+-- Draw the chest as real 3D geometry with a hinged lid instead of the flat
+-- clipped halves. A chest opening is a HINGE, and a hinge is the one thing two
+-- rectangles sliding apart cannot fake from the front — this is the most-watched
+-- two seconds in the game and it is worth the geometry.
+--
+-- A flag rather than a rewrite: the 2D path below is tuned and carries real bug
+-- history in its comments (Roblox drops clipping on any rotated subtree), so it
+-- stays intact and working. Set this false to fall straight back to it.
+RevealFx.Use3DChest = true
 RevealFx.ChestWood = Color3.fromRGB(122, 80, 44)
 RevealFx.ChestDarkWood = Color3.fromRGB(88, 56, 30)
 RevealFx.ChestBand = Color3.fromRGB(230, 178, 62)
@@ -279,6 +291,19 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 	local firstHalf = makeHalf(geode, true) -- left, or the lid when hinged
 	local secondHalf = makeHalf(geode, false)
 
+	-- The 3D chest replaces the flat halves for chest-style reveals. Everything
+	-- else — glow, seam, cracks, shards, flash — is shape-agnostic and carries on
+	-- doing its job around it.
+	local chest: ChestView.Chest? = nil
+	if RevealFx.ShellStyle == "Chest" and RevealFx.Use3DChest then
+		chest = ChestView.Create(geode, UDim2.fromScale(0.5, 0.5), UDim2.fromScale(1.9, 1.9), options.Color)
+		firstHalf.Visible = false
+		secondHalf.Visible = false
+		-- The interior is the lining seen once the halves part. A real chest has
+		-- its own inside, so this would only show through as a coloured disc.
+		interior.Visible = false
+	end
+
 	-- The seam the crack runs along before it splits
 	local seam = Instance.new("Frame")
 	seam.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -304,6 +329,11 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 			geode.Position = center
 				+ UDim2.fromOffset(rng:NextInteger(-amplitude, amplitude), rng:NextInteger(-amplitude, amplitude))
 			geode.Rotation = rng:NextNumber(-progress * 8, progress * 8)
+			if chest then
+				-- Rattling harder as it builds. Anticipation is most of what
+				-- makes the opening land.
+				chest.Shake(rng:NextNumber(-progress * 2.5, progress * 2.5))
+			end
 
 			-- The fracture walks down the seam in jagged segments, with rising
 			-- ticks — five milestones, so the pacing scales with suspense.
@@ -366,6 +396,11 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		-- until it had faded to rotate it just made the spin invisible, which is
 		-- worse than not having it: the Back-eased fling, the flash and the shards
 		-- already sell the break.
+		if chest then
+			-- The lid throws itself back on the same beat the halves would have
+			-- flown apart, so thud, flash and shards all still land together.
+			chest.Open(0.55)
+		end
 		local splitInfo = TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		local firstTarget, secondTarget
 		if RevealFx.SplitVertical then

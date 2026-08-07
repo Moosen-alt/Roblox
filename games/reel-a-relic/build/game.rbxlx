@@ -784,6 +784,15 @@ export type MeshDef = {
 Meshes.Fish = {} :: { [string]: MeshDef }
 Meshes.Relic = {} :: { [string]: MeshDef }
 
+-- Props are not collectibles — they are scenery and UI furniture, keyed by a
+-- name this codebase chooses rather than one from Crystals.luau. The chest is
+-- split into ChestBase and ChestLid so the lid can actually swing.
+Meshes.Prop = {} :: { [string]: MeshDef }
+
+function Meshes.ForProp(name: string?): MeshDef?
+	return if name then Meshes.Prop[name] else nil
+end
+
 function Meshes.ForFish(name: string?): MeshDef?
 	return if name then Meshes.Fish[name] else nil
 end
@@ -13370,6 +13379,230 @@ return AquariumView
         </Item>
         <Item class="ModuleScript" referent="45">
           <Properties>
+            <string name="Name">ChestView</string>
+            <string name="Source"><![CDATA[--!strict
+-- A 3D chest that actually opens, rendered inside the reveal overlay.
+--
+-- The reveal already drew a chest — out of flat UI frames, with the "lid" being
+-- two rectangles that slid apart. It read fine and it was never going to read
+-- better than fine, because a chest opening is a HINGE, and a hinge is the one
+-- thing a 2D rectangle cannot fake from the front.
+--
+-- This is the single most-watched two seconds in the game: every chest a player
+-- ever opens ends here. It is worth real geometry.
+--
+-- Falls back to primitives when no mesh has been uploaded yet, exactly like
+-- FishShape and RelicShape do, so the reveal never breaks mid-migration.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local MeshBuild = require(Shared.MeshBuild)
+local Meshes = require(Shared.Config.Meshes)
+
+local ChestView = {}
+
+export type Chest = {
+	Frame: ViewportFrame,
+	Open: (seconds: number) -> (),
+	Shake: (amount: number) -> (),
+}
+
+local WOOD = Color3.fromRGB(126, 88, 52)
+local DARK_WOOD = Color3.fromRGB(88, 60, 36)
+local IRON = Color3.fromRGB(92, 88, 96)
+
+-- The pack's base and lid are each normalised to a 1-unit longest axis and each
+-- centred on their own origin, so the lid has to be lifted onto the base rather
+-- than dropped in at zero. These are fractions of the assembled chest.
+local BASE_HEIGHT = 0.58
+local LID_LIFT = 0.30
+
+local function piece(parent: Instance, props: { [string]: any }): Part
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Massless = true
+	part.Material = Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in props do
+		(part :: any)[key] = value
+	end
+	part.Parent = parent
+	return part
+end
+
+-- Primitive chest, for before the meshes are uploaded. Deliberately simple: it
+-- only has to hold the shape of a chest while the lid does the acting.
+local function primitiveBase(): Model
+	local model = Instance.new("Model")
+	local body = piece(model, {
+		Name = "Body",
+		Size = Vector3.new(2.4, 1.3, 1.6),
+		CFrame = CFrame.new(0, 0, 0),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+	})
+	for _, x in { -0.85, 0.85 } do
+		piece(model, {
+			Name = "Band",
+			Size = Vector3.new(0.22, 1.36, 1.66),
+			CFrame = CFrame.new(x, 0, 0),
+			Color = IRON,
+			Material = Enum.Material.Metal,
+		})
+	end
+	piece(model, {
+		Name = "Lock",
+		Size = Vector3.new(0.4, 0.4, 0.16),
+		CFrame = CFrame.new(0, 0.35, -0.82),
+		Color = Color3.fromRGB(226, 178, 62),
+		Material = Enum.Material.Metal,
+	})
+	model.PrimaryPart = body
+	model.WorldPivot = CFrame.new()
+	return model
+end
+
+local function primitiveLid(): Model
+	local model = Instance.new("Model")
+	local body = piece(model, {
+		Name = "Body",
+		Size = Vector3.new(2.4, 0.7, 1.6),
+		CFrame = CFrame.new(0, 0, 0),
+		Color = DARK_WOOD,
+		Material = Enum.Material.Wood,
+	})
+	for _, x in { -0.85, 0.85 } do
+		piece(model, {
+			Name = "Band",
+			Size = Vector3.new(0.22, 0.76, 1.66),
+			CFrame = CFrame.new(x, 0, 0),
+			Color = IRON,
+			Material = Enum.Material.Metal,
+		})
+	end
+	model.PrimaryPart = body
+	model.WorldPivot = CFrame.new()
+	return model
+end
+
+local function build(part: string, color: Color3, fallback: () -> Model): Model
+	local override = Meshes.ForProp(part)
+	if override then
+		return MeshBuild.Build(override, part, color, 1, nil)
+	end
+	return fallback()
+end
+
+-- `tint` colours the chest to the tier that was pulled, so a Mythic chest is
+-- visibly not the same object as a Common one before it even opens.
+function ChestView.Create(parent: Instance, position: UDim2, size: UDim2, tint: Color3): Chest
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Name = "Chest"
+	viewport.AnchorPoint = Vector2.new(0.5, 0.5)
+	viewport.Position = position
+	viewport.Size = size
+	viewport.BackgroundTransparency = 1
+	viewport.ZIndex = 3
+	viewport.Ambient = Color3.fromRGB(160, 165, 180)
+	viewport.LightColor = Color3.fromRGB(255, 250, 235)
+	viewport.LightDirection = Vector3.new(-0.4, -1, -0.6)
+	viewport.Parent = parent
+
+	local world = Instance.new("Folder")
+	world.Parent = viewport
+
+	local base = build("ChestBase", tint:Lerp(WOOD, 0.55), primitiveBase)
+	base.Parent = world
+	base:PivotTo(CFrame.new(0, 0, 0))
+
+	local lid = build("ChestLid", tint:Lerp(DARK_WOOD, 0.5), primitiveLid)
+	lid.Parent = world
+
+	-- THE HINGE. A lid rotated about its own centre swings through the base and
+	-- looks like it is dissolving; a real lid pivots on the back top edge. So
+	-- the rotation happens about the hinge point and the lid is carried around
+	-- it, rather than the lid being spun in place.
+	local _, baseSize = base:GetBoundingBox()
+	local _, lidSize = lid:GetBoundingBox()
+	local hinge = CFrame.new(0, baseSize.Y * BASE_HEIGHT, -baseSize.Z * 0.5)
+	-- Where the lid sits relative to the hinge when closed.
+	local restOffset = CFrame.new(0, lidSize.Y * LID_LIFT, lidSize.Z * 0.5)
+
+	local function placeLid(angle: number)
+		lid:PivotTo(hinge * CFrame.Angles(angle, 0, 0) * restOffset)
+	end
+	placeLid(0)
+
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 40
+	-- Slightly above and off-axis: looking straight on hides the lid's travel,
+	-- which is the entire animation.
+	local reach = math.max(baseSize.X, baseSize.Y + lidSize.Y, baseSize.Z)
+	local distance = math.max(reach * 2.4, 4)
+	camera.CFrame = CFrame.lookAt(
+		Vector3.new(distance * 0.28, distance * 0.42, -distance),
+		Vector3.new(0, baseSize.Y * 0.25, 0)
+	)
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+
+	local opened = false
+	local function open(seconds: number)
+		if opened then
+			return
+		end
+		opened = true
+		-- Back easing overshoots and settles: a lid that stops dead at its final
+		-- angle looks mechanical, one that bounces looks thrown open.
+		--
+		-- Tweened through a NumberValue because TweenService cannot drive a
+		-- Model's pivot directly, and stepping the CFrame by hand on
+		-- RenderStepped would be a second animation loop for one lid.
+		local value = Instance.new("NumberValue")
+		value.Value = 0
+		value.Changed:Connect(function(angle: number)
+			placeLid(angle)
+		end)
+		TweenService:Create(
+			value,
+			TweenInfo.new(seconds, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Value = math.rad(-108) }
+		):Play()
+		-- The NumberValue is the only thing driving the lid, so it has to
+		-- outlive the tween but not the reveal. Parented to the viewport, it
+		-- dies with it.
+		value.Parent = viewport
+	end
+
+	-- Rattle before it opens. Anticipation is most of what makes the opening
+	-- land, and it costs one tween on the whole world folder.
+	local function shake(amount: number)
+		local target = CFrame.Angles(0, math.rad(amount), math.rad(amount * 0.6))
+		for _, model in { base, lid } do
+			local pivot = model:GetPivot()
+			model:PivotTo(pivot * target)
+		end
+	end
+
+	return {
+		Frame = viewport,
+		Open = open,
+		Shake = shake,
+	}
+end
+
+return ChestView
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="46">
+          <Properties>
             <string name="Name">FlexAura</string>
             <string name="Source"><![CDATA[--!strict
 -- Renders the rarest-find crystal above every player's head. The server just
@@ -13512,7 +13745,7 @@ return FlexAura
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">GemView</string>
             <string name="Source"><![CDATA[--!strict
@@ -13662,7 +13895,7 @@ return GemView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -14097,7 +14330,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">MiningInput</string>
             <string name="Source"><![CDATA[--!strict
@@ -14280,7 +14513,7 @@ return MiningInput
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">ObjectiveBanner</string>
             <string name="Source"><![CDATA[--!strict
@@ -14374,7 +14607,7 @@ return ObjectiveBanner
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -14413,7 +14646,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">RebirthFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -14602,7 +14835,7 @@ return RebirthFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">ReelMinigame</string>
             <string name="Source"><![CDATA[--!strict
@@ -14896,7 +15129,7 @@ return ReelMinigame
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -14906,6 +15139,8 @@ return ReelMinigame
 -- best rarity in the batch — slot-machine timing, the clip moment.
 
 local TweenService = game:GetService("TweenService")
+
+local ChestView = require(script.Parent.ChestView)
 
 local RevealFx = {}
 
@@ -14920,6 +15155,16 @@ RevealFx.SplitVertical = true -- chests hinge their lid open
 -- drawn inside each half differs — because that machinery is the part that was
 -- hard to get right (see the no-rotation note further down).
 RevealFx.ShellStyle = "Chest"
+
+-- Draw the chest as real 3D geometry with a hinged lid instead of the flat
+-- clipped halves. A chest opening is a HINGE, and a hinge is the one thing two
+-- rectangles sliding apart cannot fake from the front — this is the most-watched
+-- two seconds in the game and it is worth the geometry.
+--
+-- A flag rather than a rewrite: the 2D path below is tuned and carries real bug
+-- history in its comments (Roblox drops clipping on any rotated subtree), so it
+-- stays intact and working. Set this false to fall straight back to it.
+RevealFx.Use3DChest = true
 RevealFx.ChestWood = Color3.fromRGB(122, 80, 44)
 RevealFx.ChestDarkWood = Color3.fromRGB(88, 56, 30)
 RevealFx.ChestBand = Color3.fromRGB(230, 178, 62)
@@ -15180,6 +15425,19 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 	local firstHalf = makeHalf(geode, true) -- left, or the lid when hinged
 	local secondHalf = makeHalf(geode, false)
 
+	-- The 3D chest replaces the flat halves for chest-style reveals. Everything
+	-- else — glow, seam, cracks, shards, flash — is shape-agnostic and carries on
+	-- doing its job around it.
+	local chest: ChestView.Chest? = nil
+	if RevealFx.ShellStyle == "Chest" and RevealFx.Use3DChest then
+		chest = ChestView.Create(geode, UDim2.fromScale(0.5, 0.5), UDim2.fromScale(1.9, 1.9), options.Color)
+		firstHalf.Visible = false
+		secondHalf.Visible = false
+		-- The interior is the lining seen once the halves part. A real chest has
+		-- its own inside, so this would only show through as a coloured disc.
+		interior.Visible = false
+	end
+
 	-- The seam the crack runs along before it splits
 	local seam = Instance.new("Frame")
 	seam.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -15205,6 +15463,11 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 			geode.Position = center
 				+ UDim2.fromOffset(rng:NextInteger(-amplitude, amplitude), rng:NextInteger(-amplitude, amplitude))
 			geode.Rotation = rng:NextNumber(-progress * 8, progress * 8)
+			if chest then
+				-- Rattling harder as it builds. Anticipation is most of what
+				-- makes the opening land.
+				chest.Shake(rng:NextNumber(-progress * 2.5, progress * 2.5))
+			end
 
 			-- The fracture walks down the seam in jagged segments, with rising
 			-- ticks — five milestones, so the pacing scales with suspense.
@@ -15267,6 +15530,11 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		-- until it had faded to rotate it just made the spin invisible, which is
 		-- worse than not having it: the Back-eased fling, the flash and the shards
 		-- already sell the break.
+		if chest then
+			-- The lid throws itself back on the same beat the halves would have
+			-- flown apart, so thud, flash and shards all still land together.
+			chest.Open(0.55)
+		end
 		local splitInfo = TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		local firstTarget, secondTarget
 		if RevealFx.SplitVertical then
@@ -15415,7 +15683,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -15472,11 +15740,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="55">
+        <Item class="Folder" referent="56">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">CodesScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -15602,7 +15870,7 @@ return CodesScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -16242,7 +16510,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="59">
             <Properties>
               <string name="Name">DockScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -16393,7 +16661,7 @@ return DockScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -16545,7 +16813,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">QuestsScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -16713,7 +16981,7 @@ return QuestsScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17005,7 +17273,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17103,7 +17371,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17375,7 +17643,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17557,7 +17825,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="65">
+        <Item class="ModuleScript" referent="66">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -17604,7 +17872,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="66">
+        <Item class="ModuleScript" referent="67">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -17956,7 +18224,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="67">
+        <Item class="ModuleScript" referent="68">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -18116,7 +18384,7 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="68">
+        <Item class="ModuleScript" referent="69">
           <Properties>
             <string name="Name">WorldFx</string>
             <string name="Source"><![CDATA[--!strict

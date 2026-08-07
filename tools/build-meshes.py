@@ -29,6 +29,8 @@ TARGETS = {
     ("Reel a Relic", "Fish"): ("games/reel-a-relic/src/shared/Config/Meshes.luau", "Fish"),
     ("Reel a Relic", "Relic"): ("games/reel-a-relic/src/shared/Config/Meshes.luau", "Relic"),
     ("Crack a Geode", "Crystal"): ("src/shared/Config/Meshes.luau", "Crystal"),
+    ("Reel a Relic", "Prop"): ("games/reel-a-relic/src/shared/Config/Meshes.luau", "Prop"),
+    ("Crack a Geode", "Prop"): ("src/shared/Config/Meshes.luau", "Prop"),
 }
 
 

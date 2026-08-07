@@ -68,3 +68,7 @@ Crack a Geode,Crystal,Sapphire,crack-a-geode/crystals/Sapphire.obj,,1.0,0,0,0,In
 Crack a Geode,Crystal,Ruby,crack-a-geode/crystals/Ruby.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Crystal,Opal,crack-a-geode/crystals/Opal.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Crystal,Diamond,crack-a-geode/crystals/Diamond.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Prop,ChestBase,props/fishing_relic_chest_base.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Prop,ChestLid,props/fishing_relic_chest_lid.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Crack a Geode,Prop,ChestBase,props/crystal_geode_chest_base.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Crack a Geode,Prop,ChestLid,props/crystal_geode_chest_lid.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled

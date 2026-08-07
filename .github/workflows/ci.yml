@@ -117,8 +117,9 @@ jobs:
         if: (github.event_name == 'push' && vars.AUTO_PUBLISH != 'false') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-          UNIVERSE_ID: ${{ secrets.GEODE_UNIVERSE_ID }}
-          PLACE_ID: ${{ secrets.GEODE_PLACE_ID }}
+          # https://www.roblox.com/games/87385359444928/Crack-a-Geode
+          UNIVERSE_ID: ${{ secrets.GEODE_UNIVERSE_ID || '10631514772' }}
+          PLACE_ID: ${{ secrets.GEODE_PLACE_ID || '87385359444928' }}
         run: bash .github/scripts/publish-place.sh build/game.rbxlx
 
       - name: Publish Reel a Relic to Roblox (if configured)

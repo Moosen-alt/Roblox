@@ -78,7 +78,9 @@ def check_meshes(config: Path, meshes: Path) -> list[str]:
     names = set(re.findall(r'^\t\{ Name = "([^"]+)"', config.read_text(), re.M))
     problems = []
     total = 0
-    for table, kind in (("Fish", "fish"), ("Relic", "relic"), ("Crystal", "crystal")):
+    # Props are scenery, not collectibles: their names are chosen by the code
+    # (ChestBase, ChestLid), so only their asset ids are worth checking.
+    for table, kind in (("Fish", "fish"), ("Relic", "relic"), ("Crystal", "crystal"), ("Prop", "prop")):
         try:
             body = text[text.index(f"Meshes.{table} = {{"):]
             body = body[: body.index("\n") if body.startswith(f"Meshes.{table} = {{}}") else body.index("\n}")]
@@ -86,7 +88,7 @@ def check_meshes(config: Path, meshes: Path) -> list[str]:
             continue
         for name, rest in re.findall(r'\["([^"]+)"\]\s*=\s*\{([^}]*)\}', body):
             total += 1
-            if name not in names:
+            if kind != "prop" and name not in names:
                 problems.append(
                     f"  mesh override for {kind} {name!r} names nothing in Crystals.luau "
                     f"(the override would silently never apply)"
