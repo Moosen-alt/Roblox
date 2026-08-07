@@ -43,6 +43,7 @@ type SpotState = {
 	-- every few seconds and never expired. One cast held a spot forever, from
 	-- anywhere on the map, until the player left the server.
 	ActedAt: number,
+	Biting: boolean, -- the lamp is currently flashing; stops the flash re-firing
 	Resolved: boolean,
 	BaseColor: Color3,
 	Area: number,
@@ -116,33 +117,74 @@ local function ownerOf(state: SpotState): Player?
 	return if state.OwnerUserId then Players:GetPlayerByUserId(state.OwnerUserId) else nil
 end
 
+-- Only the LAMP changes. The buoy is a physical object floating in the sea; it
+-- should not swell to twice its size because a fish is interested, which is what
+-- the old single-neon-ball marker did for every state change.
+local LAMP_IDLE = Vector3.new(1, 1, 1)
+local LAMP_BITE = Vector3.new(1.9, 1.9, 1.9)
+
+local function lampOf(spot: BasePart): (BasePart?, PointLight?)
+	local model = spot.Parent
+	local lamp = model and model:FindFirstChild("Lamp")
+	if lamp and lamp:IsA("BasePart") then
+		return lamp, lamp:FindFirstChildOfClass("PointLight")
+	end
+	return nil, nil
+end
+
 local function setIdle(spot: BasePart, state: SpotState)
 	local owner = ownerOf(state)
 	state.OwnerUserId = nil
 	state.BiteAt = nil
+	state.Biting = false
 	state.Resolved = true
-	spot.Color = state.BaseColor
-	spot.Transparency = 0.05
-	spot.Size = Vector3.new(3, 2, 3)
+	local lamp, light = lampOf(spot)
+	if lamp then
+		lamp.Color = state.BaseColor
+		lamp.Size = LAMP_IDLE
+	end
+	if light then
+		light.Color = state.BaseColor
+		light.Brightness = 1.2
+		light.Range = 14
+	end
 	if owner then
 		ctx.RodVis.Reel(owner)
 	end
 end
 
 local function setCast(spot: BasePart, player: Player?)
-	spot.Transparency = 0.35
-	TweenService:Create(spot, TweenInfo.new(0.3), { Size = Vector3.new(2.4, 1.6, 2.4) }):Play()
+	local lamp, light = lampOf(spot)
+	-- Dimmed while the line is out: the lamp going quiet is the "waiting" state,
+	-- so the flash later has something to be brighter than. The float's own
+	-- colour never changes, so it is the reliable source for the lamp's base.
+	if lamp then
+		lamp.Color = spot.Color:Lerp(Color3.new(0, 0, 0), 0.4)
+		lamp.Size = LAMP_IDLE
+	end
+	if light then
+		light.Brightness = 0.5
+	end
 	if player then
 		-- Land the bobber just off the buoy rather than inside it, so both are
 		-- visible and the buoy stays the thing you click.
-		ctx.RodVis.Cast(player, spot.Position + Vector3.new(0, 0.4, 2))
+		ctx.RodVis.Cast(player, spot.Position + Vector3.new(0, 0.3, 2.6))
 	end
 end
 
 local function setBite(spot: BasePart, player: Player?)
-	spot.Color = Color3.fromRGB(255, 255, 255)
-	spot.Transparency = 0
-	TweenService:Create(spot, TweenInfo.new(0.15), { Size = Vector3.new(4.2, 2.8, 4.2) }):Play()
+	local lamp, light = lampOf(spot)
+	if lamp then
+		lamp.Color = Color3.fromRGB(255, 255, 255)
+		TweenService:Create(lamp, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Size = LAMP_BITE,
+		}):Play()
+	end
+	if light then
+		light.Color = Color3.fromRGB(255, 255, 255)
+		light.Brightness = 5
+		light.Range = 30
+	end
 	-- Audible cue so the timing window works by ear as well as by eye
 	playSound(spot, "rbxasset://sounds/electronicpingshort.wav", 1.4, 0.8)
 	if player then
@@ -271,6 +313,7 @@ local function onSpotClicked(spot: BasePart, player: Player): boolean
 		end
 		state.OwnerUserId = player.UserId
 		state.Resolved = false
+		state.Biting = false
 		state.ActedAt = os.clock()
 		state.BiteAt = os.clock() + biteDelay(data)
 		setCast(spot, player)
@@ -324,6 +367,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 			OwnerUserId = nil,
 			BiteAt = nil,
 			ActedAt = 0,
+			Biting = false,
 			Resolved = true,
 			BaseColor = spot.Color,
 			Area = area,
@@ -378,7 +422,12 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 					-- Still standing there, but has not touched it in a while.
 					setIdle(spot, state)
 				elseif now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW then
-					if spot.Color ~= Color3.fromRGB(255, 255, 255) then
+					-- A flag, not a colour comparison. The buoy's own colour no
+					-- longer changes on a bite (its lamp does), so the old
+					-- "is it white yet" check would have re-fired the flash and
+					-- its sound ten times a second for the whole window.
+					if not state.Biting then
+						state.Biting = true
 						setBite(spot, owner)
 					end
 				elseif now > state.BiteAt + BITE_WINDOW then

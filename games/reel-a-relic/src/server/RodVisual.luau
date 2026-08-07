@@ -191,30 +191,38 @@ local function dangle(tool: Tool, visible: boolean)
 	end
 end
 
--- Hand-rolled interpolation rather than TweenService: Tool.Grip is not a
--- reliably tweenable property, and a dozen task.wait steps for half a second of
--- swing is cheaper than finding that out in production.
-local function swing(player: Player, tool: Tool, token: number)
-	local function glide(from: CFrame, to: CFrame, seconds: number)
-		local steps = math.max(math.floor(seconds * 30), 1)
-		for i = 1, steps do
-			if castToken[player] ~= token or tool.Parent == nil then
-				return false
-			end
-			tool.Grip = from:Lerp(to, i / steps)
-			task.wait(seconds / steps)
-		end
-		return true
+-- Tween, don't step. The first version lerped Tool.Grip by hand at 30 steps a
+-- second, and every one of those steps was a property change replicated to every
+-- client — about forty-five packets per swing, arriving unevenly. That is what
+-- made casting feel clunky: not the timing, the delivery. A tween replicates
+-- ONCE and each client interpolates it locally at its own frame rate.
+--
+-- Tool.Grip is not documented as tweenable, so the tween is guarded and falls
+-- back to setting the three poses directly. Three snaps read as a swing; forty
+-- five stutters do not.
+local function glide(tool: Tool, to: CFrame, seconds: number, style: Enum.EasingStyle)
+	local ok = pcall(function()
+		TweenService:Create(tool, TweenInfo.new(seconds, style, Enum.EasingDirection.Out), { Grip = to }):Play()
+	end)
+	if not ok then
+		tool.Grip = to
 	end
+end
+
+local function swing(player: Player, tool: Tool, token: number)
 	-- Back over the shoulder, whip forward, settle. The whip is deliberately the
 	-- shortest of the three: that snap is the whole read.
-	if not glide(REST_GRIP, WIND_UP_GRIP, 0.18) then
+	glide(tool, WIND_UP_GRIP, 0.12, Enum.EasingStyle.Quad)
+	task.wait(0.12)
+	if castToken[player] ~= token or not tool:IsDescendantOf(game) then
 		return
 	end
-	if not glide(WIND_UP_GRIP, RELEASE_GRIP, 0.1) then
+	glide(tool, RELEASE_GRIP, 0.08, Enum.EasingStyle.Quint)
+	task.wait(0.08)
+	if castToken[player] ~= token or not tool:IsDescendantOf(game) then
 		return
 	end
-	glide(RELEASE_GRIP, REST_GRIP, 0.3)
+	glide(tool, REST_GRIP, 0.26, Enum.EasingStyle.Quad)
 end
 
 local function clearBobber(player: Player)
@@ -294,28 +302,35 @@ function RodVisual.Cast(player: Player, target: Vector3)
 
 	castBobbers[player] = bobber
 
-	-- Arc it out: the bobber leaves late, a beat after the rod starts moving, so
-	-- the swing looks like it threw the thing rather than the other way round.
+	-- Arc it out: the bobber leaves on the whip, so the swing looks like it threw
+	-- the thing rather than the other way round.
+	--
+	-- Two tweens, not fourteen stepped positions. Up-and-over to the apex, then
+	-- down to the water — a rise eased Out and a fall eased In is a parabola as
+	-- far as the eye is concerned, and it costs two replicated tweens instead of
+	-- fourteen replicated positions arriving whenever the network feels like it.
 	task.spawn(function()
-		task.wait(0.2)
-		local start = tip.Position
-		local flight = 0.42
-		local steps = 14
-		local peak = math.min((target - start).Magnitude * 0.22, 14)
-		for i = 1, steps do
-			if castToken[player] ~= token or bobber.Parent == nil then
-				return
-			end
-			local t = i / steps
-			-- Parabola: sin() peaks at the halfway point and returns to zero,
-			-- which is exactly the shape of a thrown thing.
-			bobber.Position = start:Lerp(target, t) + Vector3.new(0, math.sin(t * math.pi) * peak, 0)
-			task.wait(flight / steps)
-		end
-		if castToken[player] ~= token or bobber.Parent == nil then
+		task.wait(0.16)
+		if castToken[player] ~= token or not bobber:IsDescendantOf(game) then
 			return
 		end
-		bobber.Position = target + Vector3.new(0, 0.2, 0)
+		local start = tip.Position
+		local peak = math.min((target - start).Magnitude * 0.24, 16)
+		local apex = start:Lerp(target, 0.5) + Vector3.new(0, peak, 0)
+		TweenService:Create(bobber, TweenInfo.new(0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = apex,
+		}):Play()
+		task.wait(0.17)
+		if castToken[player] ~= token or not bobber:IsDescendantOf(game) then
+			return
+		end
+		TweenService:Create(bobber, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = target + Vector3.new(0, 0.2, 0),
+		}):Play()
+		task.wait(0.16)
+		if castToken[player] ~= token or not bobber:IsDescendantOf(game) then
+			return
+		end
 		local splash = Instance.new("ParticleEmitter")
 		splash.Color = ColorSequence.new(Color3.fromRGB(200, 240, 255))
 		splash.Size = NumberSequence.new(0.5, 0)

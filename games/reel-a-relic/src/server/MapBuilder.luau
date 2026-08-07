@@ -681,6 +681,114 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 	end
 end
 
+-- An actual navigation buoy: a fat float sitting in the water with a painted
+-- band, a weighted skirt below the surface, a mast, and a lamp on top.
+--
+-- The lamp is the working part. It is what the fishing loop recolours and
+-- brightens for cast and bite, so the buoy itself never changes shape — the old
+-- marker was a neon ball that got resized for every state, which is why it read
+-- as an abstract blob rather than as a thing floating in the sea.
+--
+-- Returns the FLOAT, which is the part the rest of the game treats as the spot:
+-- its position is the waterline, which is where distances and the bobber want to
+-- be measured from.
+local function buildBuoy(name: string, position: Vector3, color: Color3, parent: Instance): BasePart
+	local model = Instance.new("Model")
+	model.Name = "Buoy"
+
+	local float = part({
+		Name = name,
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(3.2, 2.7, 3.2),
+		Position = position,
+		Color = color,
+		Material = Enum.Material.SmoothPlastic,
+	}, model)
+	float.CanCollide = false
+	model.PrimaryPart = float
+
+	-- Painted band around the middle: the detail that reads as "buoy" fastest.
+	local band = part({
+		Name = "Band",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(3.32, 0.8, 3.32),
+		Position = position + Vector3.new(0, 0.25, 0),
+		Color = Color3.fromRGB(248, 248, 250),
+		Material = Enum.Material.SmoothPlastic,
+	}, model)
+	band.CanCollide = false
+	band.CanQuery = false
+
+	-- Weighted skirt under the waterline
+	local skirt = part({
+		Name = "Skirt",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(2.2, 1.8, 2.2),
+		Position = position - Vector3.new(0, 1.35, 0),
+		Color = Color3.fromRGB(52, 48, 58),
+		Material = Enum.Material.Metal,
+	}, model)
+	skirt.CanCollide = false
+	skirt.CanQuery = false
+
+	local mast = part({
+		Name = "Mast",
+		Size = Vector3.new(0.24, 3.4, 0.24),
+		Position = position + Vector3.new(0, 2.6, 0),
+		Color = Color3.fromRGB(72, 68, 78),
+		Material = Enum.Material.Metal,
+	}, model)
+	mast.CanCollide = false
+	mast.CanQuery = false
+
+	local cage = part({
+		Name = "Cage",
+		Size = Vector3.new(1.5, 0.16, 0.16),
+		Position = position + Vector3.new(0, 3.6, 0),
+		Color = Color3.fromRGB(72, 68, 78),
+		Material = Enum.Material.Metal,
+	}, model)
+	cage.CanCollide = false
+	cage.CanQuery = false
+
+	local lamp = part({
+		Name = "Lamp",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(1, 1, 1),
+		Position = position + Vector3.new(0, 4.3, 0),
+		Color = color,
+		Material = Enum.Material.Neon,
+	}, model)
+	lamp.CanCollide = false
+	lamp.CanQuery = false
+	local glow = Instance.new("PointLight")
+	glow.Color = color
+	glow.Range = 14
+	glow.Brightness = 1.2
+	glow.Shadows = false
+	glow.Parent = lamp
+
+	-- One invisible box owns the tap, the same way the mining game's geodes do.
+	-- A buoy bobbing thirty studs out is a very small target on a phone; this
+	-- makes it a fair one without inflating the buoy itself. It deliberately
+	-- carries NO NodeIndex — the client resolves a hit on it to its parent float,
+	-- and the server only knows about floats. Giving the box its own index would
+	-- make the client report an instance the server has never heard of, and every
+	-- tap would silently do nothing.
+	local hitbox = part({
+		Name = "Hitbox",
+		Size = Vector3.new(9, 10, 9),
+		Position = position + Vector3.new(0, 1.6, 0),
+		Transparency = 1,
+	}, float)
+	hitbox.CanCollide = false
+	hitbox.CanTouch = false
+	hitbox.CanQuery = true
+
+	model.Parent = parent
+	return float
+end
+
 -- One area: its own water, its own beach, its own dock, its own twelve buoys.
 -- Areas are built side by side along X rather than stitched together, because
 -- travel between them is by boat (a teleport) — there is no walk to preserve, so
@@ -791,50 +899,23 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 		local position =
 			Vector3.new(ox + math.cos(angle) * radius, 0.9, oz - 52 + math.sin(angle) * radius)
 		local color = theme.Spots[rng:NextInteger(1, #theme.Spots)]
-		local spot = part({
-			Name = ("Spot%d_%d"):format(index, i),
-			Size = Vector3.new(3, 2, 3),
-			Position = position,
-			Color = color,
-			Material = Enum.Material.Neon,
-			Transparency = 0.05,
-			Shape = Enum.PartType.Ball,
-		}, nodeFolder)
+		local spot = buildBuoy(("Spot%d_%d"):format(index, i), position, color, nodeFolder)
 		spot:SetAttribute("NodeIndex", i)
 		spot:SetAttribute("Area", index)
-		spot.CanCollide = false
 		CollectionService:AddTag(spot, "FishingSpot")
-		local glow = Instance.new("PointLight")
-		glow.Color = color
-		glow.Range = 12
-		glow.Brightness = 1
-		glow.Parent = spot
 		local click = Instance.new("ClickDetector")
 		click.MaxActivationDistance = Balance.CastRange
 		click.Parent = spot
 
-		-- One invisible box owns the tap, the same way the mining game's geodes
-		-- do. A three-stud ball bobbing thirty studs out is a very small target on
-		-- a phone; this makes it a fair one without making the buoy itself huge.
-		local hitbox = part({
-			Name = "Hitbox",
-			Size = Vector3.new(9, 9, 9),
-			Position = position,
-			Transparency = 1,
-		}, spot)
-		hitbox.CanCollide = false
-		hitbox.CanTouch = false
-		hitbox.CanQuery = true
-		-- Deliberately NO NodeIndex of its own: the client resolves a hit on the
-		-- hitbox to its parent buoy, and the server only knows about buoys. Giving
-		-- the box its own index would make the client report an instance the
-		-- server has never heard of, and every tap would silently do nothing.
 		-- Buoys ride the swell. The bob runs on each client, so sixty floating
-		-- markers across five areas cost the server nothing.
-		CollectionService:AddTag(spot, "SpinCrystal")
-		spot:SetAttribute("SpinSpeed", 0)
-		spot:SetAttribute("BobHeight", rng:NextNumber(0.5, 0.9))
-		spot:SetAttribute("BobSpeed", rng:NextNumber(0.9, 1.5))
+		-- markers across five areas cost the server nothing. The tag goes on the
+		-- MODEL: PivotTo on a lone part leaves its mast and lamp behind, which
+		-- looks like the buoy is coming apart rather than bobbing.
+		local buoy = spot.Parent :: Model
+		CollectionService:AddTag(buoy, "SpinCrystal")
+		buoy:SetAttribute("SpinSpeed", 0)
+		buoy:SetAttribute("BobHeight", rng:NextNumber(0.3, 0.55))
+		buoy:SetAttribute("BobSpeed", rng:NextNumber(0.8, 1.3))
 		table.insert(nodes, spot)
 	end
 
