@@ -550,6 +550,71 @@ local function addGoblinSnout(ctx: Ctx)
 	})
 end
 
+-- Gill slits. Five short rakes behind the head: the cheapest, strongest "this is
+-- a shark and not a big fish" cue there is, and it costs ten thin parts.
+local function addGills(ctx: Ctx)
+	for i = 1, 5 do
+		for _, side in { 1, -1 } do
+			piece(ctx.Model, {
+				Name = "Gill",
+				Size = Vector3.new(ctx.L * 0.012, ctx.H * 0.42, ctx.W * 0.06),
+				CFrame = CFrame.new(ctx.L * (0.3 - i * 0.045), -ctx.H * 0.04, side * ctx.W * 0.38)
+					* CFrame.Angles(0, 0, 0.16),
+				Color = darkOf(ctx.Color),
+				Material = ctx.Material,
+			})
+		end
+	end
+end
+
+-- The heavy hinged jaw and thick lower lip of a grouper or a sheephead. These
+-- are ambush fish: the head is a third of the animal and the mouth is most of
+-- the head, which no amount of body colour communicates on its own.
+local function addGrouperJaw(ctx: Ctx)
+	piece(ctx.Model, {
+		Name = "LowerJaw",
+		Size = Vector3.new(ctx.L * 0.34, ctx.H * 0.24, ctx.W * 0.78),
+		CFrame = CFrame.new(ctx.L * 0.44, -ctx.H * 0.28, 0) * CFrame.Angles(0, 0, 0.12),
+		Color = paleOf(ctx.Color),
+		Material = ctx.Material,
+	})
+	piece(ctx.Model, {
+		Name = "Lip",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(ctx.L * 0.16, ctx.H * 0.18, ctx.W * 0.8),
+		CFrame = CFrame.new(ctx.L * 0.56, -ctx.H * 0.22, 0),
+		Color = paleOf(ctx.Color):Lerp(ctx.Color, 0.4),
+		Material = ctx.Material,
+	})
+	-- Gill plate, which is what gives the head its bulk.
+	for _, side in { 1, -1 } do
+		piece(ctx.Model, {
+			Name = "Operculum",
+			Size = Vector3.new(ctx.L * 0.04, ctx.H * 0.62, ctx.W * 0.5),
+			CFrame = CFrame.new(ctx.L * 0.2, -ctx.H * 0.02, side * ctx.W * 0.3),
+			Color = darkOf(ctx.Color),
+			Material = ctx.Material,
+		})
+	end
+end
+
+-- Dark saddles ACROSS the back — the leopard shark's actual pattern. It is not
+-- spotted like a leopard; it is barred, and drawing it with round spots is the
+-- same class of error as drawing every species with the same body.
+local function addSaddles(ctx: Ctx, count: number)
+	for i = 1, count do
+		local at = ctx.L * 0.34 - (i - 0.5) * (ctx.L * 0.86 / count)
+		piece(ctx.Model, {
+			Name = "Saddle",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(ctx.L * 0.07, ctx.H * 0.72, ctx.W * 1.04),
+			CFrame = CFrame.new(at, ctx.H * 0.28, 0),
+			Color = darkOf(ctx.Color),
+			Material = ctx.Material,
+		})
+	end
+end
+
 local function addExtras(ctx: Ctx, extras: { string }?)
 	if has(extras, "Bill") then
 		addBill(ctx)
@@ -586,6 +651,15 @@ local function addExtras(ctx: Ctx, extras: { string }?)
 	end
 	if has(extras, "GoblinSnout") then
 		addGoblinSnout(ctx)
+	end
+	if has(extras, "Gills") then
+		addGills(ctx)
+	end
+	if has(extras, "Grouper") then
+		addGrouperJaw(ctx)
+	end
+	if has(extras, "Saddles") then
+		addSaddles(ctx, 7)
 	end
 end
 
@@ -1224,7 +1298,15 @@ local PROFILES: { [string]: Profile } = {
 	},
 
 	-- Area 2: Kelp Forest
-	["Kelp Bass"] = { Length = 2.8, Height = 1.35, Width = 0.8, Tail = "Round", Dorsal = "Spiny", Spots = 7 },
+	["Kelp Bass"] = {
+		Length = 2.8,
+		Height = 1.35,
+		Width = 0.8,
+		Tail = "Round",
+		Dorsal = "Spiny",
+		Spots = 7,
+		Extras = { "Grouper" },
+	},
 	Garibaldi = { Length = 2.2, Height = 1.95, Width = 0.7, Snout = 0.3, Tail = "Fork", Dorsal = "Ridge" },
 	Sheephead = {
 		Length = 3.0,
@@ -1234,20 +1316,31 @@ local PROFILES: { [string]: Profile } = {
 		Tail = "Round",
 		Dorsal = "Spiny",
 		Bands = 1,
-		Extras = { "Bump" },
+		Extras = { "Bump", "Grouper" },
 	},
 	["Moray Eel"] = { Family = "Serpent", Length = 3.2, Height = 0.85, Width = 0.6, Extras = { "Fangs" } },
 	["Leopard Shark"] = {
 		Family = "Shark",
-		Length = 4.0,
-		Height = 1.0,
-		Width = 0.7,
+		Length = 4.4,
+		Height = 0.9,
+		Width = 0.62,
+		Snout = 0.34,
 		Tail = "Shark",
 		Dorsal = "SharkFin",
 		Pectoral = "Long",
-		Spots = 12,
+		Extras = { "Gills", "Saddles" },
 	},
-	["Giant Sea Bass"] = { Length = 3.6, Height = 2.05, Width = 1.15, Tail = "Round", Dorsal = "Spiny", Spots = 5 },
+	["Giant Sea Bass"] = {
+		Length = 3.8,
+		Height = 2.15,
+		Width = 1.25,
+		Snout = 0.3,
+		Tail = "Round",
+		Dorsal = "Spiny",
+		Pectoral = "Long",
+		Spots = 5,
+		Extras = { "Grouper" },
+	},
 
 	-- Area 3: Twilight Reef
 	Clownfish = {
@@ -1271,6 +1364,7 @@ local PROFILES: { [string]: Profile } = {
 		Tail = "Shark",
 		Dorsal = "SharkFin",
 		Pectoral = "Long",
+		Extras = { "Gills" },
 	},
 	["Manta Ray"] = { Family = "Ray", Length = 3.4, Height = 1.0, Width = 1.1 },
 	Hammerhead = {
@@ -1281,7 +1375,7 @@ local PROFILES: { [string]: Profile } = {
 		Tail = "Shark",
 		Dorsal = "SharkFin",
 		Pectoral = "Long",
-		Extras = { "Hammer" },
+		Extras = { "Gills", "Hammer" },
 	},
 
 	-- Area 4: Midnight Trench
@@ -1321,7 +1415,7 @@ local PROFILES: { [string]: Profile } = {
 		Tail = "Shark",
 		Dorsal = "SharkFin",
 		Pectoral = "Long",
-		Extras = { "GoblinSnout" },
+		Extras = { "Gills", "GoblinSnout" },
 	},
 	["Colossal Squid"] = { Family = "Squid", Length = 3.0, Height = 1.3, Width = 0.95 },
 	Megalodon = {
@@ -1332,7 +1426,7 @@ local PROFILES: { [string]: Profile } = {
 		Tail = "Shark",
 		Dorsal = "SharkFin",
 		Pectoral = "Long",
-		Extras = { "Fangs" },
+		Extras = { "Gills", "Fangs" },
 	},
 }
 

@@ -70,7 +70,7 @@ local AREA_THEMES: { AreaTheme } = {
 		Palms = 0,
 		Growth = "Kelp",
 		Shore = "Pine",
-		Buoy = "Float",
+		Buoy = "Otter",
 		DeckColor = Color3.fromRGB(112, 92, 72),
 		DeckMaterial = Enum.Material.Wood,
 	},
@@ -81,7 +81,7 @@ local AREA_THEMES: { AreaTheme } = {
 		Palms = 3,
 		Growth = "Coral",
 		Shore = "Rock",
-		Buoy = "Glass",
+		Buoy = "Tiki",
 		DeckColor = Color3.fromRGB(226, 168, 150),
 		DeckMaterial = Enum.Material.Sandstone,
 	},
@@ -103,7 +103,7 @@ local AREA_THEMES: { AreaTheme } = {
 		Palms = 0,
 		Growth = "Bone",
 		Shore = "Spire",
-		Buoy = "Orb",
+		Buoy = "Lantern",
 		DeckColor = Color3.fromRGB(206, 200, 186),
 		DeckMaterial = Enum.Material.Slate,
 	},
@@ -925,6 +925,799 @@ local function makePine(position: Vector3, parent: Instance)
 	end
 end
 
+--------------------------------------------------------------------------------
+-- CULTURE PACKS: what makes each area a PLACE and not a palette.
+--
+-- Every area's species list is real, and real species come from somewhere. That
+-- somewhere is free theming, and it is far stronger than inventing one:
+--
+--   1 Sunny Shallows  Sailfish, Snapper, Tarpon water -> a FLORIDA KEYS marina
+--   2 Kelp Forest     Garibaldi (California's state marine fish), Sheephead,
+--                     Leopard Shark, Giant Sea Bass -> the SOUTHERN CALIFORNIA
+--                     kelp coast: a timber pier, a cannery, and sea otters
+--                     floating on their backs in the canopy
+--   3 Twilight Reef   Clownfish, Parrotfish, Blue Tang, Manta -> INDO-PACIFIC,
+--                     so a Polynesian tiki island with huts out over the water
+--   4 Midnight Trench Anglerfish, Barreleye, Gulper Eel -> nobody LIVES here,
+--                     they visit: a DEEP-SEA RESEARCH RIG with a submersible
+--   5 The Abyss       Goblin Shark and Frilled Shark are Sagami Bay animals ->
+--                     RYUGU-JO, the dragon god's palace: a torii gate standing
+--                     out of black water, stone lanterns, a drowned shrine
+--
+-- Every one of these is a landmark you can see from the dock before you can
+-- afford the water it stands in, which is the Dock Master's price list doing its
+-- own advertising.
+--------------------------------------------------------------------------------
+
+-- A sea otter, floating on its back with a shell on its chest, the way they
+-- actually sleep in the canopy. Pure charm, and charm is what a kelp bed needs
+-- to stop being a green car park.
+local function makeOtter(at: Vector3, parent: Instance)
+	local FUR = Color3.fromRGB(112, 84, 62)
+	local FACE = Color3.fromRGB(198, 176, 150)
+	local heading = rng:NextNumber(0, 6)
+	local facing = CFrame.new(at) * CFrame.Angles(0, heading, 0)
+	deco({
+		Name = "OtterBody",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(1.5, 1.1, 3.4),
+		CFrame = facing,
+		Color = FUR,
+		Material = Enum.Material.SmoothPlastic,
+	}, parent)
+	deco({
+		Name = "OtterBelly",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(1.25, 0.7, 2.7),
+		CFrame = facing * CFrame.new(0, 0.32, 0),
+		Color = FACE:Lerp(FUR, 0.35),
+		Material = Enum.Material.SmoothPlastic,
+	}, parent)
+	deco({
+		Name = "OtterHead",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(1.15, 1.0, 1.1),
+		CFrame = facing * CFrame.new(0, 0.5, 1.75),
+		Color = FUR,
+		Material = Enum.Material.SmoothPlastic,
+	}, parent)
+	deco({
+		Name = "OtterMuzzle",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(0.7, 0.5, 0.6),
+		CFrame = facing * CFrame.new(0, 0.34, 2.2),
+		Color = FACE,
+		Material = Enum.Material.SmoothPlastic,
+	}, parent)
+	for _, side in { 1, -1 } do
+		deco({
+			Name = "OtterEye",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.2, 0.2, 0.2),
+			CFrame = facing * CFrame.new(side * 0.28, 0.72, 2.05),
+			Color = Color3.fromRGB(22, 20, 26),
+		}, parent)
+		deco({
+			Name = "OtterEar",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.26, 0.26, 0.2),
+			CFrame = facing * CFrame.new(side * 0.48, 0.95, 1.5),
+			Color = FUR,
+		}, parent)
+		-- Paws folded on the chest, holding the shell.
+		deco({
+			Name = "OtterPaw",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.42, 0.34, 0.5),
+			CFrame = facing * CFrame.new(side * 0.34, 0.7, 0.85),
+			Color = FUR:Lerp(Color3.new(0, 0, 0), 0.25),
+		}, parent)
+	end
+	deco({
+		Name = "OtterShell",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(0.7, 0.3, 0.7),
+		CFrame = facing * CFrame.new(0, 0.85, 0.9),
+		Color = Color3.fromRGB(206, 198, 180),
+		Material = Enum.Material.Sandstone,
+	}, parent)
+	deco({
+		Name = "OtterTail",
+		Size = Vector3.new(0.5, 0.3, 1.6),
+		CFrame = facing * CFrame.new(0, 0.05, -2.1),
+		Color = FUR,
+		Material = Enum.Material.SmoothPlastic,
+	}, parent)
+end
+
+-- A carved tiki totem. Stacked faces, because one head reads as a post and
+-- three read as a totem.
+local function makeTiki(at: Vector3, heads: number, parent: Instance)
+	local WOOD_DARK = Color3.fromRGB(94, 62, 40)
+	local WOOD_MID = Color3.fromRGB(126, 86, 54)
+	for i = 1, heads do
+		local y = (i - 1) * 3.1
+		deco({
+			Name = "TikiBlock",
+			Size = Vector3.new(2.6, 3.0, 2.4),
+			CFrame = CFrame.new(at + Vector3.new(0, y + 1.5, 0)) * CFrame.Angles(0, 0.12 * i, 0),
+			Color = if i % 2 == 0 then WOOD_MID else WOOD_DARK,
+			Material = Enum.Material.Wood,
+		}, parent)
+		-- Brow, eyes, mouth: four parts is enough for a face at this distance.
+		deco({
+			Name = "TikiBrow",
+			Size = Vector3.new(2.7, 0.5, 0.5),
+			CFrame = CFrame.new(at + Vector3.new(0, y + 2.3, -1.15)) * CFrame.Angles(0, 0.12 * i, 0),
+			Color = WOOD_DARK:Lerp(Color3.new(0, 0, 0), 0.4),
+			Material = Enum.Material.Wood,
+		}, parent)
+		for _, side in { 1, -1 } do
+			deco({
+				Name = "TikiEye",
+				Size = Vector3.new(0.6, 0.6, 0.3),
+				CFrame = CFrame.new(at + Vector3.new(side * 0.62, y + 1.8, -1.2)) * CFrame.Angles(0, 0.12 * i, 0),
+				Color = Color3.fromRGB(238, 226, 200),
+				Material = Enum.Material.SmoothPlastic,
+			}, parent)
+		end
+		deco({
+			Name = "TikiMouth",
+			Size = Vector3.new(1.8, 0.7, 0.35),
+			CFrame = CFrame.new(at + Vector3.new(0, y + 0.85, -1.15)) * CFrame.Angles(0, 0.12 * i, 0),
+			Color = Color3.fromRGB(228, 210, 180),
+			Material = Enum.Material.SmoothPlastic,
+		}, parent)
+	end
+end
+
+-- A torii gate. Two pillars, a curved double lintel, painted vermilion — the
+-- single most legible "this is a sacred place" silhouette there is, and Sagami
+-- Bay is where the Goblin Shark and the Frilled Shark actually come from.
+local function makeTorii(at: Vector3, scale: number, parent: Instance)
+	local VERMILION = Color3.fromRGB(196, 54, 44)
+	local BLACK = Color3.fromRGB(34, 28, 30)
+	local height = 16 * scale
+	local width = 13 * scale
+	for _, side in { 1, -1 } do
+		deco({
+			Name = "ToriiPillar",
+			Size = Vector3.new(1.5 * scale, height, 1.5 * scale),
+			CFrame = CFrame.new(at + Vector3.new(side * width * 0.5, height * 0.5, 0))
+				* CFrame.Angles(0, 0, side * 0.02),
+			Color = VERMILION,
+			Material = Enum.Material.WoodPlanks,
+		}, parent)
+		deco({
+			Name = "ToriiFoot",
+			Size = Vector3.new(2.3 * scale, 1.1 * scale, 2.3 * scale),
+			Position = at + Vector3.new(side * width * 0.5, 0.4 * scale, 0),
+			Color = BLACK,
+			Material = Enum.Material.Slate,
+		}, parent)
+	end
+	-- Kasagi: the top lintel, wider than the gate and slightly upturned.
+	deco({
+		Name = "ToriiKasagi",
+		Size = Vector3.new(width * 1.35, 1.3 * scale, 2.0 * scale),
+		Position = at + Vector3.new(0, height + 0.5 * scale, 0),
+		Color = VERMILION,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	for _, side in { 1, -1 } do
+		deco({
+			Name = "ToriiUpturn",
+			Size = Vector3.new(width * 0.22, 1.0 * scale, 1.9 * scale),
+			CFrame = CFrame.new(at + Vector3.new(side * width * 0.72, height + 0.85 * scale, 0))
+				* CFrame.Angles(0, 0, side * -0.16),
+			Color = VERMILION,
+			Material = Enum.Material.WoodPlanks,
+		}, parent)
+	end
+	-- Nuki: the lower tie beam, and the small strut between them.
+	deco({
+		Name = "ToriiNuki",
+		Size = Vector3.new(width * 1.06, 0.9 * scale, 1.3 * scale),
+		Position = at + Vector3.new(0, height - 2.6 * scale, 0),
+		Color = VERMILION,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+	deco({
+		Name = "ToriiGakuzuka",
+		Size = Vector3.new(1.1 * scale, 2.2 * scale, 1.0 * scale),
+		Position = at + Vector3.new(0, height - 1.4 * scale, 0),
+		Color = BLACK,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+end
+
+-- A stone lantern (toro). Standing on the shore, or floating on the water for
+-- toro nagashi, which is where the Abyss buoy comes from.
+local function makeStoneLantern(at: Vector3, scale: number, lightColor: Color3, parent: Instance): BasePart
+	local STONE = Color3.fromRGB(148, 146, 138)
+	deco({
+		Name = "LanternBase",
+		Size = Vector3.new(2.0 * scale, 0.7 * scale, 2.0 * scale),
+		Position = at + Vector3.new(0, 0.35 * scale, 0),
+		Color = STONE:Lerp(Color3.new(0, 0, 0), 0.2),
+		Material = Enum.Material.Slate,
+	}, parent)
+	deco({
+		Name = "LanternPost",
+		Size = Vector3.new(0.8 * scale, 2.2 * scale, 0.8 * scale),
+		Position = at + Vector3.new(0, 1.8 * scale, 0),
+		Color = STONE,
+		Material = Enum.Material.Slate,
+	}, parent)
+	deco({
+		Name = "LanternPlate",
+		Size = Vector3.new(2.2 * scale, 0.4 * scale, 2.2 * scale),
+		Position = at + Vector3.new(0, 3.1 * scale, 0),
+		Color = STONE,
+		Material = Enum.Material.Slate,
+	}, parent)
+	local box = deco({
+		Name = "LanternBox",
+		Size = Vector3.new(1.7 * scale, 1.6 * scale, 1.7 * scale),
+		Position = at + Vector3.new(0, 4.1 * scale, 0),
+		Color = lightColor,
+		Material = Enum.Material.Neon,
+		Transparency = 0.35,
+	}, parent)
+	-- Slats over the light box, so it reads as carved stone with fire inside
+	-- rather than as a glowing cube.
+	for _, side in { 1, -1 } do
+		deco({
+			Name = "LanternPost2",
+			Size = Vector3.new(0.28 * scale, 1.7 * scale, 0.28 * scale),
+			Position = at + Vector3.new(side * 0.78 * scale, 4.1 * scale, 0.78 * scale),
+			Color = STONE,
+			Material = Enum.Material.Slate,
+		}, parent)
+		deco({
+			Name = "LanternPost3",
+			Size = Vector3.new(0.28 * scale, 1.7 * scale, 0.28 * scale),
+			Position = at + Vector3.new(side * 0.78 * scale, 4.1 * scale, -0.78 * scale),
+			Color = STONE,
+			Material = Enum.Material.Slate,
+		}, parent)
+	end
+	-- Kasa: the flared stone roof, and the jewel on top.
+	deco({
+		Name = "LanternRoof",
+		Size = Vector3.new(3.0 * scale, 0.9 * scale, 3.0 * scale),
+		Position = at + Vector3.new(0, 5.3 * scale, 0),
+		Color = STONE:Lerp(Color3.new(0, 0, 0), 0.15),
+		Material = Enum.Material.Slate,
+	}, parent)
+	deco({
+		Name = "LanternFinial",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(0.9 * scale, 1.1 * scale, 0.9 * scale),
+		Position = at + Vector3.new(0, 6.1 * scale, 0),
+		Color = STONE,
+		Material = Enum.Material.Slate,
+	}, parent)
+	return box
+end
+
+-- A timber pier on pilings, running out over the water. The Monterey/Catalina
+-- silhouette, and the thing that makes the kelp coast read as a working coast.
+local function makePier(at: Vector3, length: number, parent: Instance)
+	deco({
+		Name = "PierDeck",
+		Size = Vector3.new(9, 0.7, length),
+		Position = at + Vector3.new(0, 4.2, -length * 0.5),
+		Color = Color3.fromRGB(122, 96, 72),
+		Material = Enum.Material.WoodPlanks,
+	}, parent).CanCollide = true
+	local bays = math.floor(length / 9)
+	for i = 0, bays do
+		for _, side in { 1, -1 } do
+			deco({
+				Name = "Piling",
+				Size = Vector3.new(1.1, 11, 1.1),
+				Position = at + Vector3.new(side * 3.6, -1.5, -i * 9),
+				Color = Color3.fromRGB(78, 62, 48),
+				Material = Enum.Material.Wood,
+			}, parent)
+			-- Rail posts, so the deck has an edge instead of just stopping.
+			deco({
+				Name = "RailPost",
+				Size = Vector3.new(0.4, 2.4, 0.4),
+				Position = at + Vector3.new(side * 4.2, 5.7, -i * 9),
+				Color = Color3.fromRGB(96, 76, 58),
+				Material = Enum.Material.Wood,
+			}, parent)
+		end
+	end
+	for _, side in { 1, -1 } do
+		deco({
+			Name = "Rail",
+			Size = Vector3.new(0.3, 0.3, length),
+			Position = at + Vector3.new(side * 4.2, 6.8, -length * 0.5),
+			Color = Color3.fromRGB(96, 76, 58),
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+end
+
+-- A clapboard cannery shed with a rust-red roof: Cannery Row in four parts.
+local function makeShed(at: Vector3, width: number, wall: Color3, roof: Color3, parent: Instance)
+	local height = rng:NextNumber(7, 10)
+	deco({
+		Name = "ShedWall",
+		Size = Vector3.new(width, height, width * 0.75),
+		Position = at + Vector3.new(0, height * 0.5, 0),
+		Color = wall,
+		Material = Enum.Material.WoodPlanks,
+	}, parent).CanCollide = true
+	-- Pitched roof: two leaning slabs.
+	for _, side in { 1, -1 } do
+		deco({
+			Name = "ShedRoof",
+			Size = Vector3.new(width * 0.62, 0.6, width * 0.85),
+			CFrame = CFrame.new(at + Vector3.new(side * width * 0.26, height + width * 0.12, 0))
+				* CFrame.Angles(0, 0, side * 0.42),
+			Color = roof,
+			Material = Enum.Material.Metal,
+		}, parent)
+	end
+	for i = 1, 2 do
+		deco({
+			Name = "ShedWindow",
+			Size = Vector3.new(width * 0.2, height * 0.28, 0.3),
+			Position = at + Vector3.new((i - 1.5) * width * 0.45, height * 0.55, -width * 0.38),
+			Color = Color3.fromRGB(150, 190, 200),
+			Material = Enum.Material.Glass,
+			Transparency = 0.3,
+		}, parent)
+	end
+end
+
+-- A thatched hut on stilts out over the reef, with a ladder down to the water.
+local function makeStiltHut(at: Vector3, parent: Instance)
+	local BAMBOO = Color3.fromRGB(206, 178, 116)
+	local THATCH = Color3.fromRGB(176, 142, 82)
+	for _, dx in { -3.2, 3.2 } do
+		for _, dz in { -3.2, 3.2 } do
+			deco({
+				Name = "Stilt",
+				Size = Vector3.new(0.6, 9, 0.6),
+				Position = at + Vector3.new(dx, 1.5, dz),
+				Color = Color3.fromRGB(120, 96, 60),
+				Material = Enum.Material.Wood,
+			}, parent)
+		end
+	end
+	deco({
+		Name = "HutFloor",
+		Size = Vector3.new(8.4, 0.6, 8.4),
+		Position = at + Vector3.new(0, 6.2, 0),
+		Color = BAMBOO,
+		Material = Enum.Material.WoodPlanks,
+	}, parent).CanCollide = true
+	for i = 1, 4 do
+		local theta = (i / 4) * math.pi * 2 + math.pi * 0.25
+		deco({
+			Name = "HutPost",
+			Size = Vector3.new(0.45, 5, 0.45),
+			Position = at + Vector3.new(math.cos(theta) * 3.6, 9, math.sin(theta) * 3.6),
+			Color = BAMBOO,
+			Material = Enum.Material.Wood,
+		}, parent)
+	end
+	-- Thatch: four leaning panels meeting in a peak.
+	for i = 1, 4 do
+		local theta = (i / 4) * math.pi * 2
+		deco({
+			Name = "Thatch",
+			Size = Vector3.new(7.6, 0.7, 5.4),
+			CFrame = CFrame.new(at + Vector3.new(math.cos(theta) * 2.1, 12.4, math.sin(theta) * 2.1))
+				* CFrame.Angles(0, -theta, 0)
+				* CFrame.Angles(-0.62, 0, 0),
+			Color = THATCH,
+			Material = Enum.Material.Grass,
+		}, parent)
+	end
+	deco({
+		Name = "ThatchPeak",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(2.2, 1.6, 2.2),
+		Position = at + Vector3.new(0, 14.2, 0),
+		Color = THATCH,
+		Material = Enum.Material.Grass,
+	}, parent)
+end
+
+-- A steel research platform on legs, with a submersible slung under its crane.
+-- Nothing LIVES in the trench; people visit it, and the rig says so.
+local function makeRig(at: Vector3, parent: Instance)
+	local STEEL = Color3.fromRGB(96, 102, 116)
+	local HAZARD = Color3.fromRGB(226, 176, 44)
+	for _, dx in { -7, 7 } do
+		for _, dz in { -7, 7 } do
+			deco({
+				Name = "RigLeg",
+				Size = Vector3.new(1.5, 16, 1.5),
+				Position = at + Vector3.new(dx, 4, dz),
+				Color = STEEL,
+				Material = Enum.Material.Metal,
+			}, parent)
+		end
+	end
+	deco({
+		Name = "RigDeck",
+		Size = Vector3.new(18, 1, 18),
+		Position = at + Vector3.new(0, 12.2, 0),
+		Color = STEEL,
+		Material = Enum.Material.DiamondPlate,
+	}, parent).CanCollide = true
+	for i = 1, 4 do
+		deco({
+			Name = "RigHazard",
+			Size = Vector3.new(18, 0.4, 1.1),
+			Position = at + Vector3.new(0, 12.9, -8.4 + (i - 1) * 5.6),
+			Color = if i % 2 == 0 then HAZARD else Color3.fromRGB(40, 42, 50),
+			Material = Enum.Material.Metal,
+		}, parent)
+	end
+	-- Container hut and a floodlight mast.
+	deco({
+		Name = "RigHut",
+		Size = Vector3.new(7, 5, 5),
+		Position = at + Vector3.new(-4, 15.2, 3),
+		Color = Color3.fromRGB(52, 96, 118),
+		Material = Enum.Material.CorrodedMetal,
+	}, parent).CanCollide = true
+	deco({
+		Name = "RigMast",
+		Size = Vector3.new(0.7, 10, 0.7),
+		Position = at + Vector3.new(6, 17.5, -5),
+		Color = STEEL,
+		Material = Enum.Material.Metal,
+	}, parent)
+	local flood = deco({
+		Name = "RigFlood",
+		Size = Vector3.new(1.8, 1.4, 1.2),
+		Position = at + Vector3.new(6, 22.2, -5),
+		Color = Color3.fromRGB(255, 246, 210),
+		Material = Enum.Material.Neon,
+		Transparency = 0.25,
+	}, parent)
+	local lamp = Instance.new("PointLight")
+	lamp.Color = Color3.fromRGB(210, 230, 255)
+	lamp.Range = 22
+	lamp.Brightness = 0.7
+	lamp.Shadows = false
+	lamp.Parent = flood
+
+	-- The crane, and the sub on the end of it.
+	deco({
+		Name = "CraneArm",
+		Size = Vector3.new(0.8, 0.8, 12),
+		CFrame = CFrame.new(at + Vector3.new(6, 21, -11)) * CFrame.Angles(0.25, 0, 0),
+		Color = HAZARD,
+		Material = Enum.Material.Metal,
+	}, parent)
+	local subAt = at + Vector3.new(6, 14.5, -16)
+	deco({
+		Name = "SubHull",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(4.2, 3.6, 5.6),
+		Position = subAt,
+		Color = HAZARD,
+		Material = Enum.Material.Metal,
+	}, parent)
+	deco({
+		Name = "SubPort",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(2.0, 2.0, 2.0),
+		Position = subAt + Vector3.new(0, 0.2, -2.4),
+		Color = Color3.fromRGB(150, 220, 240),
+		Material = Enum.Material.Glass,
+		Transparency = 0.35,
+	}, parent)
+	deco({
+		Name = "SubFin",
+		Size = Vector3.new(0.4, 2.4, 1.6),
+		Position = subAt + Vector3.new(0, 1.9, 2.2),
+		Color = Color3.fromRGB(60, 64, 76),
+		Material = Enum.Material.Metal,
+	}, parent)
+	for _, side in { 1, -1 } do
+		deco({
+			Name = "SubThruster",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(1.4, 1.2, 1.2),
+			CFrame = CFrame.new(subAt + Vector3.new(side * 2.3, -0.4, 1.9)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(60, 64, 76),
+			Material = Enum.Material.Metal,
+		}, parent)
+	end
+end
+
+-- A drowned shrine: a tiled roof breaking the surface at an angle, as though
+-- the building under it is still down there.
+local function makeShrine(at: Vector3, parent: Instance)
+	local TILE = Color3.fromRGB(62, 74, 86)
+	local BEAM = Color3.fromRGB(150, 62, 52)
+	local tilt = rng:NextNumber(0.12, 0.26)
+	local heading = rng:NextNumber(0, 6)
+	local facing = CFrame.new(at) * CFrame.Angles(0, heading, 0) * CFrame.Angles(0, 0, tilt)
+	for _, side in { 1, -1 } do
+		deco({
+			Name = "ShrineRoof",
+			Size = Vector3.new(11, 0.9, 8),
+			CFrame = facing * CFrame.new(side * 4.4, 2.6, 0) * CFrame.Angles(0, 0, side * 0.5),
+			Color = TILE,
+			Material = Enum.Material.Slate,
+		}, parent)
+		-- Upturned eaves, the detail that makes it read as a shrine.
+		deco({
+			Name = "ShrineEave",
+			Size = Vector3.new(3.4, 0.7, 8.4),
+			CFrame = facing * CFrame.new(side * 8.6, 0.7, 0) * CFrame.Angles(0, 0, side * 0.18),
+			Color = TILE:Lerp(Color3.new(0, 0, 0), 0.2),
+			Material = Enum.Material.Slate,
+		}, parent)
+	end
+	deco({
+		Name = "ShrineRidge",
+		Size = Vector3.new(1.4, 1.0, 8.6),
+		CFrame = facing * CFrame.new(0, 4.4, 0),
+		Color = BEAM,
+		Material = Enum.Material.Slate,
+	}, parent)
+	deco({
+		Name = "ShrineBeam",
+		Size = Vector3.new(9, 1.0, 1.0),
+		CFrame = facing * CFrame.new(0, 1.2, -4.2),
+		Color = BEAM,
+		Material = Enum.Material.WoodPlanks,
+	}, parent)
+end
+
+-- Koinobori: carp streamers on a pole. Japanese, instantly readable, and a carp
+-- windsock over black water is exactly the note the Abyss wants.
+local function makeKoinobori(at: Vector3, parent: Instance)
+	deco({
+		Name = "KoiPole",
+		Size = Vector3.new(0.5, 20, 0.5),
+		Position = at + Vector3.new(0, 10, 0),
+		Color = Color3.fromRGB(70, 60, 54),
+		Material = Enum.Material.Wood,
+	}, parent)
+	local colors = {
+		Color3.fromRGB(40, 44, 60),
+		Color3.fromRGB(206, 62, 52),
+		Color3.fromRGB(70, 130, 200),
+	}
+	for i, tint in colors do
+		local y = 18.5 - (i - 1) * 4.6
+		local drift = rng:NextNumber(-0.14, 0.14)
+		-- Body, tapering into a split tail: a carp windsock in five parts.
+		deco({
+			Name = "KoiBody",
+			Size = Vector3.new(4.4, 2.4, 2.4),
+			CFrame = CFrame.new(at + Vector3.new(2.8, y, 0)) * CFrame.Angles(0, 0, drift),
+			Color = tint,
+			Material = Enum.Material.Fabric,
+		}, parent)
+		deco({
+			Name = "KoiMouth",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.5, 2.6, 2.6),
+			CFrame = CFrame.new(at + Vector3.new(0.7, y, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(240, 236, 226),
+			Material = Enum.Material.Fabric,
+		}, parent)
+		deco({
+			Name = "KoiEye",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.7, 0.7, 0.7),
+			CFrame = CFrame.new(at + Vector3.new(1.5, y + 0.6, 1.1)),
+			Color = Color3.fromRGB(245, 245, 245),
+		}, parent)
+		for _, side in { 1, -1 } do
+			deco({
+				Name = "KoiTail",
+				Size = Vector3.new(2.0, 1.9, 0.4),
+				CFrame = CFrame.new(at + Vector3.new(5.8, y + side * 0.7, 0))
+					* CFrame.Angles(0, 0, drift + side * 0.5),
+				Color = tint:Lerp(Color3.new(1, 1, 1), 0.35),
+				Material = Enum.Material.Fabric,
+			}, parent)
+		end
+	end
+end
+
+-- A pastel cabana with a striped awning. Florida Keys marina furniture.
+local function makeCabana(at: Vector3, wall: Color3, parent: Instance)
+	deco({
+		Name = "CabanaWall",
+		Size = Vector3.new(8, 6, 6),
+		Position = at + Vector3.new(0, 3, 0),
+		Color = wall,
+		Material = Enum.Material.WoodPlanks,
+	}, parent).CanCollide = true
+	deco({
+		Name = "CabanaRoof",
+		Size = Vector3.new(9.4, 0.5, 7.4),
+		Position = at + Vector3.new(0, 6.3, 0),
+		Color = Color3.fromRGB(248, 248, 250),
+		Material = Enum.Material.Metal,
+	}, parent)
+	-- Awning stripes over the front.
+	for i = 1, 6 do
+		deco({
+			Name = "AwningStripe",
+			Size = Vector3.new(1.5, 0.3, 3.2),
+			CFrame = CFrame.new(at + Vector3.new(-3.75 + (i - 0.5) * 1.5, 5.6, -4.2))
+				* CFrame.Angles(-0.3, 0, 0),
+			Color = if i % 2 == 0 then Color3.fromRGB(240, 240, 245) else wall:Lerp(Color3.fromRGB(230, 80, 90), 0.6),
+			Material = Enum.Material.Fabric,
+		}, parent)
+	end
+	deco({
+		Name = "CabanaDoor",
+		Size = Vector3.new(2.2, 4, 0.3),
+		Position = at + Vector3.new(0, 2, -3.1),
+		Color = Color3.fromRGB(96, 72, 52),
+		Material = Enum.Material.Wood,
+	}, parent)
+end
+
+-- Place the area's culture pack. Shore props go on the beach (+Z of the dock
+-- head); anything in the water goes wide of the fishing arc so it frames the
+-- spots rather than standing in them.
+local function buildCulture(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
+	if index == 1 then
+		-- FLORIDA KEYS MARINA: pastel cabanas along the sand.
+		local pastels = {
+			Color3.fromRGB(126, 206, 214),
+			Color3.fromRGB(246, 186, 140),
+			Color3.fromRGB(228, 152, 178),
+			Color3.fromRGB(180, 214, 148),
+		}
+		for i = 1, 4 do
+			makeCabana(
+				Vector3.new(ox - 78 + (i - 1) * 52, 0, oz + rng:NextNumber(56, 92)),
+				pastels[i],
+				parent
+			)
+		end
+		-- Pelican pilings out past the dock head: a row of posts with a bird.
+		for i = 1, 5 do
+			local at = Vector3.new(ox - 62 - i * 7, -1, oz - 30)
+			deco({
+				Name = "Piling",
+				Size = Vector3.new(1.2, 9, 1.2),
+				Position = at + Vector3.new(0, 3, 0),
+				Color = Color3.fromRGB(96, 76, 58),
+				Material = Enum.Material.Wood,
+			}, parent)
+			if i % 2 == 0 then
+				deco({
+					Name = "Pelican",
+					Shape = Enum.PartType.Ball,
+					Size = Vector3.new(1.3, 1.6, 2.6),
+					Position = at + Vector3.new(0, 8.2, 0),
+					Color = Color3.fromRGB(238, 236, 228),
+					Material = Enum.Material.SmoothPlastic,
+				}, parent)
+				deco({
+					Name = "PelicanBill",
+					Size = Vector3.new(0.4, 0.4, 2.2),
+					Position = at + Vector3.new(0, 8.4, -1.9),
+					Color = Color3.fromRGB(246, 196, 90),
+					Material = Enum.Material.SmoothPlastic,
+				}, parent)
+			end
+		end
+	elseif index == 2 then
+		-- SOUTHERN CALIFORNIA KELP COAST. Every species here is a Californian
+		-- animal, so this is Monterey/Catalina: a working pier, cannery sheds,
+		-- and otters asleep in the canopy.
+		makePier(Vector3.new(ox - 72, 0, oz - 6), 74, parent)
+		makePier(Vector3.new(ox + 72, 0, oz - 6), 58, parent)
+		local walls = { Color3.fromRGB(196, 190, 176), Color3.fromRGB(150, 158, 150), Color3.fromRGB(178, 166, 148) }
+		for i = 1, 3 do
+			makeShed(
+				Vector3.new(ox - 60 + (i - 1) * 60, 0, oz + rng:NextNumber(58, 88)),
+				rng:NextNumber(10, 15),
+				walls[i],
+				Color3.fromRGB(146, 74, 56),
+				parent
+			)
+		end
+		-- The otters. Six of them, out among the kelp on both flanks.
+		for i = 1, 6 do
+			local side = if i % 2 == 0 then 1 else -1
+			makeOtter(
+				Vector3.new(ox + side * rng:NextNumber(52, 118), 0.5, oz - rng:NextNumber(20, 130)),
+				parent
+			)
+		end
+	elseif index == 3 then
+		-- POLYNESIAN REEF: tiki totems on the sand, huts out over the water.
+		for i = 1, 5 do
+			makeTiki(
+				Vector3.new(ox - 80 + (i - 1) * 40, 0, oz + rng:NextNumber(46, 62)),
+				rng:NextInteger(2, 3),
+				parent
+			)
+		end
+		makeStiltHut(Vector3.new(ox - 66, -4, oz - 24), parent)
+		makeStiltHut(Vector3.new(ox + 70, -4, oz - 34), parent)
+		-- An outrigger canoe pulled up on the sand.
+		local canoeAt = Vector3.new(ox + 30, 1.2, oz + 40)
+		deco({
+			Name = "CanoeHull",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(3.0, 2.0, 14),
+			Position = canoeAt,
+			Color = Color3.fromRGB(104, 72, 46),
+			Material = Enum.Material.Wood,
+		}, parent)
+		deco({
+			Name = "CanoeFloat",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(1.4, 1.2, 9),
+			Position = canoeAt + Vector3.new(5.5, -0.3, 0),
+			Color = Color3.fromRGB(126, 92, 58),
+			Material = Enum.Material.Wood,
+		}, parent)
+		for _, dz in { -3, 3 } do
+			deco({
+				Name = "CanoeSpar",
+				Size = Vector3.new(6.2, 0.4, 0.4),
+				Position = canoeAt + Vector3.new(2.8, 1.1, dz),
+				Color = Color3.fromRGB(126, 92, 58),
+				Material = Enum.Material.Wood,
+			}, parent)
+		end
+	elseif index == 4 then
+		-- DEEP-SEA RESEARCH RIG. Nothing lives up here; people visit.
+		makeRig(Vector3.new(ox - 74, 0, oz - 40), parent)
+		-- Marker floats and a container yard on the shore.
+		for i = 1, 4 do
+			deco({
+				Name = "Container",
+				Size = Vector3.new(12, 5, 5.4),
+				CFrame = CFrame.new(ox - 60 + (i - 1) * 42, 2.5, oz + rng:NextNumber(56, 84))
+					* CFrame.Angles(0, rng:NextNumber(-0.4, 0.4), 0),
+				Color = ({
+					Color3.fromRGB(58, 96, 118),
+					Color3.fromRGB(150, 76, 60),
+					Color3.fromRGB(96, 108, 88),
+					Color3.fromRGB(122, 118, 130),
+				})[i],
+				Material = Enum.Material.CorrodedMetal,
+			}, parent).CanCollide = true
+		end
+	elseif index == 5 then
+		-- RYUGU-JO, the dragon god's palace. The Goblin Shark and the Frilled
+		-- Shark are Sagami Bay animals, so the Abyss is Japanese: a torii gate
+		-- standing out of black water, stone lanterns, a drowned shrine.
+		makeTorii(Vector3.new(ox, -2, oz - 96), 2.2, parent)
+		makeTorii(Vector3.new(ox - 96, -2, oz - 40), 1.2, parent)
+		for i = 1, 6 do
+			local side = if i % 2 == 0 then 1 else -1
+			makeStoneLantern(
+				Vector3.new(ox + side * 12, 1.1, oz - 4 - math.floor((i - 1) / 2) * 16),
+				1.0,
+				theme.Spots[3],
+				parent
+			)
+		end
+		makeShrine(Vector3.new(ox + 74, -1, oz - 62), parent)
+		makeShrine(Vector3.new(ox - 58, -1, oz - 120), parent)
+		makeKoinobori(Vector3.new(ox - 30, 0, oz + 50), parent)
+		makeKoinobori(Vector3.new(ox + 34, 0, oz + 58), parent)
+	end
+end
+
 -- A spot for something that GROWS, kept clear of the fishing arc.
 --
 -- The arc sits at radius 32-42 around (ox, oz - 52) and carries the twelve
@@ -1179,7 +1972,165 @@ local function buildBuoy(
 	local METAL = Color3.fromRGB(96, 88, 78)
 
 	local style = styleName or "Ring"
-	if style == "Float" then
+	if style == "Otter" then
+		-- KELP FOREST: a crab-pot float with a SEA OTTER asleep on it, shell on
+		-- its chest. Every fish in this area is a Southern California animal and
+		-- so is the otter — it is the mascot of the place, and a marker you smile
+		-- at is a marker you swim towards.
+		fixture({
+			Name = "Raft",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.9, 5.2, 5.2),
+			CFrame = CFrame.new(position + Vector3.new(0, -0.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(150, 112, 74),
+			Material = Enum.Material.Wood,
+		})
+		fixture({
+			Name = "RaftRim",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.5, 5.6, 5.6),
+			CFrame = CFrame.new(position + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(206, 186, 140),
+			Material = Enum.Material.Fabric,
+		})
+		makeOtter(position + Vector3.new(0, 0.95, 0), model)
+		fixture({
+			Name = "Mast",
+			Size = Vector3.new(0.42, 4.2, 0.42),
+			Position = position + Vector3.new(-1.9, 2.5, 0),
+			Color = Color3.fromRGB(120, 92, 62),
+			Material = Enum.Material.Wood,
+		})
+		-- Kelp caught round the raft, because everything out here is.
+		for i = 1, 3 do
+			local theta = (i / 3) * math.pi * 2
+			fixture({
+				Name = "TangledKelp",
+				Size = Vector3.new(rng:NextNumber(2.5, 4), 0.2, 0.9),
+				CFrame = CFrame.new(position + Vector3.new(math.cos(theta) * 2.9, -0.5, math.sin(theta) * 2.9))
+					* CFrame.Angles(0, -theta, 0.1),
+				Color = Color3.fromRGB(74, 120, 52),
+				Material = Enum.Material.Grass,
+			})
+		end
+	elseif style == "Tiki" then
+		-- TWILIGHT REEF: a carved tiki head on a bamboo raft, with the lamp as
+		-- the fire in its crown. Indo-Pacific reef, Polynesian island.
+		for i = 1, 5 do
+			fixture({
+				Name = "BambooLog",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(5.4, 0.8, 0.8),
+				CFrame = CFrame.new(position + Vector3.new(0, -0.35, -1.6 + (i - 1) * 0.8)),
+				Color = Color3.fromRGB(206, 178, 116),
+				Material = Enum.Material.Wood,
+			})
+		end
+		fixture({
+			Name = "TikiHead",
+			Size = Vector3.new(2.4, 3.4, 2.2),
+			Position = position + Vector3.new(0, 1.7, 0),
+			Color = Color3.fromRGB(104, 70, 46),
+			Material = Enum.Material.Wood,
+		})
+		fixture({
+			Name = "TikiBrow",
+			Size = Vector3.new(2.5, 0.5, 0.45),
+			Position = position + Vector3.new(0, 2.5, -1.05),
+			Color = Color3.fromRGB(66, 44, 30),
+			Material = Enum.Material.Wood,
+		})
+		for _, side in { 1, -1 } do
+			fixture({
+				Name = "TikiEye",
+				Size = Vector3.new(0.55, 0.55, 0.3),
+				Position = position + Vector3.new(side * 0.58, 2.05, -1.1),
+				Color = Color3.fromRGB(238, 226, 200),
+				Material = Enum.Material.SmoothPlastic,
+			})
+			-- Tusks at the corners of the mouth.
+			fixture({
+				Name = "TikiTusk",
+				Size = Vector3.new(0.28, 0.7, 0.28),
+				Position = position + Vector3.new(side * 0.6, 0.75, -1.05),
+				Color = Color3.fromRGB(240, 236, 220),
+				Material = Enum.Material.SmoothPlastic,
+			})
+		end
+		fixture({
+			Name = "TikiMouth",
+			Size = Vector3.new(1.7, 0.65, 0.35),
+			Position = position + Vector3.new(0, 1.1, -1.05),
+			Color = Color3.fromRGB(228, 210, 180),
+			Material = Enum.Material.SmoothPlastic,
+		})
+		fixture({
+			Name = "TikiCrown",
+			Size = Vector3.new(2.8, 0.7, 2.5),
+			Position = position + Vector3.new(0, 3.6, 0),
+			Color = Color3.fromRGB(146, 100, 62),
+			Material = Enum.Material.Wood,
+		})
+	elseif style == "Lantern" then
+		-- THE ABYSS: toro nagashi — a stone lantern set adrift. The lamp on top
+		-- is already a light in a housing, so here the housing is stone and the
+		-- marker is a memorial floating on black water.
+		fixture({
+			Name = "Raft",
+			Size = Vector3.new(4.6, 0.6, 4.6),
+			Position = position + Vector3.new(0, -0.3, 0),
+			Color = Color3.fromRGB(70, 60, 54),
+			Material = Enum.Material.Wood,
+		})
+		fixture({
+			Name = "LanternBase",
+			Size = Vector3.new(3.0, 0.8, 3.0),
+			Position = position + Vector3.new(0, 0.4, 0),
+			Color = Color3.fromRGB(126, 124, 118),
+			Material = Enum.Material.Slate,
+		})
+		fixture({
+			Name = "LanternPost",
+			Size = Vector3.new(1.0, 2.6, 1.0),
+			Position = position + Vector3.new(0, 2.1, 0),
+			Color = Color3.fromRGB(148, 146, 138),
+			Material = Enum.Material.Slate,
+		})
+		fixture({
+			Name = "LanternPlate",
+			Size = Vector3.new(2.6, 0.5, 2.6),
+			Position = position + Vector3.new(0, 3.6, 0),
+			Color = Color3.fromRGB(148, 146, 138),
+			Material = Enum.Material.Slate,
+		})
+		-- Four corner posts framing the lamp, then the flared roof over it.
+		for _, dx in { -1, 1 } do
+			for _, dz in { -1, 1 } do
+				fixture({
+					Name = "LanternMullion",
+					Size = Vector3.new(0.3, 1.9, 0.3),
+					Position = position + Vector3.new(dx * 0.95, 4.6, dz * 0.95),
+					Color = Color3.fromRGB(138, 136, 128),
+					Material = Enum.Material.Slate,
+				})
+			end
+		end
+		fixture({
+			Name = "LanternRoof",
+			Size = Vector3.new(3.6, 0.9, 3.6),
+			Position = position + Vector3.new(0, 5.9, 0),
+			Color = Color3.fromRGB(120, 118, 112),
+			Material = Enum.Material.Slate,
+		})
+		fixture({
+			Name = "LanternFinial",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(1.0, 1.3, 1.0),
+			Position = position + Vector3.new(0, 6.7, 0),
+			Color = Color3.fromRGB(148, 146, 138),
+			Material = Enum.Material.Slate,
+		})
+	elseif style == "Float" then
 		-- KELP FOREST: a working crab-pot buoy. A weathered wooden barrel riding
 		-- the surface with rope whipped round it and one plain timber mast. This
 		-- is what actually floats over a kelp bed, and it looks like someone's job
@@ -1615,7 +2566,7 @@ end
 --
 -- Returns the area's fishing spots, all tagged with an `Area` attribute so one
 -- MiningService can serve every area from a single flat node list.
-local function buildArea(index: number, origin: Vector3, parent: Instance): { Spots: { BasePart }, Dock: ProximityPrompt }
+local function buildArea(index: number, origin: Vector3, parent: Instance): { Spots: { BasePart }, Stations: { [string]: ProximityPrompt } }
 	local theme = AREA_THEMES[index] or AREA_THEMES[1]
 	local name = Balance.LayerNames[index] or ("Area " .. index)
 	local ox, oz = origin.X, origin.Z
@@ -1690,6 +2641,7 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Sp
 		makePalm(Vector3.new(ox + rng:NextNumber(-110, 110), 0, oz + rng:NextNumber(40, 100)), parent)
 	end
 	scatterScenery(index, theme, ox, oz, parent)
+	buildCulture(index, theme, ox, oz, parent)
 
 	-- Show this dock what comes next. The last area has nothing after it, so it
 	-- gets its own colours reflected back instead of an empty horizon — the Abyss
@@ -1778,6 +2730,19 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Sp
 	-- thing you can strand yourself with, and the station is the place a player
 	-- already looks for it. The prompt carries a Station attribute and the client
 	-- opens the screen from that, so five of them cost nothing to wire.
+	-- THE FULL STATION SET, IN EVERY AREA. All five stations used to stand on
+	-- the home beach only, so sailing to the Kelp Forest meant fishing until the
+	-- hold filled and then sailing home to do anything with it. Areas 2-5 were
+	-- water with no town attached.
+	--
+	-- The prompts carry a Station attribute and the client opens the screen from
+	-- that, so five sets cost nothing to wire — and every deck is built out of
+	-- whatever this area is made of, so the town looks like it belongs to the
+	-- water it stands on.
+	local crack = makeStation(Vector3.new(ox - 34, 0.5, oz + 30), "Treasure Chests", "Crack", Color3.fromRGB(255, 170, 40), parent, theme)
+	local racks = makeStation(Vector3.new(ox, 0.5, oz + 40), "Aquarium", "Racks", Color3.fromRGB(120, 255, 200), parent, theme)
+	local shop = makeStation(Vector3.new(ox + 34, 0.5, oz + 30), "Chest Shop", "Shop", Color3.fromRGB(120, 170, 255), parent, theme)
+	local rebirth = makeStation(Vector3.new(ox, 0.5, oz + 78), "Set Sail", "Rebirth", Color3.fromRGB(255, 120, 255), parent, theme)
 	local dock = makeStation(
 		Vector3.new(ox - 16, 0.5, oz - 8),
 		"Dock Master",
@@ -1815,7 +2780,10 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Sp
 		barrier.CanTouch = false
 	end
 
-	return { Spots = nodes, Dock = dock }
+	return {
+		Spots = nodes,
+		Stations = { Crack = crack, Racks = racks, Shop = shop, Rebirth = rebirth, Dock = dock },
+	}
 end
 
 function MapBuilder.Build(): MapRefs
@@ -1828,7 +2796,7 @@ function MapBuilder.Build(): MapRefs
 	-- purpose and keeps the whole economy in one place.
 	local nodes: { BasePart } = {}
 	local origins: { Vector3 } = {}
-	local dockPrompts: { ProximityPrompt } = {}
+	local stationSets: { { [string]: ProximityPrompt } } = {}
 	for index = 1, Balance.MaxLayer do
 		local origin = Vector3.new((index - 1) * Balance.AreaSpacing, 0, 0)
 		origins[index] = Vector3.new(origin.X, 1.6, -40) -- the dock, where boats land
@@ -1836,14 +2804,9 @@ function MapBuilder.Build(): MapRefs
 		for _, spot in area.Spots do
 			table.insert(nodes, spot)
 		end
-		dockPrompts[index] = area.Dock
+		stationSets[index] = area.Stations
 	end
 
-	-- Stations on the home beach
-	local crackPrompt = makeStation(Vector3.new(-34, 0.5, 30), "Treasure Chests", "Crack", Color3.fromRGB(255, 170, 40), map, AREA_THEMES[1])
-	local rackPrompt = makeStation(Vector3.new(0, 0.5, 40), "Aquarium", "Racks", Color3.fromRGB(120, 255, 200), map, AREA_THEMES[1])
-	local shopPrompt = makeStation(Vector3.new(34, 0.5, 30), "Chest Shop", "Shop", Color3.fromRGB(120, 170, 255), map, AREA_THEMES[1])
-	local rebirthPrompt = makeStation(Vector3.new(0, 0.5, 78), "Set Sail", "Rebirth", Color3.fromRGB(255, 120, 255), map, AREA_THEMES[1])
 
 	-- Leaderboards
 	local boardRebirths = makeBoard(Vector3.new(-70, 7, 70), Vector3.new(0, 7, 20), "Top Voyagers", map)
@@ -1888,12 +2851,12 @@ function MapBuilder.Build(): MapRefs
 	return {
 		Nodes = nodes,
 		Origins = origins,
-		CrackPrompt = crackPrompt,
-		RackPrompt = rackPrompt,
-		ShopPrompt = shopPrompt,
-		RebirthPrompt = rebirthPrompt,
-		-- Every area has one; the home dock's is the one callers mean.
-		DockPrompt = dockPrompts[1],
+		CrackPrompt = stationSets[1].Crack,
+		RackPrompt = stationSets[1].Racks,
+		ShopPrompt = stationSets[1].Shop,
+		RebirthPrompt = stationSets[1].Rebirth,
+		-- Every area has a full set; the home beach's is the one callers mean.
+		DockPrompt = stationSets[1].Dock,
 		BoardRebirths = boardRebirths,
 		BoardRarest = boardRarest,
 	}

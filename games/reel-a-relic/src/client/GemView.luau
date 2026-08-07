@@ -24,6 +24,11 @@ export type Props = {
 	AnchorPoint: Vector2?,
 	ZIndex: number?,
 	Spin: number?,
+	-- Pose once and never animate. The Index draws up to 264 of these at a time;
+	-- 264 RenderStepped connections turning 264 models is a phone-melter, and a
+	-- collection grid does not need its fish to swim - it needs them to be
+	-- recognisable at a glance, which a fixed three-quarter pose does better.
+	Static: boolean?,
 	Seed: number?,
 	Shards: number?, -- unused; kept so existing call sites keep compiling
 	-- The NAME of the thing being drawn. Not a boolean and not a colour: BOTH
@@ -91,6 +96,12 @@ function GemView.Create(props: Props): ViewportFrame
 	viewport.CurrentCamera = camera
 
 	viewport.Parent = props.Parent
+
+	if props.Static then
+		-- Turned slightly off side-on so the body has depth, and left there.
+		model:PivotTo(CFrame.Angles(0, -0.5, 0))
+		return viewport
+	end
 
 	local speed = props.Spin or 1.1
 	local clock = 0

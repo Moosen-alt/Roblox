@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Crystals = require(Shared.Config.Crystals)
+local GemView = require(script.Parent.Parent.GemView)
 local ScreenManager = require(script.Parent.Parent.ScreenManager)
 local State = require(script.Parent.Parent.State)
 local UiKit = require(script.Parent.Parent.UiKit)
@@ -43,15 +44,25 @@ local function render()
 			UiKit.Corner(8).Parent = cell
 			if discovered then
 				UiKit.Stroke(base.Color, 2).Parent = cell
-				local gem = UiKit.Create("Frame", {
-					Size = UDim2.fromScale(0.3, 0.3),
-					Position = UDim2.fromScale(0.5, 0.26),
+				-- THE ACTUAL FISH, not a coloured lozenge. This grid is where a
+				-- player studies the collection, and it was the one place in the
+				-- game that never drew the model — 33 hand-built species and 11
+				-- relics, all rendered here as the same rotated square in a
+				-- different colour. Static: see GemView.Props.Static.
+				GemView.Create({
+					Name = base.Name,
+					-- Aura tints the species rather than replacing it, so a Gilded
+					-- Red Snapper still reads as a Red Snapper.
+					Color = if mutDef and mutDef.Color
+						then base.Color:Lerp(mutDef.Color, 0.55)
+						else base.Color,
+					Size = UDim2.fromScale(0.78, 0.42),
+					Position = UDim2.fromScale(0.5, 0.25),
 					AnchorPoint = Vector2.new(0.5, 0.5),
-					BackgroundColor3 = mutDef and mutDef.Color or base.Color,
-					Rotation = 45,
+					Static = true,
+					Seed = #base.Name * 7 + #mutName,
 					Parent = cell,
 				})
-				UiKit.Corner(6).Parent = gem
 				UiKit.Label({
 					Text = (mutName ~= "Normal" and (mutName .. " ") or "") .. base.Name,
 					Font = Enum.Font.GothamBold,
