@@ -692,81 +692,162 @@ end
 -- Returns the FLOAT, which is the part the rest of the game treats as the spot:
 -- its position is the waterline, which is where distances and the bobber want to
 -- be measured from.
+local RING_RADIUS = 2.7
+local RING_TUBE = 1.05
+local RING_SEGMENTS = 16
+
 local function buildBuoy(name: string, position: Vector3, color: Color3, parent: Instance): BasePart
 	local model = Instance.new("Model")
 	model.Name = "Buoy"
 
+	-- The spot the rest of the game keys on. Invisible, because the buoy it
+	-- stands for is a ring with a hole in the middle — there is nothing at the
+	-- centre for it to be. It still carries the area colour, which is what the
+	-- lamp reads its idle and dimmed shades from.
 	local float = part({
 		Name = name,
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(3.2, 2.7, 3.2),
+		Size = Vector3.new(1, 1, 1),
 		Position = position,
 		Color = color,
-		Material = Enum.Material.SmoothPlastic,
+		Transparency = 1,
 	}, model)
 	float.CanCollide = false
 	model.PrimaryPart = float
 
-	-- Painted band around the middle: the detail that reads as "buoy" fastest.
-	local band = part({
-		Name = "Band",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(3.32, 0.8, 3.32),
-		Position = position + Vector3.new(0, 0.25, 0),
-		Color = Color3.fromRGB(248, 248, 250),
-		Material = Enum.Material.SmoothPlastic,
-	}, model)
-	band.CanCollide = false
-	band.CanQuery = false
+	-- The ring float, built as a circle of cylinders. Roblox has no torus, and a
+	-- ring is the single thing that makes a buoy read as a buoy — sixteen
+	-- segments is past the point where anyone can see the seams from the dock.
+	--
+	-- A cylinder's axis is its X, so each segment is turned to put that axis
+	-- along the tangent of the circle at its own angle.
+	-- Painted in four alternating quadrants, life-ring style, rather than with a
+	-- separate white band laid over every segment. It is the bolder read at the
+	-- thirty studs you actually see these from, it is unmistakably a buoy, and it
+	-- costs half the parts — sixty buoys across five areas is not the place to
+	-- spend thirty-two parts each on a stripe nobody can resolve.
+	local segmentLength = 2 * RING_RADIUS * math.sin(math.pi / RING_SEGMENTS) * 1.25
+	local perQuadrant = RING_SEGMENTS / 4
+	for i = 1, RING_SEGMENTS do
+		local theta = (i - 1) / RING_SEGMENTS * math.pi * 2
+		local at = position + Vector3.new(math.cos(theta) * RING_RADIUS, 0, math.sin(theta) * RING_RADIUS)
+		local white = math.floor((i - 1) / perQuadrant) % 2 == 1
+		local tube = part({
+			Name = "Ring",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(segmentLength, RING_TUBE, RING_TUBE),
+			CFrame = CFrame.new(at) * CFrame.Angles(0, -theta - math.pi * 0.5, 0),
+			Color = if white then Color3.fromRGB(248, 248, 250) else color,
+			Material = Enum.Material.SmoothPlastic,
+		}, model)
+		tube.CanCollide = false
+		tube.CanQuery = false
+	end
 
-	-- Weighted skirt under the waterline
-	local skirt = part({
-		Name = "Skirt",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(2.2, 1.8, 2.2),
-		Position = position - Vector3.new(0, 1.35, 0),
-		Color = Color3.fromRGB(52, 48, 58),
+	-- Tripod: three legs leaning in from the ring to meet under the lantern.
+	local apex = position + Vector3.new(0, 4.5, 0)
+	for i = 1, 3 do
+		local theta = (i - 1) / 3 * math.pi * 2 + math.pi * 0.5
+		local foot = position
+			+ Vector3.new(math.cos(theta) * (RING_RADIUS - 0.35), 0.3, math.sin(theta) * (RING_RADIUS - 0.35))
+		local span = (apex - foot).Magnitude
+		local leg = part({
+			Name = "Leg",
+			Size = Vector3.new(0.34, 0.34, span),
+			-- lookAt aims the part's -Z down its own length, so a part sized on Z
+			-- stretches exactly from the foot to the apex however far that is.
+			CFrame = CFrame.lookAt((foot + apex) * 0.5, apex),
+			-- Tinted toward the area's colour rather than left bare metal. The
+			-- silhouette should be a real buoy; the palette should still look like
+			-- a game a twelve-year-old wants to be in.
+			Color = Color3.fromRGB(96, 88, 78):Lerp(color, 0.3),
+			Material = Enum.Material.Metal,
+		}, model)
+		leg.CanCollide = false
+		leg.CanQuery = false
+	end
+
+	-- Lantern: a ribbed glass stack on a dark base with a cap, the way the light
+	-- on a real channel marker is built.
+	local base = part({
+		Name = "LampBase",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.4, 1.5, 1.5),
+		CFrame = CFrame.new(apex + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(64, 60, 68),
 		Material = Enum.Material.Metal,
 	}, model)
-	skirt.CanCollide = false
-	skirt.CanQuery = false
-
-	local mast = part({
-		Name = "Mast",
-		Size = Vector3.new(0.24, 3.4, 0.24),
-		Position = position + Vector3.new(0, 2.6, 0),
-		Color = Color3.fromRGB(72, 68, 78),
-		Material = Enum.Material.Metal,
-	}, model)
-	mast.CanCollide = false
-	mast.CanQuery = false
-
-	local cage = part({
-		Name = "Cage",
-		Size = Vector3.new(1.5, 0.16, 0.16),
-		Position = position + Vector3.new(0, 3.6, 0),
-		Color = Color3.fromRGB(72, 68, 78),
-		Material = Enum.Material.Metal,
-	}, model)
-	cage.CanCollide = false
-	cage.CanQuery = false
+	base.CanCollide = false
+	base.CanQuery = false
 
 	local lamp = part({
 		Name = "Lamp",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(1, 1, 1),
-		Position = position + Vector3.new(0, 4.3, 0),
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.1, 1.25, 1.25),
+		CFrame = CFrame.new(apex + Vector3.new(0, 0.95, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = color,
 		Material = Enum.Material.Neon,
 	}, model)
 	lamp.CanCollide = false
 	lamp.CanQuery = false
+	-- Ribs: three dark rings round the glass, which is what stops the lantern
+	-- reading as a plain glowing pill.
+	for i = 1, 3 do
+		local rib = part({
+			Name = "LampRib",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.1, 1.32, 1.32),
+			CFrame = CFrame.new(apex + Vector3.new(0, 0.6 + i * 0.28, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(64, 60, 68),
+			Material = Enum.Material.Metal,
+		}, model)
+		rib.CanCollide = false
+		rib.CanQuery = false
+	end
+	local cap = part({
+		Name = "LampCap",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.3, 1.45, 1.45),
+		CFrame = CFrame.new(apex + Vector3.new(0, 1.7, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(64, 60, 68),
+		Material = Enum.Material.Metal,
+	}, model)
+	cap.CanCollide = false
+	cap.CanQuery = false
+
 	local glow = Instance.new("PointLight")
 	glow.Color = color
 	glow.Range = 14
 	glow.Brightness = 1.2
 	glow.Shadows = false
 	glow.Parent = lamp
+
+	-- Twinkle off the lantern. Costs one emitter and it is the difference between
+	-- a navigation marker and something you actually want to go and click.
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Color = ColorSequence.new(color)
+	sparkle.LightEmission = 1
+	sparkle.Size = NumberSequence.new(0.35, 0)
+	sparkle.Transparency = NumberSequence.new(0.2, 1)
+	sparkle.Lifetime = NumberRange.new(0.6, 1.2)
+	sparkle.Rate = 4
+	sparkle.Speed = NumberRange.new(0.4, 1.2)
+	sparkle.SpreadAngle = Vector2.new(70, 70)
+	sparkle.Parent = lamp
+
+	-- A pool of the buoy's own light on the water. It reads as the lantern
+	-- catching the surface, and it makes a buoy findable from across the bay —
+	-- which matters when the whole game is walking up to one and clicking it.
+	local pool = part({
+		Name = "LightPool",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.12, 9, 9),
+		CFrame = CFrame.new(position - Vector3.new(0, 0.85, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Transparency = 0.82,
+	}, model)
+	pool.CanCollide = false
+	pool.CanQuery = false
 
 	-- One invisible box owns the tap, the same way the mining game's geodes do.
 	-- A buoy bobbing thirty studs out is a very small target on a phone; this

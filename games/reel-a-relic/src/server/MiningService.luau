@@ -125,8 +125,12 @@ end
 -- Only the LAMP changes. The buoy is a physical object floating in the sea; it
 -- should not swell to twice its size because a fish is interested, which is what
 -- the old single-neon-ball marker did for every state change.
-local LAMP_IDLE = Vector3.new(1, 1, 1)
-local LAMP_BITE = Vector3.new(1.9, 1.9, 1.9)
+-- The lantern is a CYLINDER lying on its side (X is its height), so the flash
+-- swells its diameter and leaves its length alone. Scaling all three axes — the
+-- old values, from when the lamp was a ball — would squash it into a disc every
+-- time a fish bit.
+local LAMP_IDLE = Vector3.new(1.1, 1.25, 1.25)
+local LAMP_BITE = Vector3.new(1.1, 2.1, 2.1)
 
 local function lampOf(spot: BasePart): (BasePart?, PointLight?)
 	local model = spot.Parent
