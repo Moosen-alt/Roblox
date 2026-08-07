@@ -10,8 +10,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local CrystalShape = require(Shared.CrystalShape)
 local FishShape = require(Shared.FishShape)
+local RelicShape = require(Shared.RelicShape)
 
 local GemView = {}
 
@@ -24,11 +24,12 @@ export type Props = {
 	ZIndex: number?,
 	Spin: number?,
 	Seed: number?,
-	Shards: number?, -- facet count when this is a relic; unused for fish
-	-- Relics are treasure, not sea life, so they get the faceted artifact build
-	-- instead of a fish. A Sunken Crown rendered as a trout is the same mistake
-	-- as a trout rendered as a gem, in the other direction.
-	Relic: boolean?,
+	Shards: number?, -- unused; kept so existing call sites keep compiling
+	-- The NAME of the thing, when it is a relic. Not a boolean: every relic has
+	-- its own model, so "is this a relic" is not enough information to draw one.
+	-- A Sunken Crown rendered as a gem is the same mistake as a trout rendered as
+	-- a gem, one level along.
+	RelicName: string?,
 }
 
 function GemView.Create(props: Props): ViewportFrame
@@ -47,12 +48,11 @@ function GemView.Create(props: Props): ViewportFrame
 	viewport.LightColor = Color3.fromRGB(255, 252, 240)
 	viewport.LightDirection = Vector3.new(-0.35, -1, -0.55)
 
-	local model = if props.Relic
-		then CrystalShape.Build({
+	local model = if props.RelicName
+		then RelicShape.Build({
+			Name = props.RelicName,
 			Color = props.Color,
 			Scale = 1,
-			Shards = props.Shards or 5,
-			Segments = 3,
 			Seed = props.Seed or 11,
 		})
 		else FishShape.Build({

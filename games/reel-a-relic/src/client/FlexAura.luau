@@ -84,7 +84,7 @@ local function build(player: Player, character: Model)
 		ZIndex = 1,
 		-- The trophy over your head is whatever your rarest find WAS, and that is
 		-- now as likely to be a relic as a fish.
-		Relic = Crystals.IsRelic(base),
+		RelicName = if Crystals.IsRelic(base) then base else nil,
 	})
 
 	tracked[player] = { Billboard = billboard, Viewport = gem, Head = head }

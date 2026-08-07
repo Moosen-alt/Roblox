@@ -52,6 +52,13 @@ jobs:
       - name: Remote registry consistency
         run: python3 tests/check-remotes.py $GAMES
 
+      # Adding a collectible to the config ships immediately and works — it just
+      # renders as a generic hoard, and nobody finds out until a player pulls
+      # that one relic. Python because RelicShape calls Instance.new and cannot
+      # load in the Luau stub harness.
+      - name: Collectible model coverage
+        run: python3 tests/check-models.py $GAMES
+
       - name: Math tests
         run: |
           LUAU=luau sh tests/run.sh

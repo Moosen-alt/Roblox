@@ -184,7 +184,7 @@ local function makeCard(
 		Seed = #crystal.Base * 17 + #crystal.Mut,
 		Spin = 0.8 + rank * 0.16,
 		ZIndex = 2,
-		Relic = Crystals.IsRelic(crystal.Base),
+		RelicName = if Crystals.IsRelic(crystal.Base) then crystal.Base else nil,
 	})
 
 	local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""

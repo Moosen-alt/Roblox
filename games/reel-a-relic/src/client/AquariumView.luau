@@ -15,8 +15,8 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Crystals = require(Shared.Config.Crystals)
-local CrystalShape = require(Shared.CrystalShape)
 local FishShape = require(Shared.FishShape)
+local RelicShape = require(Shared.RelicShape)
 local State = require(script.Parent.State)
 
 local AquariumView = {}
@@ -30,15 +30,16 @@ type Swimmer = {
 	Depth: number,
 }
 
--- A relic in the tank is a display piece, so it takes the faceted artifact build
--- and the same option table a fish does — which is what lets the caller pick
--- between them with one variable instead of two code paths.
+-- A relic on display is its own model — an anchor, a helmet, a trident — so the
+-- tank needs the NAME, which a plain FishShape.Options does not carry. Bound per
+-- rebuild rather than passed around, so the two builders keep the same shape and
+-- the caller can pick between them with one variable.
+local relicName = ""
 local function relicModel(options: FishShape.Options): Model
-	return CrystalShape.Build({
+	return RelicShape.Build({
+		Name = relicName,
 		Color = options.Color,
-		Scale = (options.Scale or 1) * 1.6,
-		Shards = 5,
-		Segments = 3,
+		Scale = (options.Scale or 1) * 1.5,
 		Seed = options.Seed,
 		Sparkle = options.Sparkle,
 	})
@@ -91,6 +92,7 @@ local function rebuild(state: any)
 			local def = Crystals.GetBase(fish.Base)
 			local mutation = Crystals.GetMutation(fish.Mut)
 			local isRelic = Crystals.IsRelic(fish.Base)
+			relicName = fish.Base
 			-- Typed explicitly: Luau will not call a union of two identically
 			-- shaped function types, so the branch has to name what it returns.
 			local build: (FishShape.Options) -> Model = if isRelic then relicModel else FishShape.Build

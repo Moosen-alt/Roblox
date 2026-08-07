@@ -132,6 +132,10 @@ if Crystals.WeightOf then
 	print("PASS weight ranges sane and personal best monotonic")
 end
 
+-- (Model coverage for relics is checked by tests/check-models.py, not here.
+-- RelicShape calls Instance.new, so it cannot load in this stub harness — and a
+-- test that silently skips is worse than no test.)
+
 -- Areas are bought with coins, so their prices must climb — a cheaper deeper
 -- area would let a player skip content they never paid for.
 if Balance.AreaCosts then
