@@ -6,3 +6,5 @@
 sourcemap.json
 /DataStore
 .DS_Store
+__pycache__/
+*.pyc

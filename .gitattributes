@@ -1,0 +1,18 @@
+# The mesh manifest holds Roblox asset ids, which are unrecoverable: uploading
+# is not repeatable (a re-run creates a second asset), there is no bulk delete
+# and no search-by-name. A merge that drops one strands a model on the account
+# forever, and the damaged file still looks perfectly well-formed.
+#
+# Line-wise merging cannot tell a blank MeshId from a considered one, so this
+# file gets a row-wise driver instead: a real asset id always outranks a blank,
+# whichever side it is on. See tools/manifest-merge.py.
+#
+# Custom drivers cannot be configured by the repository itself — git will not
+# let a clone install code that runs on merge — so this line does nothing until
+# somebody runs `sh tools/setup-git.sh` once. tests/check-manifest.py is the
+# backstop for the checkout where nobody has.
+assets/mesh-source/asset_manifest.csv merge=meshmanifest
+
+# Built by rojo from src/. A conflict here is never worth resolving; rebuild.
+build/game.rbxlx  -diff -merge linguist-generated
+games/*/build/game.rbxlx  -diff -merge linguist-generated

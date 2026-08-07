@@ -21,7 +21,12 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     steps:
+      # Full history so the integrity check below can see every id this manifest
+      # has ever held — this is the run that creates them, so it is also the run
+      # with the most to lose.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # assimp converts the pack's OBJ files to the FBX that Open Cloud wants
       # for Model assets. Far lighter than pulling Blender in for the same job.
@@ -65,8 +70,19 @@ jobs:
         run: python3 tools/build-meshes.py
 
       - name: Validate
-        run: python3 tests/check-models.py . games/reel-a-relic games/easy-obby
+        run: |
+          python3 tests/check-models.py . games/reel-a-relic games/easy-obby
+          # The ids in the working tree are worth real, unrecoverable uploads by
+          # this point. Refuse to commit a manifest that has fewer than history
+          # already knows about.
+          python3 tests/check-manifest.py
 
+      # The ids in this commit are the only record of uploads that already
+      # happened and cannot happen again. If the push loses a race with another
+      # commit, they die with the runner and those models are stranded on the
+      # account — so this rebases and retries rather than failing, and the
+      # manifest merge driver is registered first so the rebase resolves the
+      # manifest by keeping ids rather than by picking a side.
       - name: Commit asset ids
         run: |
           git add -- assets/mesh-source/asset_manifest.csv \
@@ -78,6 +94,23 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config merge.meshmanifest.name "mesh manifest (asset ids never go backwards)"
+          git config merge.meshmanifest.driver "python3 tools/manifest-merge.py %O %A %B %P"
           git commit -m "Upload meshes: record Roblox asset ids"
-          git push
-          echo "Pushed. The normal CI run will rebuild and republish the places."
+
+          branch="${GITHUB_REF_NAME}"
+          for attempt in 1 2 3 4; do
+            if git push origin "HEAD:${branch}"; then
+              echo "Pushed. The normal CI run will rebuild and republish the places."
+              exit 0
+            fi
+            echo "push rejected (attempt ${attempt}); rebasing onto origin/${branch}"
+            git fetch origin "${branch}"
+            git rebase "origin/${branch}"
+            # The rebase must not have cost us anything. If it did, stop here
+            # rather than pushing a manifest that is missing paid-for ids.
+            python3 tests/check-manifest.py
+            sleep $((attempt * 3))
+          done
+          echo "::error::Could not push the asset ids after 4 attempts. They are in this run's log; do not re-run the upload blindly, it would create duplicate assets."
+          exit 1

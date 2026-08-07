@@ -1,0 +1,24 @@
+#!/bin/sh
+# Last chance before a lost asset id reaches the branch.
+#
+# The manifest holds ids for models already uploaded to Roblox. Uploading is not
+# repeatable and there is no way to look an asset back up by name, so an id that
+# gets dropped in a merge is gone for good. CI catches it too — this catches it
+# while the fix is still a local `--repair` instead of a commit on the branch.
+#
+# Installed by tools/setup-git.sh. Skip a single push with --no-verify.
+set -e
+
+if [ ! -f tests/check-manifest.py ]; then
+	exit 0
+fi
+
+if ! python3 tests/check-manifest.py; then
+	echo
+	echo "push stopped: the mesh manifest lost asset ids that exist in git history."
+	echo "  recover them:  python3 tests/check-manifest.py --repair"
+	echo "  then:          git add -A && git commit --amend --no-edit"
+	echo
+	echo "If this is deliberate, push again with --no-verify."
+	exit 1
+fi

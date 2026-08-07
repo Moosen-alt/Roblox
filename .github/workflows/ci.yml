@@ -20,7 +20,12 @@ jobs:
   check-and-build:
     runs-on: ubuntu-latest
     steps:
+      # Full history, not the default shallow fetch: the manifest check below
+      # recovers what asset ids ever existed by reading past commits, and a
+      # shallow clone would make it pass by having nothing to find.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install toolchain (rojo, luau, luau-lsp)
         run: |
@@ -65,6 +70,14 @@ jobs:
       # single redemption and pays nothing.
       - name: Redeem code table
         run: python3 tests/check-codes.py $GAMES
+
+      # Roblox asset ids cannot be recovered: uploading is not repeatable, there
+      # is no bulk delete and no search-by-name, so an id dropped in a merge
+      # strands that model on the account permanently. The damaged file still
+      # parses and still looks right, which is why this is a check and not a
+      # habit. Nearly happened once already — see tests/check-manifest.py.
+      - name: Mesh manifest integrity
+        run: python3 tests/check-manifest.py
 
       - name: Math tests
         run: |
