@@ -34,29 +34,25 @@ jobs:
       - name: Install python deps
         run: pip install --quiet requests
 
-      # Fails loudly and early if the key or creator is missing, rather than
-      # halfway through a batch.
+      # Fails loudly and early if the key is missing, rather than halfway
+      # through a batch. The creators themselves are per-game and default to the
+      # two group ids, which are public - see tools/upload-meshes.py.
       - name: Check configuration
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-          ROBLOX_GROUP_ID: ${{ secrets.ROBLOX_GROUP_ID }}
-          ROBLOX_USER_ID: ${{ secrets.ROBLOX_USER_ID }}
         run: |
           if [ -z "$ROBLOX_API_KEY" ]; then
             echo "::error::ROBLOX_API_KEY is not set."
             exit 1
           fi
-          if [ -z "$ROBLOX_GROUP_ID" ] && [ -z "$ROBLOX_USER_ID" ]; then
-            echo "::error::Set ROBLOX_GROUP_ID (group-owned games) or ROBLOX_USER_ID (personal)."
-            echo "::error::Assets are created under whoever owns the API key."
-            exit 1
-          fi
-          echo "Key present. Creator: ${ROBLOX_GROUP_ID:+group $ROBLOX_GROUP_ID}${ROBLOX_USER_ID:+user $ROBLOX_USER_ID}"
+          echo "Key present. Each game uploads under its own group."
 
       - name: Upload
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-          ROBLOX_GROUP_ID: ${{ secrets.ROBLOX_GROUP_ID }}
+          # Only needed to override the defaults baked into upload-meshes.py.
+          GEODE_GROUP_ID: ${{ secrets.GEODE_GROUP_ID }}
+          REEL_GROUP_ID: ${{ secrets.REEL_GROUP_ID }}
           ROBLOX_USER_ID: ${{ secrets.ROBLOX_USER_ID }}
         run: |
           python3 tools/upload-meshes.py \

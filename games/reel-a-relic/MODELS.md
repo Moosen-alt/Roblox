@@ -150,17 +150,26 @@ rendering, which looks exactly like a failed upload rather than a typo.
 
 ## One-time setup
 
-1. **Add `asset:write` to your Open Cloud key.** Creator Hub → Open Cloud → API
-   Keys → edit the key you already use for publishing → under **Asset
-   Operations**, add `write`. Same key, one extra permission.
-2. **Tell it who owns the assets.** Repo Settings → Secrets and variables →
-   Actions, add **one** of:
-   - `ROBLOX_GROUP_ID` — if the games are group-owned (they are, if you followed
-     SETUP.md). The number in your group's URL.
-   - `ROBLOX_USER_ID` — if they are on your personal account.
+**Add `asset:write` to your Open Cloud key** — Creator Hub → Open Cloud → API
+Keys → edit the key you already use for publishing → under **Asset Operations**,
+add `write`, **for both groups**. Same key, one extra permission.
 
-   Assets are created under whoever owns the API key, so this has to match or
-   the upload is rejected.
+That is the only setup step. Each game already uploads under its own group:
+
+| Game | Group |
+| --- | --- |
+| Crack a Geode | [346261815](https://www.roblox.com/communities/346261815/Crack-a-Geode) |
+| Reel a Relic | [238904293](https://www.roblox.com/communities/238904293/Reel-a-Relic-Fishing-Simulator) |
+
+Those are baked into `tools/upload-meshes.py` rather than kept as secrets,
+because group ids are public — the number is in the community URL, exactly like
+the universe and place ids already in `ci.yml`. Set `GEODE_GROUP_ID` /
+`REEL_GROUP_ID` only to override, or `ROBLOX_USER_ID` if you ever move the games
+to a personal account.
+
+**The key must be authorised for both groups.** A key scoped to one will upload
+that game's models and 403 on the other, which shows up as roughly half the run
+failing — the fish going through and the crystals not, or vice versa.
 
 ## Running it
 
@@ -195,8 +204,9 @@ were written in, so the API contract is from memory and the workflow logs are th
 only feedback loop. Expect it to need a round or two. The likely failure points,
 in order:
 
-1. **`asset:write` missing** → HTTP 401 or 403. Step 1 above.
-2. **Wrong creator** → the upload is rejected as unauthorised. Group vs user.
+1. **`asset:write` missing** → HTTP 401 or 403 on everything.
+2. **Key not authorised for one group** → 403 on exactly that game's rows while
+   the other game's succeed. Add the missing group to the key.
 3. **FBX rejected** → assimp's output is not what Roblox wants. Fallback is
    Blender (`pip install bpy`) in place of assimp, which produces canonical FBX.
 4. **Operation never completes** → moderation is slow; the row stays blank and

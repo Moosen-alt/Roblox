@@ -57,30 +57,50 @@ def convert_to_fbx(obj: Path, out_dir: Path) -> Path:
     return fbx
 
 
-def creation_context() -> dict:
-    """Assets are created under whoever owns the API key.
+# PER-GAME CREATORS. The two games live in two different groups, so a single
+# creator id would file every fish under whichever group happened to be set —
+# and an asset created under the wrong group is not usable by the other game's
+# experience without moving it, which Open Cloud cannot do.
+#
+# Group ids are public (they are the number in the community URL), exactly like
+# the universe and place ids already in ci.yml, so they are defaults here rather
+# than secrets. An env var still overrides, for a group that changes later.
+GROUPS = {
+    # https://www.roblox.com/communities/346261815/Crack-a-Geode
+    "Crack a Geode": "346261815",
+    # https://www.roblox.com/communities/238904293/Reel-a-Relic-Fishing-Simulator
+    "Reel a Relic": "238904293",
+}
+ENV_OVERRIDE = {
+    "Crack a Geode": "GEODE_GROUP_ID",
+    "Reel a Relic": "REEL_GROUP_ID",
+}
 
-    A group-owned game needs groupId; a personally-owned one needs userId. Both
-    are read from the environment so nothing about the account lives in git.
+
+def creation_context(game: str) -> dict:
+    """Who the asset is created under, for this row's game.
+
+    ROBLOX_USER_ID overrides everything, for the case where the games are on a
+    personal account instead of in groups.
     """
-    group = os.environ.get("ROBLOX_GROUP_ID", "").strip()
     user = os.environ.get("ROBLOX_USER_ID", "").strip()
-    if group:
-        return {"creator": {"groupId": group}}
     if user:
         return {"creator": {"userId": user}}
+    group = os.environ.get(ENV_OVERRIDE.get(game, ""), "").strip() or GROUPS.get(game, "")
+    if group:
+        return {"creator": {"groupId": group}}
     raise SystemExit(
-        "Set ROBLOX_GROUP_ID (group-owned games) or ROBLOX_USER_ID (personal). "
-        "The asset has to be created under whoever owns the API key."
+        f"No creator for {game!r}. Add it to GROUPS, set {ENV_OVERRIDE.get(game, 'a group env var')}, "
+        f"or set ROBLOX_USER_ID for a personal account."
     )
 
 
-def upload(session, key: str, fbx: Path, display_name: str) -> str:
+def upload(session, key: str, fbx: Path, display_name: str, game: str) -> str:
     request = {
         "assetType": "Model",
         "displayName": display_name,
-        "description": "Collectible model for the Reel a Relic / Crack a Geode portfolio.",
-        **creation_context(),
+        "description": f"Model for {game}.",
+        **creation_context(game),
     }
     with fbx.open("rb") as handle:
         response = session.post(
@@ -141,6 +161,10 @@ def main() -> int:
     if args.limit:
         work = work[: args.limit]
 
+    for game in sorted({r["Game"] for r in work}):
+        context = creation_context(game)["creator"]
+        who = f"group {context['groupId']}" if "groupId" in context else f"user {context['userId']}"
+        print(f"  {game} -> {who}")
     print(f"{len(rows)} rows, {len(work)} to upload this run")
     if not work:
         print("nothing to do — every targeted row already has a MeshId")
@@ -156,7 +180,7 @@ def main() -> int:
         obj = SOURCE / row["LocalFile"]
         try:
             fbx = convert_to_fbx(obj, tmp)
-            asset_id = upload(session, key, fbx, name)
+            asset_id = upload(session, key, fbx, name, row["Game"])
         except Exception as error:  # noqa: BLE001 — one bad model must not stop the rest
             print(f"  FAIL {name}: {error}")
             failed.append(name)
