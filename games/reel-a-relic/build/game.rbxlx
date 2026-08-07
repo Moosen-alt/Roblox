@@ -107,6 +107,27 @@ Balance.Pickaxes = {
 Balance.BiteDelayMin = 1.5
 Balance.BiteDelayMax = 4.0
 
+-- TIMING IS A BONUS, NOT A GATE.
+--
+-- The original loop gave you a 1.2s window to strike and threw the whole catch
+-- away if you missed it. That is a fighting-game convention, and it is wrong for
+-- who plays this: an eight-year-old who misses by a tenth of a second loses
+-- three seconds of waiting and is told nothing about why. Every successful
+-- Roblox simulator this game sits next to shares one rule — an input always
+-- produces something, and good timing produces MORE.
+--
+-- So: once a fish is on, it stays on until you reel it in. Strike inside this
+-- window and it is a PERFECT catch worth an extra fish. Strike later and you
+-- still get the fish. You cannot lose one by being slow.
+Balance.PerfectWindow = 1.2
+Balance.PerfectBonusCatch = 1
+
+-- Mashing the button before the bite spooks the fish and pushes it back a
+-- moment. That is the counterweight that keeps patience worth something now
+-- that missing costs nothing — and unlike losing the catch, it is a delay the
+-- player can see happen and understand.
+Balance.SpookDelay = 0.6
+
 Balance.BiteFloor = 0.45 -- fastest possible bite, as a fraction of the base wait
 Balance.BiteSharpness = 0.08 -- how quickly early rods approach that floor
 Balance.ExtraCatchScale = 0.35 -- catches per landing grow as log(1 + damage) * this
@@ -3722,9 +3743,14 @@ return MapBuilder
         <Properties>
           <string name="Name">MiningService</string>
           <string name="Source"><![CDATA[--!strict
--- Fishing loop: click a spot to cast, wait for the bite flash, click again
--- inside the window to land it. One angler per spot at a time; better rods bite
--- sooner and can hook a second catch.
+-- Fishing loop: click a buoy to cast, wait for the lamp to flash, click again to
+-- land it. One angler per buoy at a time; better rods bite sooner and bring up
+-- more per catch.
+--
+-- Timing is a BONUS, never a gate. Once a fish is on it stays on until you reel
+-- it in — strike inside PerfectWindow for an extra fish, strike late and you
+-- still get the fish. You cannot lose a catch by being slow. Clicking too EARLY
+-- is the one thing that costs you: it spooks the fish and pushes the bite back.
 --
 -- What you land is rolled here, and it is the whole shape of the game:
 --   * roughly seven times in eight, a FISH — straight into your hold, no
@@ -3747,11 +3773,9 @@ local Remotes = require(Shared.Remotes)
 
 local MiningService = {}
 
-local BITE_WINDOW = 1.2 -- seconds the flash stays catchable
--- Backstop only. A cast now resolves within about five seconds either way — bite
--- and land, or bite and miss — so nothing should ever reach this. It stays
--- because a spot silently stuck as "claimed" would be invisible to everyone and
--- would cost that buoy for the rest of the server's life.
+-- Seconds a hooked fish will wait for you before the line is considered
+-- abandoned. Generous on purpose: nothing about being slow should cost a catch,
+-- but a line nobody is ever coming back for has to free its buoy for the room.
 local CLAIM_TIMEOUT = 20
 -- A few studs of slack past the cast range, so shuffling on the spot or a bit of
 -- position lag never yanks the line out of the water mid-fish.
@@ -3760,13 +3784,13 @@ local CLAIM_SLACK = 8
 type SpotState = {
 	OwnerUserId: number?,
 	BiteAt: number?, -- os.clock() when the bite window opens
-	-- os.clock() of the angler's last actual ACTION on this spot. Deliberately
-	-- separate from BiteAt: a missed window pushes BiteAt forward to auto-recast,
-	-- so measuring the claim timeout from BiteAt meant the claim renewed itself
-	-- every few seconds and never expired. One cast held a spot forever, from
-	-- anywhere on the map, until the player left the server.
+	-- os.clock() of the angler's last actual ACTION on this spot, and the only
+	-- thing the idle timeout is measured from. It is deliberately not BiteAt,
+	-- which the game itself moves — measuring from a deadline the game keeps
+	-- pushing forward meant the claim renewed itself and never expired.
 	ActedAt: number,
 	Biting: boolean, -- the lamp is currently flashing; stops the flash re-firing
+	HookedAt: number?, -- os.clock() the fish took the bait; nil until it does
 	Resolved: boolean,
 	BaseColor: Color3,
 	Area: number,
@@ -3860,6 +3884,7 @@ local function setIdle(spot: BasePart, state: SpotState)
 	state.OwnerUserId = nil
 	state.BiteAt = nil
 	state.Biting = false
+	state.HookedAt = nil
 	state.Resolved = true
 	local lamp, light = lampOf(spot)
 	if lamp then
@@ -3939,7 +3964,7 @@ local function catchCount(data: any): number
 	return total
 end
 
-local function landCatch(spot: BasePart, state: SpotState, player: Player)
+local function landCatch(spot: BasePart, state: SpotState, player: Player, perfect: boolean)
 	local data = ctx.Data.Get(player)
 	if not data then
 		setIdle(spot, state)
@@ -3955,7 +3980,13 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 		return
 	end
 
-	local caught = math.min(catchCount(data), space)
+	-- A perfect strike is worth an extra fish. That is the entire reward for
+	-- timing now — it buys you MORE, it never decides whether you get anything.
+	local wanted = catchCount(data)
+	if perfect then
+		wanted += Balance.PerfectBonusCatch
+	end
+	local caught = math.min(wanted, space)
 
 	local chests = 0
 	local fish: { any } = {}
@@ -3976,6 +4007,9 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 1, "FirstGeode")
 
+	if perfect then
+		catchEffects(spot, "PERFECT!", Color3.fromRGB(255, 240, 120))
+	end
 	if chests > 0 then
 		catchEffects(spot, chests > 1 and ("+" .. chests .. " Chests!") or "TREASURE CHEST!", Color3.fromRGB(255, 210, 90))
 		Remotes.Event("Notify"):FireClient(player, {
@@ -4037,6 +4071,7 @@ local function onSpotClicked(spot: BasePart, player: Player): boolean
 		state.OwnerUserId = player.UserId
 		state.Resolved = false
 		state.Biting = false
+		state.HookedAt = nil
 		state.ActedAt = os.clock()
 		state.BiteAt = os.clock() + biteDelay(data)
 		setCast(spot, player)
@@ -4046,11 +4081,21 @@ local function onSpotClicked(spot: BasePart, player: Player): boolean
 		-- Any click on your own line counts as being present, so the idle timeout
 		-- only fires on someone who has genuinely stopped fishing.
 		state.ActedAt = now
-		if state.BiteAt and now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW then
-			landCatch(spot, state, player)
+		local hookedAt = state.HookedAt
+		if hookedAt then
+			-- Fish is on. It has been on since the flash and it is not going
+			-- anywhere — reel it in whenever. Doing it fast is worth a bonus.
+			landCatch(spot, state, player, now <= hookedAt + Balance.PerfectWindow)
 			return true
 		end
-		-- clicking early does nothing — wait for the splash
+		-- Clicking before the bite used to be silently ignored, which is
+		-- indistinguishable from a broken game. It spooks the fish instead: the
+		-- bite gets pushed back a moment, the line twitches, and the player can
+		-- see that their click did something and what it cost.
+		if state.BiteAt then
+			state.BiteAt += Balance.SpookDelay
+			ctx.RodVis.Spook(player)
+		end
 	end
 	-- clicking someone else's claimed spot does nothing
 	return false
@@ -4062,15 +4107,12 @@ function MiningService.IsFree(spot: BasePart, player: Player): boolean
 	return state ~= nil and (state.OwnerUserId == nil or state.OwnerUserId == player.UserId)
 end
 
--- Is `player`'s claimed spot flashing right now? Auto-Cast needs to know when to
--- strike; it does not get to strike outside the same window a human has to hit.
+-- Does `player` have a fish on this line right now? Auto-Cast uses it to know
+-- when to reel, and gets no better information than the flashing lamp already
+-- gives a human looking at the same buoy.
 function MiningService.IsBiting(spot: BasePart, player: Player): boolean
 	local state = spots[spot]
-	if not state or state.OwnerUserId ~= player.UserId or not state.BiteAt then
-		return false
-	end
-	local now = os.clock()
-	return now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW
+	return state ~= nil and state.OwnerUserId == player.UserId and state.HookedAt ~= nil
 end
 
 -- The single entry point for a cast or a strike, human or automated. Auto-Cast
@@ -4091,6 +4133,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 			BiteAt = nil,
 			ActedAt = 0,
 			Biting = false,
+			HookedAt = nil,
 			Resolved = true,
 			BaseColor = spot.Color,
 			Area = area,
@@ -4144,24 +4187,21 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 				elseif now - state.ActedAt > CLAIM_TIMEOUT then
 					-- Still standing there, but has not touched it in a while.
 					setIdle(spot, state)
-				elseif now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW then
-					-- A flag, not a colour comparison. The buoy's own colour no
+				elseif now >= state.BiteAt and not state.Biting then
+					-- The fish takes the bait, once, and then STAYS on until the
+					-- player reels it in. There is no escape branch any more:
+					-- losing a catch to a tenth of a second is the single most
+					-- punishing thing this loop could do to an eight-year-old,
+					-- and it bought nothing that the perfect-strike bonus does
+					-- not buy better.
+					--
+					-- A flag, not a colour comparison: the buoy's own colour no
 					-- longer changes on a bite (its lamp does), so the old
 					-- "is it white yet" check would have re-fired the flash and
-					-- its sound ten times a second for the whole window.
-					if not state.Biting then
-						state.Biting = true
-						setBite(spot, owner)
-					end
-				elseif now > state.BiteAt + BITE_WINDOW then
-					-- Missed it: the fish is gone, and so is the cast. The rod used
-					-- to re-cast itself here, which meant one click produced an
-					-- endless series of swings the player never asked for. One
-					-- click, one cast — the game does not swing the rod on its own.
-					-- Wanting it to is exactly what the Auto-Cast pass is for, and
-					-- even that only fires while the player is holding the button.
-					playSound(spot, "rbxasset://sounds/snap.mp3", 0.6, 0.4)
-					setIdle(spot, state)
+					-- its ping ten times a second.
+					state.Biting = true
+					state.HookedAt = now
+					setBite(spot, owner)
 				end
 			end
 		end
@@ -7311,6 +7351,40 @@ function RodVisual.Bite(player: Player)
 	}):Play()
 end
 
+-- Clicked before the bite. A click that does nothing at all is indistinguishable
+-- from a broken game, so the fish being spooked has to be something you can SEE:
+-- the bobber twitches and rings the water.
+function RodVisual.Spook(player: Player)
+	local bobber = castBobbers[player]
+	if not bobber then
+		return
+	end
+	local ripple = Instance.new("ParticleEmitter")
+	ripple.Color = ColorSequence.new(Color3.fromRGB(200, 235, 255))
+	ripple.Size = NumberSequence.new(0.3, 0)
+	ripple.Transparency = NumberSequence.new(0.5, 1)
+	ripple.Lifetime = NumberRange.new(0.25, 0.45)
+	ripple.Speed = NumberRange.new(3, 6)
+	ripple.SpreadAngle = Vector2.new(85, 85)
+	ripple.Rate = 0
+	ripple.Parent = bobber
+	ripple:Emit(6)
+	task.delay(1, function()
+		ripple:Destroy()
+	end)
+	local from = bobber.Position
+	TweenService:Create(bobber, TweenInfo.new(0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = from + Vector3.new(0, 0.5, 0),
+	}):Play()
+	task.delay(0.09, function()
+		if bobber.Parent then
+			TweenService:Create(bobber, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = from,
+			}):Play()
+		end
+	end)
+end
+
 -- Line's in: take the bobber back and give the rod its dangle again.
 function RodVisual.Reel(player: Player)
 	castToken[player] = (castToken[player] or 0) + 1
@@ -10451,7 +10525,10 @@ function CrackScreen.Init(gui: ScreenGui)
 		Remotes.Function("ToggleAutoCrack"):InvokeServer()
 	end)
 	UiKit.Label({
-		Text = "Cast at a glowing fishing spot to catch chests!",
+		-- Chests are about one catch in eight; saying you fish for them was a
+		-- leftover from before fish were the collectible, and it set players up to
+		-- think the other seven catches were a miss.
+		Text = "Most catches are fish. Now and then a chest comes up — every one is Rare or better.",
 		TextColor3 = UiKit.Colors.TextDim,
 		Font = Enum.Font.Gotham,
 		TextWrapped = true,

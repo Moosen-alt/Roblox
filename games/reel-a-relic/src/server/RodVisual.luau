@@ -374,6 +374,40 @@ function RodVisual.Bite(player: Player)
 	}):Play()
 end
 
+-- Clicked before the bite. A click that does nothing at all is indistinguishable
+-- from a broken game, so the fish being spooked has to be something you can SEE:
+-- the bobber twitches and rings the water.
+function RodVisual.Spook(player: Player)
+	local bobber = castBobbers[player]
+	if not bobber then
+		return
+	end
+	local ripple = Instance.new("ParticleEmitter")
+	ripple.Color = ColorSequence.new(Color3.fromRGB(200, 235, 255))
+	ripple.Size = NumberSequence.new(0.3, 0)
+	ripple.Transparency = NumberSequence.new(0.5, 1)
+	ripple.Lifetime = NumberRange.new(0.25, 0.45)
+	ripple.Speed = NumberRange.new(3, 6)
+	ripple.SpreadAngle = Vector2.new(85, 85)
+	ripple.Rate = 0
+	ripple.Parent = bobber
+	ripple:Emit(6)
+	task.delay(1, function()
+		ripple:Destroy()
+	end)
+	local from = bobber.Position
+	TweenService:Create(bobber, TweenInfo.new(0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = from + Vector3.new(0, 0.5, 0),
+	}):Play()
+	task.delay(0.09, function()
+		if bobber.Parent then
+			TweenService:Create(bobber, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = from,
+			}):Play()
+		end
+	end)
+end
+
 -- Line's in: take the bobber back and give the rod its dangle again.
 function RodVisual.Reel(player: Player)
 	castToken[player] = (castToken[player] or 0) + 1

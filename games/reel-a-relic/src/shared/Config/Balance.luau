@@ -91,6 +91,27 @@ Balance.Pickaxes = {
 Balance.BiteDelayMin = 1.5
 Balance.BiteDelayMax = 4.0
 
+-- TIMING IS A BONUS, NOT A GATE.
+--
+-- The original loop gave you a 1.2s window to strike and threw the whole catch
+-- away if you missed it. That is a fighting-game convention, and it is wrong for
+-- who plays this: an eight-year-old who misses by a tenth of a second loses
+-- three seconds of waiting and is told nothing about why. Every successful
+-- Roblox simulator this game sits next to shares one rule — an input always
+-- produces something, and good timing produces MORE.
+--
+-- So: once a fish is on, it stays on until you reel it in. Strike inside this
+-- window and it is a PERFECT catch worth an extra fish. Strike later and you
+-- still get the fish. You cannot lose one by being slow.
+Balance.PerfectWindow = 1.2
+Balance.PerfectBonusCatch = 1
+
+-- Mashing the button before the bite spooks the fish and pushes it back a
+-- moment. That is the counterweight that keeps patience worth something now
+-- that missing costs nothing — and unlike losing the catch, it is a delay the
+-- player can see happen and understand.
+Balance.SpookDelay = 0.6
+
 Balance.BiteFloor = 0.45 -- fastest possible bite, as a fraction of the base wait
 Balance.BiteSharpness = 0.08 -- how quickly early rods approach that floor
 Balance.ExtraCatchScale = 0.35 -- catches per landing grow as log(1 + damage) * this

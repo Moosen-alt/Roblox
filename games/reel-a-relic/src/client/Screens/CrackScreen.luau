@@ -568,7 +568,10 @@ function CrackScreen.Init(gui: ScreenGui)
 		Remotes.Function("ToggleAutoCrack"):InvokeServer()
 	end)
 	UiKit.Label({
-		Text = "Cast at a glowing fishing spot to catch chests!",
+		-- Chests are about one catch in eight; saying you fish for them was a
+		-- leftover from before fish were the collectible, and it set players up to
+		-- think the other seven catches were a miss.
+		Text = "Most catches are fish. Now and then a chest comes up — every one is Rare or better.",
 		TextColor3 = UiKit.Colors.TextDim,
 		Font = Enum.Font.Gotham,
 		TextWrapped = true,
