@@ -62,7 +62,12 @@ one focal point each. Update thumbnail #1 later with your actual rarest communit
 
 ## Settings checklist
 
-- Genre: **Simulation** · Subgenre: Incremental/Idle if offered
+- Genre: **Simulation** · Subgenre: **Incremental Simulator** — Roblox defines it as progression
+  through "simple repetitive actions to increase a counter", unlocking new capabilities as you
+  go, which is this game exactly. Do **not** pick `Idle`: that one means "little to no player
+  input", and tapping the wall is the core loop. The full Simulation list is Idle, Incremental
+  Simulator, Physics Sim, Sandbox, Tycoon, Vehicle Sim — there is no mining subgenre, so the
+  `[Mining Simulator]` keyword in the title is what carries the theme.
 - Devices: **Computer + Phone + Tablet** (UI is mobile-first; most simulator revenue is mobile)
 - Max players: 20 · Private servers: **99 Robux/month** (set once, never reprice)
 - Age questionnaire: answer **yes** to paid random items (geodes bought with earnable coins) —

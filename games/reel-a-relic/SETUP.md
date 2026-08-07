@@ -69,6 +69,13 @@ paid random items (chests bought with earnable coins — odds shown, policy-gate
 
 ## Store page
 
+**Paste-ready name, description, genre, icon and thumbnail shot list:
+[`marketing/store-page.md`](marketing/store-page.md).** Summary:
+
+- **Genre:** Simulation · **Subgenre:** Incremental Simulator — *not* Idle, which Roblox defines
+  as "little to no player input"; the reel-in is the whole product, and metadata that mismatches
+  gameplay gets suppressed. There is no fishing subgenre, so the `[Fishing Simulator]` keyword in
+  the title is what carries the theme.
 - **Name:** `Reel a Relic! [Fishing Simulator]`
 - **Hook line:** `🎣 FIGHT every fish in! 33 real species + 11 sunken relics — and your aquarium earns coins WHILE YOU SLEEP! 🐠`
 
