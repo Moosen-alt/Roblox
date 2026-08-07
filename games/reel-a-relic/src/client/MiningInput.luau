@@ -44,23 +44,34 @@ local function nodeOf(instance: Instance): BasePart?
 	return nil
 end
 
--- Nearest buoy to the player, for when the tap landed on open water. Bounded by
--- the same cast range the server enforces, so this can only ever pick a spot the
--- player was already allowed to fish.
-local function nearestSpot(): BasePart?
+-- For a tap that landed on open water: the buoy the player was POINTING at, not
+-- the one they happen to be standing nearest. Aiming at a far buoy and having
+-- the rod cast at a different one beside you is worse than the tap doing
+-- nothing, because it looks like the game ignored you.
+--
+-- Measured as perpendicular distance from the tap ray, and still bounded by the
+-- cast range the server enforces, so this can only pick a buoy the player could
+-- have hit directly.
+local AIM_TOLERANCE = 12 -- studs off the ray still counts as aiming at it
+
+local function spotAlongRay(origin: Vector3, direction: Vector3): BasePart?
 	local character = Players.LocalPlayer.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root then
 		return nil
 	end
 	local best: BasePart? = nil
-	local bestDistance = Balance.CastRange
+	local bestOffset = AIM_TOLERANCE
 	for _, tagged in CollectionService:GetTagged("FishingSpot") do
-		if tagged:IsA("BasePart") then
-			local distance = (tagged.Position - root.Position).Magnitude
-			if distance < bestDistance then
-				best = tagged
-				bestDistance = distance
+		if tagged:IsA("BasePart") and (tagged.Position - root.Position).Magnitude <= Balance.CastRange then
+			local toSpot = tagged.Position - origin
+			local along = toSpot:Dot(direction)
+			if along > 0 then -- in front of the camera, not behind it
+				local offset = (toSpot - direction * along).Magnitude
+				if offset < bestOffset then
+					best = tagged
+					bestOffset = offset
+				end
 			end
 		end
 	end
@@ -82,13 +93,18 @@ local function spotAt(position: Vector2): BasePart?
 	params.IgnoreWater = true
 	local character = Players.LocalPlayer.Character
 	params.FilterDescendantsInstances = character and { character } or {}
-	local hit = Workspace:Raycast(ray.Origin, ray.Direction * MAX_TAP_RANGE, params)
+	local direction = ray.Direction.Unit
+	local hit = Workspace:Raycast(ray.Origin, direction * MAX_TAP_RANGE, params)
 	if hit then
-		return nodeOf(hit.Instance)
+		local node = nodeOf(hit.Instance)
+		if node then
+			return node
+		end
 	end
-	-- Hit nothing at all: with water ignored, that means open sea or sky. Reading
-	-- it as "cast at the water in front of me" is what a player means by it.
-	return nearestSpot()
+	-- Either nothing was hit (open sea or sky, now that water is ignored) or the
+	-- tap landed on scenery. Fall back to whichever buoy the player was aiming
+	-- at, which is what they meant by clicking out over the water.
+	return spotAlongRay(ray.Origin, direction)
 end
 
 local function tryFish(position: Vector2)

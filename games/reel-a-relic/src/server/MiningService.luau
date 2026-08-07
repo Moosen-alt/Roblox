@@ -25,7 +25,11 @@ local Remotes = require(Shared.Remotes)
 local MiningService = {}
 
 local BITE_WINDOW = 1.2 -- seconds the flash stays catchable
-local CLAIM_TIMEOUT = 20 -- seconds without a click before an idle cast is released
+-- Backstop only. A cast now resolves within about five seconds either way — bite
+-- and land, or bite and miss — so nothing should ever reach this. It stays
+-- because a spot silently stuck as "claimed" would be invisible to everyone and
+-- would cost that buoy for the rest of the server's life.
+local CLAIM_TIMEOUT = 20
 -- A few studs of slack past the cast range, so shuffling on the spot or a bit of
 -- position lag never yanks the line out of the water mid-fish.
 local CLAIM_SLACK = 8
@@ -378,13 +382,14 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 						setBite(spot, owner)
 					end
 				elseif now > state.BiteAt + BITE_WINDOW then
-					-- missed the window: it got away, auto-recast for the same
-					-- angler. ActedAt is NOT touched here — an auto-recast is the
-					-- game acting, not the player, so it must not keep the claim
-					-- alive on its own.
-					spot.Color = state.BaseColor
-					setCast(spot, owner)
-					state.BiteAt = now + biteDelay(data)
+					-- Missed it: the fish is gone, and so is the cast. The rod used
+					-- to re-cast itself here, which meant one click produced an
+					-- endless series of swings the player never asked for. One
+					-- click, one cast — the game does not swing the rod on its own.
+					-- Wanting it to is exactly what the Auto-Cast pass is for, and
+					-- even that only fires while the player is holding the button.
+					playSound(spot, "rbxasset://sounds/snap.mp3", 0.6, 0.4)
+					setIdle(spot, state)
 				end
 			end
 		end
