@@ -1,0 +1,87 @@
+name: Upload meshes to Roblox
+
+# MANUAL ONLY. Never on push: uploading on every commit would fill the account
+# with duplicate assets, and there is no bulk delete.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "How many to upload this run (1 to test, 0 for all remaining)"
+        type: string
+        default: "1"
+      only:
+        description: "Optional name filter, e.g. Anchovy"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # assimp converts the pack's OBJ files to the FBX that Open Cloud wants
+      # for Model assets. Far lighter than pulling Blender in for the same job.
+      - name: Install assimp
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq assimp-utils
+          assimp version | head -3
+
+      - name: Install python deps
+        run: pip install --quiet requests
+
+      # Fails loudly and early if the key or creator is missing, rather than
+      # halfway through a batch.
+      - name: Check configuration
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+          ROBLOX_GROUP_ID: ${{ secrets.ROBLOX_GROUP_ID }}
+          ROBLOX_USER_ID: ${{ secrets.ROBLOX_USER_ID }}
+        run: |
+          if [ -z "$ROBLOX_API_KEY" ]; then
+            echo "::error::ROBLOX_API_KEY is not set."
+            exit 1
+          fi
+          if [ -z "$ROBLOX_GROUP_ID" ] && [ -z "$ROBLOX_USER_ID" ]; then
+            echo "::error::Set ROBLOX_GROUP_ID (group-owned games) or ROBLOX_USER_ID (personal)."
+            echo "::error::Assets are created under whoever owns the API key."
+            exit 1
+          fi
+          echo "Key present. Creator: ${ROBLOX_GROUP_ID:+group $ROBLOX_GROUP_ID}${ROBLOX_USER_ID:+user $ROBLOX_USER_ID}"
+
+      - name: Upload
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+          ROBLOX_GROUP_ID: ${{ secrets.ROBLOX_GROUP_ID }}
+          ROBLOX_USER_ID: ${{ secrets.ROBLOX_USER_ID }}
+        run: |
+          python3 tools/upload-meshes.py \
+            --limit "${{ inputs.limit }}" \
+            --only "${{ inputs.only }}"
+
+      # Manifest -> Meshes.luau, then the same checks CI runs, so a bad id can
+      # never be committed.
+      - name: Generate mesh tables
+        run: python3 tools/build-meshes.py
+
+      - name: Validate
+        run: python3 tests/check-models.py . games/reel-a-relic games/easy-obby
+
+      - name: Commit asset ids
+        run: |
+          git add -- assets/mesh-source/asset_manifest.csv \
+                     src/shared/Config/Meshes.luau \
+                     games/reel-a-relic/src/shared/Config/Meshes.luau
+          if git diff --cached --quiet; then
+            echo "No new asset ids."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Upload meshes: record Roblox asset ids"
+          git push
+          echo "Pushed. The normal CI run will rebuild and republish the places."

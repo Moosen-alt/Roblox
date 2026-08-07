@@ -1,8 +1,26 @@
-# Model shopping list
+# Models: the mesh pack and how it gets in
 
 Everything in this game is built from Roblox primitives in code, which needs no
 asset pipeline and has a hard ceiling: primitives read as *stylised*, never as
 *sculpted*. This is the list for lifting that ceiling.
+
+**A full pack of 69 original OBJ models already ships in
+[`assets/mesh-source/`](../../assets/mesh-source/)** — 33 fish, 28 relics and the
+geode game's 8 crystals, every name matching the configs exactly, normalised to a
+1-unit maximum dimension, centred, Y-up, fish nose-along +X. Two ways to get them
+into the game:
+
+| | |
+| --- | --- |
+| **Automatic** | Run the **Upload meshes to Roblox** workflow (Actions tab). It converts, uploads via Open Cloud, records the asset ids and commits them. See below. |
+| **By hand** | Studio → 3D Importer → save to Roblox → paste ids into the manifest → `python3 tools/build-meshes.py`. |
+
+**Six relics are not worth uploading.** Spanish Emerald, Black Box and Tide Jewel
+are 12 faces each — literally cubes — and Silver Doubloon, Cannery Token and Tiki
+Idol are 64–76. The hand-built primitives they would replace have shaped, detailed
+geometry, so swapping those is a downgrade. Leave their manifest rows blank.
+
+The rest of this file is for sourcing *additional* models beyond the pack.
 
 **Start in Studio → View → Toolbox → Creator Store.** Not the external model
 sites. Two reasons, and both are practical rather than pedantic:
@@ -124,3 +142,65 @@ rendering, which looks exactly like a failed upload rather than a typo.
   hundreds.
 - **One style across the set.** Six fish from one creator's pack will always look
   better together than twelve from twelve creators.
+
+
+---
+
+# Automatic upload (the Actions workflow)
+
+## One-time setup
+
+1. **Add `asset:write` to your Open Cloud key.** Creator Hub → Open Cloud → API
+   Keys → edit the key you already use for publishing → under **Asset
+   Operations**, add `write`. Same key, one extra permission.
+2. **Tell it who owns the assets.** Repo Settings → Secrets and variables →
+   Actions, add **one** of:
+   - `ROBLOX_GROUP_ID` — if the games are group-owned (they are, if you followed
+     SETUP.md). The number in your group's URL.
+   - `ROBLOX_USER_ID` — if they are on your personal account.
+
+   Assets are created under whoever owns the API key, so this has to match or
+   the upload is rejected.
+
+## Running it
+
+Actions tab → **Upload meshes to Roblox** → Run workflow.
+
+- **`limit`** — how many to upload. **Leave it at `1` for the first run.** Prove
+  the whole pipeline on one Anchovy before spending moderation queue on 69.
+- **`only`** — optional name filter, e.g. `Anchovy`.
+
+Once one works, re-run with `limit: 0` for everything remaining.
+
+The workflow converts each OBJ to FBX with assimp, uploads it, polls until
+Roblox returns an asset id, writes that id into the manifest, regenerates both
+`Meshes.luau` files, validates them, and commits. The normal CI run then rebuilds
+and republishes the places.
+
+## Why it is safe to re-run
+
+**Rows that already have a MeshId are skipped.** A run that dies halfway resumes
+where it stopped rather than uploading everything a second time — which matters,
+because there is no bulk delete and 69 orphaned duplicates would be
+indistinguishable from the real ones. The manifest is written after *every*
+success, not at the end, so a crash never loses ids you have already paid for.
+
+Failed rows keep a blank MeshId and are simply retried next run.
+
+## If it does not work first time
+
+This is the one part of the pipeline built without being able to read Roblox's
+documentation — every Roblox domain is blocked from the environment these tools
+were written in, so the API contract is from memory and the workflow logs are the
+only feedback loop. Expect it to need a round or two. The likely failure points,
+in order:
+
+1. **`asset:write` missing** → HTTP 401 or 403. Step 1 above.
+2. **Wrong creator** → the upload is rejected as unauthorised. Group vs user.
+3. **FBX rejected** → assimp's output is not what Roblox wants. Fallback is
+   Blender (`pip install bpy`) in place of assimp, which produces canonical FBX.
+4. **Operation never completes** → moderation is slow; the row stays blank and
+   the next run retries it. Not an error.
+
+Paste the failing log and it can be fixed against real output rather than guessed
+at twice.
