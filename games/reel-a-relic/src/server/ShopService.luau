@@ -1,10 +1,14 @@
 --!strict
 -- Clock-synced shop: stock derives from floor(os.time()/300), so every server
 -- shows the same stock and it "restocks" every 5 minutes forever, no live-ops.
--- Compliance: geode offers are random-content items purchasable with a
+-- Compliance: chest offers are random-content items purchasable with a
 -- Robux-purchasable currency, so their exact odds ship with the stock payload,
 -- and players whose policy restricts paid random items only ever see the
--- deterministic crystal offers (PolicyService gating).
+-- deterministic fish offers (PolicyService gating).
+--
+-- Those odds MUST come from the RELIC pool. A chest contains a relic; quoting
+-- the fish table beside it would be a published probability the game does not
+-- honour, which is the one thing this file exists to make impossible.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -52,7 +56,7 @@ local function rolledCrystalOffer(seedRng: Random, layer: number, priceMult: num
 	-- slot offered a Quartz for more coins than a Quartz sells for — an offer
 	-- with no reason to exist. The point of a fixed crystal is skipping the
 	-- gamble for something you actually want.
-	local baseName = RarityMath.RollRarePlus(layer, 2, seedRng)
+	local baseName = RarityMath.RollRarePlus(layer, 2, seedRng, Crystals.FISH)
 	local mutName = RarityMath.RollMutation(1, seedRng)
 	local size = 1.0 + seedRng:NextNumber() * 0.2
 	local value = RarityMath.ComputeValue(baseName, mutName, size, layer)
@@ -80,14 +84,14 @@ function ShopService.BuildStock(player: Player, data: any): { RestockAt: number,
 			Title = "Chest",
 			Cost = geodeCost(layer),
 			Count = 1,
-			Odds = RarityMath.GetBaseOdds(layer, luck),
+			Odds = RarityMath.GetBaseOdds(layer, luck, Crystals.RELIC),
 		})
 		table.insert(items, {
 			Kind = "GeodeBundle",
 			Title = "Chest x3",
 			Cost = math.floor(geodeCost(layer) * 2.5),
 			Count = 3,
-			Odds = RarityMath.GetBaseOdds(layer, luck),
+			Odds = RarityMath.GetBaseOdds(layer, luck, Crystals.RELIC),
 		})
 		table.insert(items, {
 			Kind = "PremiumGeode",
@@ -95,7 +99,7 @@ function ShopService.BuildStock(player: Player, data: any): { RestockAt: number,
 			Cost = geodeCost(layer) * Balance.ShopPremiumGeodeCostMult,
 			Count = 1,
 			Luck = Balance.ShopPremiumGeodeLuck,
-			Odds = RarityMath.GetBaseOdds(layer, luck * Balance.ShopPremiumGeodeLuck),
+			Odds = RarityMath.GetBaseOdds(layer, luck * Balance.ShopPremiumGeodeLuck, Crystals.RELIC),
 		})
 		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.25))
 	else

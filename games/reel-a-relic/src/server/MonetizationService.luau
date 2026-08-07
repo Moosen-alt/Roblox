@@ -68,9 +68,10 @@ local PRODUCT_GRANTS: { [string]: (Player, any) -> () } = {
 		data.Boosts.Coins2xUntil = math.max(data.Boosts.Coins2xUntil, os.time()) + Balance.StarterPackBoostSeconds
 		-- Must be a species that actually swims in area 1, where every new player
 		-- starts: granting a fish from deeper water hands them a name the Index
-		-- cannot look up and a fish they cannot catch again.
-		ctx.Crack.GrantFixedCrystal(player, "Rainbow Trout", 1.2)
-		Remotes.Event("Notify"):FireClient(player, { Text = "Starter Pack! +2,500 coins, a Rainbow Trout, and 24h of 2x coins!", Color = Color3.fromRGB(255, 210, 90) })
+		-- cannot look up and a fish they cannot catch again. Rare tier, so the
+		-- pack still opens with something worth having.
+		ctx.Crack.GrantFixedCrystal(player, "Red Snapper", 1.2)
+		Remotes.Event("Notify"):FireClient(player, { Text = "Starter Pack! +2,500 coins, a Red Snapper, and 24h of 2x coins!", Color = Color3.fromRGB(255, 210, 90) })
 	end,
 	Coins1k = function(player, data)
 		local def = Monetization.Products.Coins1k

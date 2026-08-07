@@ -337,26 +337,36 @@ return Balance
           <Properties>
             <string name="Name">Crystals</string>
             <string name="Source"><![CDATA[--!strict
--- All collectible content lives in these two tables. Adding a row here is a full
+-- All collectible content lives in these tables. Adding a row here is a full
 -- "content update" (new index entries, new drops) with zero other code changes.
--- (Internal module name stays "Crystals" — it's the engine's collectible table;
--- everything player-facing calls them fish.)
+-- (Internal module name stays "Crystals" — it's the engine's collectible table.)
 --
--- ONE table feeds both ways of getting a fish: a fish on the line rolls it
--- straight, a crate rolls it guaranteed-Rare-or-better. That is deliberate. A
--- second parallel loot table would double the Index, the odds panel, the value
--- maths and every test for no gameplay a player could name, and it would make
--- the crate a different game instead of a better pull.
+-- TWO KINDS OF THING, ONE TABLE.
+--
+--   Kind = "Fish"  — what you pull out of the water. Real species, and each area
+--                    stocks the ones that actually live in that water.
+--   Kind = "Relic" — what is INSIDE a chest. Sunken treasure: anchors, doubloons,
+--                    a captain's spyglass, Poseidon's trident.
+--
+-- Chests used to contain a better fish, which made them "a fish, but louder" —
+-- no reason to feel different from a good cast, and a strange thing to find in a
+-- locked box at the bottom of the sea. Relics give the opening its own payoff,
+-- its own collection to finish, and they put the game's own title back in it.
+--
+-- One table rather than two, deliberately: the Index, the value maths, the
+-- aquarium, the shop and every test already work on this shape. A parallel
+-- system would double all of them to say the same thing.
 
 export type CrystalDef = {
 	Name: string,
+	Kind: string, -- "Fish" | "Relic"
 	Tier: string,
-	Weight: number, -- base drop weight; all weights sum to 100 so they read as percentages
+	Weight: number, -- drop weight WITHIN its own kind; each kind sums to ~100
 	Value: number,
 	Color: Color3,
-	MinLayer: number, -- first area this fish swims in
-	MaxLayer: number, -- last area it swims in; past this it stops biting entirely
-	WeightMin: number, -- pounds, at size 1.0
+	MinLayer: number, -- first area this appears in
+	MaxLayer: number, -- last area it appears in
+	WeightMin: number, -- pounds at the smallest roll (fish only; 0 for relics)
 	WeightMax: number,
 }
 
@@ -383,47 +393,85 @@ Crystals.TierColors = {
 -- Luck multipliers (gamepass / events) scale the weights of these tiers and above.
 Crystals.LuckyTierThreshold = 3 -- index into Tiers: Rare+
 
--- Species turn over between areas rather than piling up. `MinLayer..MaxLayer` is
--- a window, not a floor: sailing to the Kelp Forest means the Sunny Shallows
--- minnows STOP biting, which is what makes a new area feel like new content
--- instead of a longer list. Each boundary keeps one familiar species across it
--- so an area still has an anchor, and every area holds at least one Rare+ so a
--- crate always has something to give you.
+--------------------------------------------------------------------------------
+-- FISH — real species, stocked by habitat.
+--
+-- Every one of these is a fish (or sea creature) a child could look up and find,
+-- living in water it actually lives in: reef fish on the reef, kelp species in
+-- the kelp, deep-sea species in the trench. That is worth more than invented
+-- names for this audience, not less — "I caught a Leopard Shark" is a thing to
+-- say at school, and half of them are already known from a nature documentary.
+--
+-- Species still turn over between areas (MinLayer..MaxLayer is a window, not a
+-- floor), so sailing somewhere new means different fish, not a longer list.
+--------------------------------------------------------------------------------
+
 Crystals.Bases = {
-	-- Area 1: Sunny Shallows
-	{ Name = "Minnow", Tier = "Common", Weight = 55, Value = 5, Color = Color3.fromRGB(190, 200, 175), MinLayer = 1, MaxLayer = 1, WeightMin = 0.2, WeightMax = 1.4 },
-	{ Name = "Sunfish", Tier = "Uncommon", Weight = 22, Value = 15, Color = Color3.fromRGB(255, 210, 90), MinLayer = 1, MaxLayer = 2, WeightMin = 0.8, WeightMax = 4 },
-	{ Name = "Spotted Bass", Tier = "Uncommon", Weight = 10, Value = 30, Color = Color3.fromRGB(120, 160, 90), MinLayer = 1, MaxLayer = 2, WeightMin = 2, WeightMax = 11 },
-	{ Name = "Rainbow Trout", Tier = "Rare", Weight = 7, Value = 75, Color = Color3.fromRGB(255, 140, 170), MinLayer = 1, MaxLayer = 2, WeightMin = 3, WeightMax = 16 },
-	-- Area 1's second Rare, and the reason it is here: every chest is a
-	-- guaranteed Rare+, so a starting area with only two Rare+ species made four
-	-- chests in five open on the same trout. A third splits the pull three ways
-	-- (54 / 32 / 14) without touching the odds anyone sees on the panel.
-	{ Name = "Glass Catfish", Tier = "Rare", Weight = 4.2, Value = 120, Color = Color3.fromRGB(200, 225, 235), MinLayer = 1, MaxLayer = 1, WeightMin = 1.5, WeightMax = 9 },
-	{ Name = "Golden Koi", Tier = "Epic", Weight = 1.8, Value = 400, Color = Color3.fromRGB(255, 190, 60), MinLayer = 1, MaxLayer = 1, WeightMin = 4, WeightMax = 22 },
+	-- Area 1: Sunny Shallows — sandy coastal water
+	{ Name = "Anchovy", Kind = "Fish", Tier = "Common", Weight = 40, Value = 5, Color = Color3.fromRGB(196, 208, 216), MinLayer = 1, MaxLayer = 1, WeightMin = 0.1, WeightMax = 0.6 },
+	{ Name = "Mackerel", Kind = "Fish", Tier = "Common", Weight = 22, Value = 9, Color = Color3.fromRGB(96, 140, 172), MinLayer = 1, MaxLayer = 2, WeightMin = 0.8, WeightMax = 4 },
+	{ Name = "Sea Bass", Kind = "Fish", Tier = "Uncommon", Weight = 17, Value = 22, Color = Color3.fromRGB(120, 132, 108), MinLayer = 1, MaxLayer = 2, WeightMin = 2, WeightMax = 14 },
+	{ Name = "Flounder", Kind = "Fish", Tier = "Uncommon", Weight = 10, Value = 34, Color = Color3.fromRGB(168, 148, 112), MinLayer = 1, MaxLayer = 2, WeightMin = 1, WeightMax = 9 },
+	{ Name = "Red Snapper", Kind = "Fish", Tier = "Rare", Weight = 6, Value = 90, Color = Color3.fromRGB(214, 76, 66), MinLayer = 1, MaxLayer = 2, WeightMin = 3, WeightMax = 20 },
+	{ Name = "Seahorse", Kind = "Fish", Tier = "Rare", Weight = 3.2, Value = 140, Color = Color3.fromRGB(240, 190, 92), MinLayer = 1, MaxLayer = 1, WeightMin = 0.05, WeightMax = 0.4 },
+	{ Name = "Sailfish", Kind = "Fish", Tier = "Epic", Weight = 1.8, Value = 420, Color = Color3.fromRGB(74, 128, 200), MinLayer = 1, MaxLayer = 1, WeightMin = 60, WeightMax = 190 },
 
-	-- Area 2: Kelp Forest
-	{ Name = "Kelp Perch", Tier = "Common", Weight = 55, Value = 40, Color = Color3.fromRGB(150, 190, 120), MinLayer = 2, MaxLayer = 3, WeightMin = 1, WeightMax = 6 },
-	{ Name = "Ribbon Eel", Tier = "Rare", Weight = 6, Value = 190, Color = Color3.fromRGB(90, 200, 130), MinLayer = 2, MaxLayer = 3, WeightMin = 5, WeightMax = 26 },
-	{ Name = "Sea Otter's Prize", Tier = "Epic", Weight = 1.6, Value = 900, Color = Color3.fromRGB(180, 130, 90), MinLayer = 2, MaxLayer = 3, WeightMin = 8, WeightMax = 38 },
-	{ Name = "Kelp Dragon", Tier = "Legendary", Weight = 0.5, Value = 3200, Color = Color3.fromRGB(60, 220, 160), MinLayer = 2, MaxLayer = 2, WeightMin = 20, WeightMax = 95 },
+	-- Area 2: Kelp Forest — temperate kelp beds
+	{ Name = "Kelp Bass", Kind = "Fish", Tier = "Common", Weight = 44, Value = 45, Color = Color3.fromRGB(126, 142, 94), MinLayer = 2, MaxLayer = 3, WeightMin = 1, WeightMax = 8 },
+	{ Name = "Garibaldi", Kind = "Fish", Tier = "Uncommon", Weight = 20, Value = 120, Color = Color3.fromRGB(255, 128, 32), MinLayer = 2, MaxLayer = 3, WeightMin = 0.6, WeightMax = 4 },
+	{ Name = "Sheephead", Kind = "Fish", Tier = "Uncommon", Weight = 12, Value = 180, Color = Color3.fromRGB(198, 96, 128), MinLayer = 2, MaxLayer = 2, WeightMin = 4, WeightMax = 26 },
+	{ Name = "Moray Eel", Kind = "Fish", Tier = "Rare", Weight = 6, Value = 340, Color = Color3.fromRGB(120, 148, 96), MinLayer = 2, MaxLayer = 3, WeightMin = 6, WeightMax = 32 },
+	{ Name = "Leopard Shark", Kind = "Fish", Tier = "Rare", Weight = 4, Value = 520, Color = Color3.fromRGB(176, 172, 156), MinLayer = 2, MaxLayer = 3, WeightMin = 20, WeightMax = 70 },
+	{ Name = "Giant Sea Bass", Kind = "Fish", Tier = "Legendary", Weight = 0.6, Value = 3400, Color = Color3.fromRGB(92, 102, 116), MinLayer = 2, MaxLayer = 2, WeightMin = 120, WeightMax = 560 },
 
-	-- Area 3: Twilight Reef
-	{ Name = "Parrotfish", Tier = "Common", Weight = 50, Value = 160, Color = Color3.fromRGB(90, 210, 220), MinLayer = 3, MaxLayer = 4, WeightMin = 2, WeightMax = 12 },
-	{ Name = "Lionfish", Tier = "Uncommon", Weight = 20, Value = 320, Color = Color3.fromRGB(255, 120, 80), MinLayer = 3, MaxLayer = 4, WeightMin = 1.5, WeightMax = 9 },
-	{ Name = "Reef Shark", Tier = "Rare", Weight = 6, Value = 800, Color = Color3.fromRGB(140, 160, 180), MinLayer = 3, MaxLayer = 4, WeightMin = 40, WeightMax = 210 },
-	{ Name = "Moon Jelly", Tier = "Epic", Weight = 1.5, Value = 2600, Color = Color3.fromRGB(200, 220, 255), MinLayer = 3, MaxLayer = 3, WeightMin = 0.5, WeightMax = 5 },
+	-- Area 3: Twilight Reef — coral reef
+	{ Name = "Clownfish", Kind = "Fish", Tier = "Common", Weight = 38, Value = 170, Color = Color3.fromRGB(255, 132, 40), MinLayer = 3, MaxLayer = 4, WeightMin = 0.05, WeightMax = 0.5 },
+	{ Name = "Parrotfish", Kind = "Fish", Tier = "Common", Weight = 22, Value = 210, Color = Color3.fromRGB(72, 200, 176), MinLayer = 3, MaxLayer = 4, WeightMin = 2, WeightMax = 12 },
+	{ Name = "Blue Tang", Kind = "Fish", Tier = "Uncommon", Weight = 18, Value = 320, Color = Color3.fromRGB(56, 118, 224), MinLayer = 3, MaxLayer = 3, WeightMin = 0.3, WeightMax = 2 },
+	{ Name = "Lionfish", Kind = "Fish", Tier = "Uncommon", Weight = 11, Value = 420, Color = Color3.fromRGB(232, 96, 72), MinLayer = 3, MaxLayer = 4, WeightMin = 0.6, WeightMax = 3 },
+	{ Name = "Reef Shark", Kind = "Fish", Tier = "Rare", Weight = 6, Value = 900, Color = Color3.fromRGB(140, 156, 172), MinLayer = 3, MaxLayer = 4, WeightMin = 40, WeightMax = 180 },
+	{ Name = "Manta Ray", Kind = "Fish", Tier = "Epic", Weight = 2.4, Value = 2800, Color = Color3.fromRGB(60, 72, 96), MinLayer = 3, MaxLayer = 4, WeightMin = 200, WeightMax = 1400 },
+	{ Name = "Hammerhead", Kind = "Fish", Tier = "Legendary", Weight = 0.7, Value = 9000, Color = Color3.fromRGB(150, 160, 150), MinLayer = 3, MaxLayer = 3, WeightMin = 150, WeightMax = 700 },
 
-	-- Area 4: Midnight Trench
-	{ Name = "Lanternfish", Tier = "Common", Weight = 48, Value = 700, Color = Color3.fromRGB(120, 200, 255), MinLayer = 4, MaxLayer = 5, WeightMin = 0.3, WeightMax = 2.2 },
-	{ Name = "Gulper Eel", Tier = "Uncommon", Weight = 18, Value = 1400, Color = Color3.fromRGB(110, 90, 150), MinLayer = 4, MaxLayer = 5, WeightMin = 6, WeightMax = 30 },
-	{ Name = "Anglerfish", Tier = "Rare", Weight = 5, Value = 3400, Color = Color3.fromRGB(255, 240, 120), MinLayer = 4, MaxLayer = 5, WeightMin = 9, WeightMax = 48 },
-	{ Name = "Ghost Squid", Tier = "Legendary", Weight = 0.6, Value = 11000, Color = Color3.fromRGB(150, 255, 245), MinLayer = 4, MaxLayer = 4, WeightMin = 30, WeightMax = 170 },
+	-- Area 4: Midnight Trench — the deep
+	{ Name = "Lanternfish", Kind = "Fish", Tier = "Common", Weight = 40, Value = 750, Color = Color3.fromRGB(120, 200, 255), MinLayer = 4, MaxLayer = 5, WeightMin = 0.02, WeightMax = 0.3 },
+	{ Name = "Hatchetfish", Kind = "Fish", Tier = "Common", Weight = 22, Value = 950, Color = Color3.fromRGB(196, 208, 232), MinLayer = 4, MaxLayer = 5, WeightMin = 0.05, WeightMax = 0.4 },
+	{ Name = "Viperfish", Kind = "Fish", Tier = "Uncommon", Weight = 16, Value = 1600, Color = Color3.fromRGB(88, 108, 140), MinLayer = 4, MaxLayer = 5, WeightMin = 0.5, WeightMax = 3 },
+	{ Name = "Gulper Eel", Kind = "Fish", Tier = "Uncommon", Weight = 10, Value = 2100, Color = Color3.fromRGB(72, 60, 92), MinLayer = 4, MaxLayer = 5, WeightMin = 2, WeightMax = 14 },
+	{ Name = "Anglerfish", Kind = "Fish", Tier = "Rare", Weight = 6, Value = 4200, Color = Color3.fromRGB(255, 236, 128), MinLayer = 4, MaxLayer = 5, WeightMin = 1, WeightMax = 8 },
+	{ Name = "Barreleye", Kind = "Fish", Tier = "Epic", Weight = 2.2, Value = 12000, Color = Color3.fromRGB(140, 255, 190), MinLayer = 4, MaxLayer = 4, WeightMin = 0.3, WeightMax = 2 },
+	{ Name = "Oarfish", Kind = "Fish", Tier = "Legendary", Weight = 0.8, Value = 34000, Color = Color3.fromRGB(206, 210, 226), MinLayer = 4, MaxLayer = 5, WeightMin = 100, WeightMax = 600 },
 
-	-- Area 5: The Abyss
-	{ Name = "Abyss Ray", Tier = "Uncommon", Weight = 20, Value = 5000, Color = Color3.fromRGB(80, 70, 120), MinLayer = 5, MaxLayer = 5, WeightMin = 55, WeightMax = 300 },
-	{ Name = "Colossal Squid", Tier = "Epic", Weight = 2, Value = 18000, Color = Color3.fromRGB(190, 90, 255), MinLayer = 5, MaxLayer = 5, WeightMin = 120, WeightMax = 640 },
-	{ Name = "Leviathan", Tier = "Mythic", Weight = 0.1, Value = 90000, Color = Color3.fromRGB(255, 70, 120), MinLayer = 5, MaxLayer = 5, WeightMin = 400, WeightMax = 2200 },
+	-- Area 5: The Abyss — the hadal zone
+	{ Name = "Giant Isopod", Kind = "Fish", Tier = "Common", Weight = 34, Value = 5200, Color = Color3.fromRGB(178, 162, 132), MinLayer = 5, MaxLayer = 5, WeightMin = 1, WeightMax = 4 },
+	{ Name = "Dumbo Octopus", Kind = "Fish", Tier = "Uncommon", Weight = 20, Value = 9000, Color = Color3.fromRGB(220, 140, 160), MinLayer = 5, MaxLayer = 5, WeightMin = 1, WeightMax = 12 },
+	{ Name = "Frilled Shark", Kind = "Fish", Tier = "Rare", Weight = 7, Value = 22000, Color = Color3.fromRGB(96, 88, 78), MinLayer = 5, MaxLayer = 5, WeightMin = 20, WeightMax = 90 },
+	{ Name = "Goblin Shark", Kind = "Fish", Tier = "Epic", Weight = 2.6, Value = 60000, Color = Color3.fromRGB(232, 168, 178), MinLayer = 5, MaxLayer = 5, WeightMin = 100, WeightMax = 460 },
+	{ Name = "Colossal Squid", Kind = "Fish", Tier = "Legendary", Weight = 0.9, Value = 180000, Color = Color3.fromRGB(190, 90, 255), MinLayer = 5, MaxLayer = 5, WeightMin = 300, WeightMax = 1100 },
+	{ Name = "Megalodon", Kind = "Fish", Tier = "Mythic", Weight = 0.1, Value = 900000, Color = Color3.fromRGB(255, 70, 120), MinLayer = 5, MaxLayer = 5, WeightMin = 20000, WeightMax = 100000 },
+
+	--------------------------------------------------------------------------
+	-- RELICS — only ever found inside a chest.
+	--
+	-- Treasure, not habitat: a doubloon is a doubloon wherever you dredge it up,
+	-- so these gate on MinLayer alone and deeper water simply offers better
+	-- ones. They are worth several times a fish of the same tier, because you
+	-- had to land the chest AND carry it home to find out what it was.
+	--------------------------------------------------------------------------
+	{ Name = "Rusty Anchor", Kind = "Relic", Tier = "Common", Weight = 34, Value = 60, Color = Color3.fromRGB(146, 118, 96), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Message in a Bottle", Kind = "Relic", Tier = "Common", Weight = 22, Value = 95, Color = Color3.fromRGB(168, 216, 200), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Silver Doubloon", Kind = "Relic", Tier = "Uncommon", Weight = 17, Value = 260, Color = Color3.fromRGB(214, 218, 226), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Ship's Compass", Kind = "Relic", Tier = "Uncommon", Weight = 11, Value = 420, Color = Color3.fromRGB(206, 168, 88), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	-- Available from area 1 on purpose: the first-session pity roll guarantees a
+	-- Rare+ on the third chest ever opened, and with nothing Rare in the starting
+	-- water that promise had nothing to pay out with.
+	{ Name = "Diver's Helmet", Kind = "Relic", Tier = "Rare", Weight = 7, Value = 1100, Color = Color3.fromRGB(180, 150, 70), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Pirate Cutlass", Kind = "Relic", Tier = "Rare", Weight = 4.4, Value = 1900, Color = Color3.fromRGB(198, 200, 210), MinLayer = 2, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Captain's Spyglass", Kind = "Relic", Tier = "Epic", Weight = 2.4, Value = 6500, Color = Color3.fromRGB(228, 180, 96), MinLayer = 3, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Golden Astrolabe", Kind = "Relic", Tier = "Epic", Weight = 1.2, Value = 14000, Color = Color3.fromRGB(255, 206, 96), MinLayer = 3, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Mermaid's Mirror", Kind = "Relic", Tier = "Legendary", Weight = 0.6, Value = 60000, Color = Color3.fromRGB(150, 255, 245), MinLayer = 4, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Sunken Crown", Kind = "Relic", Tier = "Legendary", Weight = 0.3, Value = 120000, Color = Color3.fromRGB(255, 200, 60), MinLayer = 4, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Poseidon's Trident", Kind = "Relic", Tier = "Mythic", Weight = 0.1, Value = 1500000, Color = Color3.fromRGB(120, 255, 255), MinLayer = 5, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
 } :: { CrystalDef }
 
 -- "Normal" is implicit: whatever chance is left after these rolls fail.
@@ -436,6 +484,9 @@ Crystals.Mutations = {
 } :: { MutationDef }
 
 Crystals.MutationNames = { "Normal", "Gilded", "Frosted", "Storm-Touched", "Abyssal", "Moonlit" }
+
+Crystals.FISH = "Fish"
+Crystals.RELIC = "Relic"
 
 function Crystals.GetBase(name: string): CrystalDef?
 	for _, def in Crystals.Bases do
@@ -455,6 +506,11 @@ function Crystals.GetMutation(name: string): MutationDef?
 	return nil
 end
 
+function Crystals.IsRelic(name: string): boolean
+	local def = Crystals.GetBase(name)
+	return def ~= nil and def.Kind == Crystals.RELIC
+end
+
 function Crystals.IndexKey(baseName: string, mutationName: string): string
 	return baseName .. "|" .. mutationName
 end
@@ -463,13 +519,13 @@ function Crystals.TotalIndexEntries(): number
 	return #Crystals.Bases * #Crystals.MutationNames
 end
 
--- Species catchable in one area, for the "8 / 12 in Kelp Forest" counter. An
--- area you can finish is worth far more than a single number that only ever
--- creeps: it gives every area its own ending.
-function Crystals.BasesInLayer(layer: number): { CrystalDef }
+-- Everything of one kind catchable in one area, for the odds panel and the
+-- "8 / 12 in Kelp Forest" counter.
+function Crystals.BasesInLayer(layer: number, kind: string?): { CrystalDef }
 	local list: { CrystalDef } = {}
 	for _, def in Crystals.Bases do
-		if def.MinLayer <= layer and layer <= def.MaxLayer then
+		local wantedKind = kind == nil or def.Kind == kind
+		if wantedKind and def.MinLayer <= layer and layer <= def.MaxLayer then
 			table.insert(list, def)
 		end
 	end
@@ -484,9 +540,11 @@ end
 -- can actually see. A fish left growing in a tank keeps going past its wild max,
 -- but at a quarter rate: a displayed fish should be a trophy, not a way to park
 -- one specimen for an hour and retire the record forever.
+--
+-- Relics have no weight. You do not brag about a heavy doubloon.
 function Crystals.WeightOf(baseName: string, size: number): number
 	local def = Crystals.GetBase(baseName)
-	if not def then
+	if not def or def.WeightMax <= 0 then
 		return 0
 	end
 	local span = def.WeightMax - def.WeightMin
@@ -542,7 +600,7 @@ Monetization.Gamepasses = {
 
 -- Developer products (repeatable purchases): { id, suggested price in Robux }
 Monetization.Products = {
-	StarterPack = { Id = 0, Price = 200, Title = "Starter Pack", Desc = "2,500 coins + a guaranteed Rainbow Trout + 24h of 2x coins. One time only." },
+	StarterPack = { Id = 0, Price = 200, Title = "Starter Pack", Desc = "2,500 coins + a guaranteed Red Snapper + 24h of 2x coins. One time only." },
 	Coins1k = { Id = 0, Price = 100, Title = "Coin Pouch", Coins = 1000 },
 	Coins5k = { Id = 0, Price = 500, Title = "Coin Chest", Coins = 5500 },
 	Coins12k = { Id = 0, Price = 1000, Title = "Coin Vault", Coins = 12000 },
@@ -1001,13 +1059,19 @@ function RarityMath.EffectiveLuck(passLuck: number, eventLuck: number, layer: nu
 	return passLuck * eventLuck * layerLuck
 end
 
-function RarityMath.GetBaseOdds(layer: number, luck: number): { OddsEntry }
+-- `kind` picks the pool: "Fish" is what a cast can bring up, "Relic" is what is
+-- inside a chest. They are separate draws with separate odds — a chest cannot
+-- give you a mackerel and a cast cannot give you a crown — and each pool
+-- renormalises to 100 on its own, so the odds panel is honest about whichever
+-- one the player is looking at. Defaults to Fish, the far more common question.
+function RarityMath.GetBaseOdds(layer: number, luck: number, kind: string?): { OddsEntry }
+	local pool = kind or Crystals.FISH
 	local weighted = {}
 	local total = 0
 	for _, def in Crystals.Bases do
 		-- A window, not a floor. Species drop OUT of the pool as you sail deeper,
 		-- so an area is a different set of fish rather than the last set plus a few.
-		if def.MinLayer <= layer and layer <= def.MaxLayer then
+		if def.Kind == pool and def.MinLayer <= layer and layer <= def.MaxLayer then
 			local weight = def.Weight
 			if tierIndex(def.Tier) >= Crystals.LuckyTierThreshold then
 				weight *= luck
@@ -1034,8 +1098,8 @@ function RarityMath.GetBaseOdds(layer: number, luck: number): { OddsEntry }
 	return odds
 end
 
-function RarityMath.RollBase(layer: number, luck: number, rng: Random): string
-	local odds = RarityMath.GetBaseOdds(layer, luck)
+function RarityMath.RollBase(layer: number, luck: number, rng: Random, kind: string?): string
+	local odds = RarityMath.GetBaseOdds(layer, luck, kind)
 	local roll = rng:NextNumber() * 100
 	local cursor = 0
 	for _, entry in odds do
@@ -1100,24 +1164,24 @@ function RarityMath.ComputeValue(baseName: string, mutationName: string, size: n
 	return math.floor(base.Value * mutationMult * size * layerMult + 0.5)
 end
 
--- Guaranteed Rare-or-better roll. Drives pity, the premium shop offer, and every
--- crate opened at the Chest station — a crate is exactly this: a pull that cannot
--- disappoint, which is what earns it the opening animation.
+-- Guaranteed Rare-or-better roll from one pool. Drives the first-session pity
+-- roll and the premium shop offer — a pull that cannot disappoint.
 --
--- The fallback is computed, not hard-coded. Species now drop out of the pool
--- between areas, so naming one fish here would eventually return something that
--- does not swim where the player is fishing.
-function RarityMath.RollRarePlus(layer: number, luck: number, rng: Random): string
+-- The fallback is computed, not hard-coded. Entries drop out of the pool between
+-- areas, so naming one here would eventually return something that does not
+-- exist where the player is.
+function RarityMath.RollRarePlus(layer: number, luck: number, rng: Random, kind: string?): string
+	local pool = kind or Crystals.FISH
 	for _ = 1, 40 do
-		local name = RarityMath.RollBase(layer, luck, rng)
+		local name = RarityMath.RollBase(layer, luck, rng, pool)
 		local def = Crystals.GetBase(name)
 		if def and tierIndex(def.Tier) >= Crystals.LuckyTierThreshold then
 			return name
 		end
 	end
-	-- 40 misses: fall back to the rarest species this area actually holds.
+	-- 40 misses: fall back to the rarest entry this area actually holds.
 	local best: Crystals.CrystalDef? = nil
-	for _, def in Crystals.BasesInLayer(layer) do
+	for _, def in Crystals.BasesInLayer(layer, pool) do
 		if not best or def.Weight < best.Weight then
 			best = def
 		end
@@ -1743,27 +1807,30 @@ local function announceRare(player: Player, crystal: CrackedCrystal)
 	Spotlight.Pillar(player, color)
 end
 
--- One roll, used by both catch paths. `forceRare` is what a chest is: the same
--- species table, the same auras, the same value maths — just a pull that cannot
--- come up common.
-local function rollOne(player: Player, data: any, forceRare: boolean?): CrackedCrystal
+-- One roll, used by both paths. `kind` is the whole difference between them: a
+-- cast draws from the FISH pool, a chest draws from the RELIC pool. Same auras,
+-- same value maths, same reveal — completely different thing in your hands.
+local function rollOne(player: Player, data: any, kind: string): CrackedCrystal
 	local layer = ctx.Data.Layer(data)
 	local luck = ctx.Data.LuckMult(player, data)
 	local event = ctx.Events.Current()
 
 	local baseName
 	local pity = false
-	if forceRare then
-		baseName = RarityMath.RollRarePlus(layer, luck, rng)
-	else
+	-- The first-session pity roll applies to CHESTS, where the disappointment
+	-- would land hardest: a player who carried their first three chests all the
+	-- way back to the station deserves to have opened something.
+	if kind == Crystals.RELIC then
 		data.PityCracks += 1
 		if not data.RareGiven and data.PityCracks >= Balance.PityForcedRareCrack then
-			baseName = RarityMath.RollRarePlus(layer, luck, rng)
+			baseName = RarityMath.RollRarePlus(layer, luck, rng, kind)
 			data.RareGiven = true
 			pity = true
 		else
-			baseName = RarityMath.RollBase(layer, luck, rng)
+			baseName = RarityMath.RollBase(layer, luck, rng, kind)
 		end
+	else
+		baseName = RarityMath.RollBase(layer, luck, rng, kind)
 	end
 	local mutName = RarityMath.RollMutation(event.MutationMult, rng)
 	local size = 0.9 + rng:NextNumber() * 0.3
@@ -1813,7 +1880,7 @@ function CrackService.LandFish(player: Player): CrackedCrystal?
 	if not data then
 		return nil
 	end
-	local result = rollOne(player, data, false)
+	local result = rollOne(player, data, Crystals.FISH)
 	ctx.Data.MarkDirty(player)
 	if result.Best then
 		Remotes.Event("Notify"):FireClient(player, {
@@ -1842,10 +1909,9 @@ function CrackService.Crack(player: Player, count: number?): ({ CrackedCrystal }
 	data.Geodes -= wanted
 	local results = {}
 	for _ = 1, wanted do
-		-- Chests are guaranteed Rare+. That is the deal that makes the opening
-		-- animation honest: you are not gambling on whether it was worth walking
-		-- back, only on how far past "worth it" you landed.
-		table.insert(results, rollOne(player, data, true))
+		-- A chest holds a RELIC, never a fish. That is what makes carrying one
+		-- home worth the walk: it is the only way to get the other collection.
+		table.insert(results, rollOne(player, data, Crystals.RELIC))
 	end
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 2, "FirstCrack")
@@ -1874,7 +1940,7 @@ function CrackService.AutoCrack(player: Player)
 		return
 	end
 	data.Geodes -= 1
-	local result = rollOne(player, data, true)
+	local result = rollOne(player, data, Crystals.RELIC)
 	ctx.Data.MarkDirty(player)
 	Remotes.Event("CrackResult"):FireClient(player, { result }, true)
 	announceRare(player, result)
@@ -2221,7 +2287,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 	-- global counter that only ever creeps.
 	local areas = {}
 	for index = 1, Balance.MaxLayer do
-		local species = Crystals.BasesInLayer(index)
+		local species = Crystals.BasesInLayer(index, Crystals.FISH)
 		local caught = 0
 		for _, def in species do
 			for _, mut in Crystals.MutationNames do
@@ -2579,7 +2645,7 @@ function FilmMode.Apply(data: any)
 	-- Personal bests, for the Index shots. Staged from a size a real catch can
 	-- beat (rolls cap at 1.2) for the same reason the value record is: a wall of
 	-- unbeatable records on camera is a wall the player can never interact with.
-	for _, def in Crystals.BasesInLayer(layer) do
+	for _, def in Crystals.BasesInLayer(layer, Crystals.FISH) do
 		if data.Collection[Crystals.IndexKey(def.Name, "Normal")] then
 			data.BestWeight[def.Name] = Crystals.WeightOf(def.Name, 1.05)
 		end
@@ -4471,9 +4537,10 @@ local PRODUCT_GRANTS: { [string]: (Player, any) -> () } = {
 		data.Boosts.Coins2xUntil = math.max(data.Boosts.Coins2xUntil, os.time()) + Balance.StarterPackBoostSeconds
 		-- Must be a species that actually swims in area 1, where every new player
 		-- starts: granting a fish from deeper water hands them a name the Index
-		-- cannot look up and a fish they cannot catch again.
-		ctx.Crack.GrantFixedCrystal(player, "Rainbow Trout", 1.2)
-		Remotes.Event("Notify"):FireClient(player, { Text = "Starter Pack! +2,500 coins, a Rainbow Trout, and 24h of 2x coins!", Color = Color3.fromRGB(255, 210, 90) })
+		-- cannot look up and a fish they cannot catch again. Rare tier, so the
+		-- pack still opens with something worth having.
+		ctx.Crack.GrantFixedCrystal(player, "Red Snapper", 1.2)
+		Remotes.Event("Notify"):FireClient(player, { Text = "Starter Pack! +2,500 coins, a Red Snapper, and 24h of 2x coins!", Color = Color3.fromRGB(255, 210, 90) })
 	end,
 	Coins1k = function(player, data)
 		local def = Monetization.Products.Coins1k
@@ -7667,10 +7734,14 @@ return RodVisual
           <string name="Source"><![CDATA[--!strict
 -- Clock-synced shop: stock derives from floor(os.time()/300), so every server
 -- shows the same stock and it "restocks" every 5 minutes forever, no live-ops.
--- Compliance: geode offers are random-content items purchasable with a
+-- Compliance: chest offers are random-content items purchasable with a
 -- Robux-purchasable currency, so their exact odds ship with the stock payload,
 -- and players whose policy restricts paid random items only ever see the
--- deterministic crystal offers (PolicyService gating).
+-- deterministic fish offers (PolicyService gating).
+--
+-- Those odds MUST come from the RELIC pool. A chest contains a relic; quoting
+-- the fish table beside it would be a published probability the game does not
+-- honour, which is the one thing this file exists to make impossible.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -7718,7 +7789,7 @@ local function rolledCrystalOffer(seedRng: Random, layer: number, priceMult: num
 	-- slot offered a Quartz for more coins than a Quartz sells for — an offer
 	-- with no reason to exist. The point of a fixed crystal is skipping the
 	-- gamble for something you actually want.
-	local baseName = RarityMath.RollRarePlus(layer, 2, seedRng)
+	local baseName = RarityMath.RollRarePlus(layer, 2, seedRng, Crystals.FISH)
 	local mutName = RarityMath.RollMutation(1, seedRng)
 	local size = 1.0 + seedRng:NextNumber() * 0.2
 	local value = RarityMath.ComputeValue(baseName, mutName, size, layer)
@@ -7746,14 +7817,14 @@ function ShopService.BuildStock(player: Player, data: any): { RestockAt: number,
 			Title = "Chest",
 			Cost = geodeCost(layer),
 			Count = 1,
-			Odds = RarityMath.GetBaseOdds(layer, luck),
+			Odds = RarityMath.GetBaseOdds(layer, luck, Crystals.RELIC),
 		})
 		table.insert(items, {
 			Kind = "GeodeBundle",
 			Title = "Chest x3",
 			Cost = math.floor(geodeCost(layer) * 2.5),
 			Count = 3,
-			Odds = RarityMath.GetBaseOdds(layer, luck),
+			Odds = RarityMath.GetBaseOdds(layer, luck, Crystals.RELIC),
 		})
 		table.insert(items, {
 			Kind = "PremiumGeode",
@@ -7761,7 +7832,7 @@ function ShopService.BuildStock(player: Player, data: any): { RestockAt: number,
 			Cost = geodeCost(layer) * Balance.ShopPremiumGeodeCostMult,
 			Count = 1,
 			Luck = Balance.ShopPremiumGeodeLuck,
-			Odds = RarityMath.GetBaseOdds(layer, luck * Balance.ShopPremiumGeodeLuck),
+			Odds = RarityMath.GetBaseOdds(layer, luck * Balance.ShopPremiumGeodeLuck, Crystals.RELIC),
 		})
 		table.insert(items, rolledCrystalOffer(seedRng, layer, 1.25))
 	else
@@ -8258,6 +8329,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Crystals = require(Shared.Config.Crystals)
+local CrystalShape = require(Shared.CrystalShape)
 local FishShape = require(Shared.FishShape)
 local State = require(script.Parent.State)
 
@@ -8272,8 +8344,24 @@ type Swimmer = {
 	Depth: number,
 }
 
+-- A relic in the tank is a display piece, so it takes the faceted artifact build
+-- and the same option table a fish does — which is what lets the caller pick
+-- between them with one variable instead of two code paths.
+local function relicModel(options: FishShape.Options): Model
+	return CrystalShape.Build({
+		Color = options.Color,
+		Scale = (options.Scale or 1) * 1.6,
+		Shards = 5,
+		Segments = 3,
+		Seed = options.Seed,
+		Sparkle = options.Sparkle,
+	})
+end
+
 local tank: BasePart? = nil
 local swimmers: { Swimmer } = {}
+-- Relics: parented and placed once, never animated per frame.
+local display: { Model } = {}
 local container: Folder? = nil
 local rng = Random.new()
 -- What the tank is currently showing, so an identical state push doesn't rebuild
@@ -8286,6 +8374,7 @@ local function clear()
 		container = nil
 	end
 	table.clear(swimmers)
+	table.clear(display)
 end
 
 -- One fish per occupied rack slot, spread across the tank's volume so they do
@@ -8315,7 +8404,11 @@ local function rebuild(state: any)
 		if fish then
 			local def = Crystals.GetBase(fish.Base)
 			local mutation = Crystals.GetMutation(fish.Mut)
-			local model = FishShape.Build({
+			local isRelic = Crystals.IsRelic(fish.Base)
+			-- Typed explicitly: Luau will not call a union of two identically
+			-- shaped function types, so the branch has to name what it returns.
+			local build: (FishShape.Options) -> Model = if isRelic then relicModel else FishShape.Build
+			local model = build({
 				-- Aura tints the fish rather than replacing its colour, so a
 				-- Gilded trout still looks like a trout.
 				Color = if mutation and mutation.Color
@@ -8331,15 +8424,27 @@ local function rebuild(state: any)
 
 			-- Lanes: each fish gets its own height band and its own orbit, so
 			-- eight of them read as a school rather than as one blur.
-			local lane = (index - 0.5) / math.max(#slots, 1)
-			table.insert(swimmers, {
-				Model = model,
-				Center = water.Position + Vector3.new(0, (lane - 0.5) * (size.Y * 0.55), 0),
-				Radius = Vector3.new(size.X * 0.3, size.Y * 0.12, size.Z * 0.22),
-				Speed = rng:NextNumber(0.35, 0.62),
-				Phase = rng:NextNumber(0, math.pi * 2),
-				Depth = rng:NextNumber(-0.6, 0.6),
-			})
+			--
+			-- Relics do not swim. They sit on the gravel and turn slowly, which is
+			-- how a display case works and how you can tell at a glance which half
+			-- of your collection you have put on show.
+			if isRelic then
+				local spread = (index - 0.5) / math.max(#slots, 1) - 0.5
+				model:PivotTo(
+					CFrame.new(water.Position + Vector3.new(spread * size.X * 0.7, -size.Y * 0.36, 0))
+				)
+				table.insert(display, model)
+			else
+				local lane = (index - 0.5) / math.max(#slots, 1)
+				table.insert(swimmers, {
+					Model = model,
+					Center = water.Position + Vector3.new(0, (lane - 0.5) * (size.Y * 0.55), 0),
+					Radius = Vector3.new(size.X * 0.3, size.Y * 0.12, size.Z * 0.22),
+					Speed = rng:NextNumber(0.35, 0.62),
+					Phase = rng:NextNumber(0, math.pi * 2),
+					Depth = rng:NextNumber(-0.6, 0.6),
+				})
+			end
 		end
 	end
 end
@@ -8501,6 +8606,9 @@ local function build(player: Player, character: Model)
 		Seed = #base * 23 + 5,
 		Spin = 0.75,
 		ZIndex = 1,
+		-- The trophy over your head is whatever your rarest find WAS, and that is
+		-- now as likely to be a relic as a fish.
+		Relic = Crystals.IsRelic(base),
 	})
 
 	tracked[player] = { Billboard = billboard, Viewport = gem, Head = head }
@@ -8570,6 +8678,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CrystalShape = require(Shared.CrystalShape)
 local FishShape = require(Shared.FishShape)
 
 local GemView = {}
@@ -8583,7 +8692,11 @@ export type Props = {
 	ZIndex: number?,
 	Spin: number?,
 	Seed: number?,
-	Shards: number?, -- kept for call-site compatibility; unused by the fish build
+	Shards: number?, -- facet count when this is a relic; unused for fish
+	-- Relics are treasure, not sea life, so they get the faceted artifact build
+	-- instead of a fish. A Sunken Crown rendered as a trout is the same mistake
+	-- as a trout rendered as a gem, in the other direction.
+	Relic: boolean?,
 }
 
 function GemView.Create(props: Props): ViewportFrame
@@ -8602,11 +8715,19 @@ function GemView.Create(props: Props): ViewportFrame
 	viewport.LightColor = Color3.fromRGB(255, 252, 240)
 	viewport.LightDirection = Vector3.new(-0.35, -1, -0.55)
 
-	local model = FishShape.Build({
-		Color = props.Color,
-		Scale = 1,
-		Seed = props.Seed or 11,
-	})
+	local model = if props.Relic
+		then CrystalShape.Build({
+			Color = props.Color,
+			Scale = 1,
+			Shards = props.Shards or 5,
+			Segments = 3,
+			Seed = props.Seed or 11,
+		})
+		else FishShape.Build({
+			Color = props.Color,
+			Scale = 1,
+			Seed = props.Seed or 11,
+		})
 	model.Parent = viewport
 
 	local camera = Instance.new("Camera")
@@ -10510,8 +10631,12 @@ local function oddsBrag(crystal: { [string]: any }): string?
 	if crystal.Pity then
 		return nil -- the first-session guaranteed Rare+ beat no odds at all
 	end
+	-- Quote the pool this thing actually came out of. Every card on this screen
+	-- came out of a chest, so that is the relic table — telling a player their
+	-- Sunken Crown beat the odds on a mackerel would be a made-up number.
+	local pool = if Crystals.IsRelic(crystal.Base) then Crystals.RELIC else Crystals.FISH
 	local baseChance = 0
-	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
+	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult, pool) do
 		if entry.Name == crystal.Base then
 			baseChance = entry.Chance
 		end
@@ -10575,8 +10700,9 @@ local function renderOdds()
 			Parent = oddsList,
 		})
 	end
-	addRow(("Fish odds (Luck x%.2f)"):format(state.LuckMult), UiKit.Colors.Accent, true)
-	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
+	-- This is the CHEST station's panel, so it must publish what is in a chest.
+	addRow(("Relic odds (Luck x%.2f)"):format(state.LuckMult), UiKit.Colors.Accent, true)
+	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult, Crystals.RELIC) do
 		addRow(entry.Name .. "  —  " .. Format.Percent(entry.Chance), entry.Color)
 	end
 	addRow("Aura odds", UiKit.Colors.Accent, true)
@@ -10632,6 +10758,7 @@ local function makeCard(
 		Seed = #crystal.Base * 17 + #crystal.Mut,
 		Spin = 0.8 + rank * 0.16,
 		ZIndex = 2,
+		Relic = Crystals.IsRelic(crystal.Base),
 	})
 
 	local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
@@ -10652,8 +10779,12 @@ local function makeCard(
 		ZIndex = 2,
 		Parent = card,
 	})
+	-- Relics have no weight — you do not brag about a heavy doubloon — so the
+	-- pounds only appear on things that were actually swimming.
 	UiKit.Label({
-		Text = ("Value: %s   •   %.1f lb"):format(Format.Number(crystal.Value), crystal.Weight or 0),
+		Text = if Crystals.IsRelic(crystal.Base)
+			then ("Value: %s"):format(Format.Number(crystal.Value))
+			else ("Value: %s   •   %.1f lb"):format(Format.Number(crystal.Value), crystal.Weight or 0),
 		TextColor3 = UiKit.Colors.Accent,
 		Size = UDim2.new(1, -12, 0, 26),
 		Position = UDim2.fromOffset(6, 182),
@@ -11328,7 +11459,7 @@ local function render()
 end
 
 function IndexScreen.Init(gui: ScreenGui)
-	local panel, content, close = UiKit.Panel(gui, "Fish Index", UDim2.fromScale(0.68, 0.8))
+	local panel, content, close = UiKit.Panel(gui, "Fish & Relics", UDim2.fromScale(0.68, 0.8))
 
 	headerLabel = UiKit.Label({
 		Text = "Collection: 0 / 0",

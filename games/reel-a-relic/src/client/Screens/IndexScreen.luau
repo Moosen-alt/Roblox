@@ -94,7 +94,7 @@ local function render()
 end
 
 function IndexScreen.Init(gui: ScreenGui)
-	local panel, content, close = UiKit.Panel(gui, "Fish Index", UDim2.fromScale(0.68, 0.8))
+	local panel, content, close = UiKit.Panel(gui, "Fish & Relics", UDim2.fromScale(0.68, 0.8))
 
 	headerLabel = UiKit.Label({
 		Text = "Collection: 0 / 0",

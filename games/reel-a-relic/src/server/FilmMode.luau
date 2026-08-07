@@ -127,7 +127,7 @@ function FilmMode.Apply(data: any)
 	-- Personal bests, for the Index shots. Staged from a size a real catch can
 	-- beat (rolls cap at 1.2) for the same reason the value record is: a wall of
 	-- unbeatable records on camera is a wall the player can never interact with.
-	for _, def in Crystals.BasesInLayer(layer) do
+	for _, def in Crystals.BasesInLayer(layer, Crystals.FISH) do
 		if data.Collection[Crystals.IndexKey(def.Name, "Normal")] then
 			data.BestWeight[def.Name] = Crystals.WeightOf(def.Name, 1.05)
 		end

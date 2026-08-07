@@ -6,19 +6,30 @@ local function approx(a, b)
 	return math.abs(a - b) <= 1e-9
 end
 
+-- Games may split their drops into separate pools (this one draws fish from a
+-- cast and relics from a chest). EVERY pool has to satisfy the compliance
+-- invariant on its own, because each one is published as its own odds panel.
+--
+-- `false` is the "this game has no pools" sentinel, NOT nil: `{ nil }` is an
+-- empty table in Lua, so a nil sentinel would make every loop below iterate zero
+-- times and the single-pool games would silently stop being tested at all.
+local POOLS = if Crystals.FISH then { Crystals.FISH, Crystals.RELIC } else { false }
+
 -- Odds always sum to exactly 100 (the compliance invariant), at every layer the
 -- game can actually reach — not just the first five.
-for layer = 1, Balance.MaxLayer do
-	for _, luck in { 1, 2, 10, 60 } do
-		local total = 0
-		for _, e in RarityMath.GetBaseOdds(layer, luck) do
-			total += e.Chance
-			assert(e.Chance >= 0, "negative chance for " .. e.Name)
+for _, pool in POOLS do
+	for layer = 1, Balance.MaxLayer do
+		for _, luck in { 1, 2, 10, 60 } do
+			local total = 0
+			for _, e in RarityMath.GetBaseOdds(layer, luck, pool or nil) do
+				total += e.Chance
+				assert(e.Chance >= 0, "negative chance for " .. e.Name)
+			end
+			assert(approx(total, 100), "base odds must sum to 100, got " .. total)
 		end
-		assert(approx(total, 100), "base odds must sum to 100, got " .. total)
 	end
 end
-print("PASS base odds sum to 100 (all layers/lucks)")
+print("PASS base odds sum to 100 (every pool, all layers/lucks)")
 
 for _, mult in { 1, 5, 1000 } do
 	local total = 0
@@ -45,50 +56,65 @@ print("PASS base definitions sane")
 -- Every layer must actually hold something. A windowed drop table can leave a
 -- layer with no catchable species at all, and GetBaseOdds divides by the total
 -- weight — an empty pool is a divide-by-zero, not a quiet empty list.
-for layer = 1, Balance.MaxLayer do
-	local odds = RarityMath.GetBaseOdds(layer, 1)
-	assert(#odds > 0, "layer " .. layer .. " has no catchable species")
-	local rarePlus = 0
-	for _, e in odds do
-		if e.Tier ~= "Common" and e.Tier ~= "Uncommon" then
-			rarePlus += 1
+for _, pool in POOLS do
+	for layer = 1, Balance.MaxLayer do
+		local odds = RarityMath.GetBaseOdds(layer, 1, pool or nil)
+		assert(#odds > 0, "layer " .. layer .. " has nothing in pool " .. tostring(pool))
+		local rarePlus = 0
+		for _, e in odds do
+			if e.Tier ~= "Common" and e.Tier ~= "Uncommon" then
+				rarePlus += 1
+			end
 		end
+		-- RollRarePlus drives the pity roll and the premium shop offer. A layer
+		-- with nothing Rare+ in it makes both unsatisfiable.
+		assert(rarePlus > 0, "layer " .. layer .. " pool " .. tostring(pool) .. " has no Rare+ for RollRarePlus")
 	end
-	-- RollRarePlus drives pity, the premium shop offer and (in the fishing game)
-	-- every chest. A layer with nothing Rare+ in it makes all three unsatisfiable.
-	assert(rarePlus > 0, "layer " .. layer .. " has no Rare+ species for RollRarePlus")
 end
-print("PASS every layer has species, including Rare+")
+print("PASS every layer has entries in every pool, including Rare+")
 
 -- Pity roll always lands Rare or better — at EVERY layer, not just the first.
 -- Its fallback has to come from the layer being rolled; a hard-coded species
 -- name would eventually name one that does not live there.
 local rng = Random.new(7)
-for layer = 1, Balance.MaxLayer do
-	for _ = 1, 400 do
-		local name = RarityMath.RollRarePlus(layer, 1, rng)
-		local def = Crystals.GetBase(name)
-		assert(def, "pity roll produced unknown species " .. tostring(name))
-		assert(def.Tier ~= "Common" and def.Tier ~= "Uncommon", "pity roll produced " .. tostring(name))
-		if def.MaxLayer then
-			assert(
-				def.MinLayer <= layer and layer <= def.MaxLayer,
-				("pity roll at layer %d produced %s, which does not live there"):format(layer, name)
-			)
+for _, pool in POOLS do
+	for layer = 1, Balance.MaxLayer do
+		for _ = 1, 300 do
+			local name = RarityMath.RollRarePlus(layer, 1, rng, pool or nil)
+			local def = Crystals.GetBase(name)
+			assert(def, "pity roll produced unknown entry " .. tostring(name))
+			assert(def.Tier ~= "Common" and def.Tier ~= "Uncommon", "pity roll produced " .. tostring(name))
+			-- And from the pool that was ASKED for. A chest handing out a mackerel
+			-- would make the published relic odds a lie.
+			if pool then
+				assert(def.Kind == pool, ("asked %s, got %s (%s)"):format(pool, name, def.Kind))
+			end
+			if def.MaxLayer then
+				assert(
+					def.MinLayer <= layer and layer <= def.MaxLayer,
+					("pity roll at layer %d produced %s, which does not exist there"):format(layer, name)
+				)
+			end
 		end
 	end
 end
-print("PASS pity roll always Rare+ and in-layer (all layers)")
+print("PASS pity roll always Rare+, in-pool and in-layer")
 
 -- Weight (pounds) is only defined by games that use it; where it is, the range
 -- must be real and the size roll must never produce a non-positive weight.
 if Crystals.WeightOf then
 	for _, base in Crystals.Bases do
-		assert(base.WeightMax > base.WeightMin and base.WeightMin > 0, "bad weight range: " .. base.Name)
-		local light = Crystals.WeightOf(base.Name, 0.9)
-		local heavy = Crystals.WeightOf(base.Name, 1.2)
-		assert(light > 0, "non-positive weight for " .. base.Name)
-		assert(heavy > light, "weight must rise with size for " .. base.Name)
+		-- Relics have no weight by design — you do not brag about a heavy
+		-- doubloon — so only the things that were swimming are checked.
+		if base.WeightMax > 0 then
+			assert(base.WeightMax > base.WeightMin and base.WeightMin > 0, "bad weight range: " .. base.Name)
+			local light = Crystals.WeightOf(base.Name, 0.9)
+			local heavy = Crystals.WeightOf(base.Name, 1.2)
+			assert(light > 0, "non-positive weight for " .. base.Name)
+			assert(heavy > light, "weight must rise with size for " .. base.Name)
+		else
+			assert(Crystals.WeightOf(base.Name, 1.2) == 0, "weightless entry reported a weight: " .. base.Name)
+		end
 	end
 	-- A personal best is a running maximum: feeding it a stream of catches must
 	-- never let the record go down.

@@ -57,8 +57,12 @@ local function oddsBrag(crystal: { [string]: any }): string?
 	if crystal.Pity then
 		return nil -- the first-session guaranteed Rare+ beat no odds at all
 	end
+	-- Quote the pool this thing actually came out of. Every card on this screen
+	-- came out of a chest, so that is the relic table — telling a player their
+	-- Sunken Crown beat the odds on a mackerel would be a made-up number.
+	local pool = if Crystals.IsRelic(crystal.Base) then Crystals.RELIC else Crystals.FISH
 	local baseChance = 0
-	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
+	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult, pool) do
 		if entry.Name == crystal.Base then
 			baseChance = entry.Chance
 		end
@@ -122,8 +126,9 @@ local function renderOdds()
 			Parent = oddsList,
 		})
 	end
-	addRow(("Fish odds (Luck x%.2f)"):format(state.LuckMult), UiKit.Colors.Accent, true)
-	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
+	-- This is the CHEST station's panel, so it must publish what is in a chest.
+	addRow(("Relic odds (Luck x%.2f)"):format(state.LuckMult), UiKit.Colors.Accent, true)
+	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult, Crystals.RELIC) do
 		addRow(entry.Name .. "  —  " .. Format.Percent(entry.Chance), entry.Color)
 	end
 	addRow("Aura odds", UiKit.Colors.Accent, true)
@@ -179,6 +184,7 @@ local function makeCard(
 		Seed = #crystal.Base * 17 + #crystal.Mut,
 		Spin = 0.8 + rank * 0.16,
 		ZIndex = 2,
+		Relic = Crystals.IsRelic(crystal.Base),
 	})
 
 	local mutPrefix = crystal.Mut ~= "Normal" and (crystal.Mut .. " ") or ""
@@ -199,8 +205,12 @@ local function makeCard(
 		ZIndex = 2,
 		Parent = card,
 	})
+	-- Relics have no weight — you do not brag about a heavy doubloon — so the
+	-- pounds only appear on things that were actually swimming.
 	UiKit.Label({
-		Text = ("Value: %s   •   %.1f lb"):format(Format.Number(crystal.Value), crystal.Weight or 0),
+		Text = if Crystals.IsRelic(crystal.Base)
+			then ("Value: %s"):format(Format.Number(crystal.Value))
+			else ("Value: %s   •   %.1f lb"):format(Format.Number(crystal.Value), crystal.Weight or 0),
 		TextColor3 = UiKit.Colors.Accent,
 		Size = UDim2.new(1, -12, 0, 26),
 		Position = UDim2.fromOffset(6, 182),

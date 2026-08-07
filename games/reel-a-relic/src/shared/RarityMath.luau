@@ -27,13 +27,19 @@ function RarityMath.EffectiveLuck(passLuck: number, eventLuck: number, layer: nu
 	return passLuck * eventLuck * layerLuck
 end
 
-function RarityMath.GetBaseOdds(layer: number, luck: number): { OddsEntry }
+-- `kind` picks the pool: "Fish" is what a cast can bring up, "Relic" is what is
+-- inside a chest. They are separate draws with separate odds — a chest cannot
+-- give you a mackerel and a cast cannot give you a crown — and each pool
+-- renormalises to 100 on its own, so the odds panel is honest about whichever
+-- one the player is looking at. Defaults to Fish, the far more common question.
+function RarityMath.GetBaseOdds(layer: number, luck: number, kind: string?): { OddsEntry }
+	local pool = kind or Crystals.FISH
 	local weighted = {}
 	local total = 0
 	for _, def in Crystals.Bases do
 		-- A window, not a floor. Species drop OUT of the pool as you sail deeper,
 		-- so an area is a different set of fish rather than the last set plus a few.
-		if def.MinLayer <= layer and layer <= def.MaxLayer then
+		if def.Kind == pool and def.MinLayer <= layer and layer <= def.MaxLayer then
 			local weight = def.Weight
 			if tierIndex(def.Tier) >= Crystals.LuckyTierThreshold then
 				weight *= luck
@@ -60,8 +66,8 @@ function RarityMath.GetBaseOdds(layer: number, luck: number): { OddsEntry }
 	return odds
 end
 
-function RarityMath.RollBase(layer: number, luck: number, rng: Random): string
-	local odds = RarityMath.GetBaseOdds(layer, luck)
+function RarityMath.RollBase(layer: number, luck: number, rng: Random, kind: string?): string
+	local odds = RarityMath.GetBaseOdds(layer, luck, kind)
 	local roll = rng:NextNumber() * 100
 	local cursor = 0
 	for _, entry in odds do
@@ -126,24 +132,24 @@ function RarityMath.ComputeValue(baseName: string, mutationName: string, size: n
 	return math.floor(base.Value * mutationMult * size * layerMult + 0.5)
 end
 
--- Guaranteed Rare-or-better roll. Drives pity, the premium shop offer, and every
--- crate opened at the Chest station — a crate is exactly this: a pull that cannot
--- disappoint, which is what earns it the opening animation.
+-- Guaranteed Rare-or-better roll from one pool. Drives the first-session pity
+-- roll and the premium shop offer — a pull that cannot disappoint.
 --
--- The fallback is computed, not hard-coded. Species now drop out of the pool
--- between areas, so naming one fish here would eventually return something that
--- does not swim where the player is fishing.
-function RarityMath.RollRarePlus(layer: number, luck: number, rng: Random): string
+-- The fallback is computed, not hard-coded. Entries drop out of the pool between
+-- areas, so naming one here would eventually return something that does not
+-- exist where the player is.
+function RarityMath.RollRarePlus(layer: number, luck: number, rng: Random, kind: string?): string
+	local pool = kind or Crystals.FISH
 	for _ = 1, 40 do
-		local name = RarityMath.RollBase(layer, luck, rng)
+		local name = RarityMath.RollBase(layer, luck, rng, pool)
 		local def = Crystals.GetBase(name)
 		if def and tierIndex(def.Tier) >= Crystals.LuckyTierThreshold then
 			return name
 		end
 	end
-	-- 40 misses: fall back to the rarest species this area actually holds.
+	-- 40 misses: fall back to the rarest entry this area actually holds.
 	local best: Crystals.CrystalDef? = nil
-	for _, def in Crystals.BasesInLayer(layer) do
+	for _, def in Crystals.BasesInLayer(layer, pool) do
 		if not best or def.Weight < best.Weight then
 			best = def
 		end

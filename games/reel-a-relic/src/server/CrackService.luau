@@ -109,27 +109,30 @@ local function announceRare(player: Player, crystal: CrackedCrystal)
 	Spotlight.Pillar(player, color)
 end
 
--- One roll, used by both catch paths. `forceRare` is what a chest is: the same
--- species table, the same auras, the same value maths — just a pull that cannot
--- come up common.
-local function rollOne(player: Player, data: any, forceRare: boolean?): CrackedCrystal
+-- One roll, used by both paths. `kind` is the whole difference between them: a
+-- cast draws from the FISH pool, a chest draws from the RELIC pool. Same auras,
+-- same value maths, same reveal — completely different thing in your hands.
+local function rollOne(player: Player, data: any, kind: string): CrackedCrystal
 	local layer = ctx.Data.Layer(data)
 	local luck = ctx.Data.LuckMult(player, data)
 	local event = ctx.Events.Current()
 
 	local baseName
 	local pity = false
-	if forceRare then
-		baseName = RarityMath.RollRarePlus(layer, luck, rng)
-	else
+	-- The first-session pity roll applies to CHESTS, where the disappointment
+	-- would land hardest: a player who carried their first three chests all the
+	-- way back to the station deserves to have opened something.
+	if kind == Crystals.RELIC then
 		data.PityCracks += 1
 		if not data.RareGiven and data.PityCracks >= Balance.PityForcedRareCrack then
-			baseName = RarityMath.RollRarePlus(layer, luck, rng)
+			baseName = RarityMath.RollRarePlus(layer, luck, rng, kind)
 			data.RareGiven = true
 			pity = true
 		else
-			baseName = RarityMath.RollBase(layer, luck, rng)
+			baseName = RarityMath.RollBase(layer, luck, rng, kind)
 		end
+	else
+		baseName = RarityMath.RollBase(layer, luck, rng, kind)
 	end
 	local mutName = RarityMath.RollMutation(event.MutationMult, rng)
 	local size = 0.9 + rng:NextNumber() * 0.3
@@ -179,7 +182,7 @@ function CrackService.LandFish(player: Player): CrackedCrystal?
 	if not data then
 		return nil
 	end
-	local result = rollOne(player, data, false)
+	local result = rollOne(player, data, Crystals.FISH)
 	ctx.Data.MarkDirty(player)
 	if result.Best then
 		Remotes.Event("Notify"):FireClient(player, {
@@ -208,10 +211,9 @@ function CrackService.Crack(player: Player, count: number?): ({ CrackedCrystal }
 	data.Geodes -= wanted
 	local results = {}
 	for _ = 1, wanted do
-		-- Chests are guaranteed Rare+. That is the deal that makes the opening
-		-- animation honest: you are not gambling on whether it was worth walking
-		-- back, only on how far past "worth it" you landed.
-		table.insert(results, rollOne(player, data, true))
+		-- A chest holds a RELIC, never a fish. That is what makes carrying one
+		-- home worth the walk: it is the only way to get the other collection.
+		table.insert(results, rollOne(player, data, Crystals.RELIC))
 	end
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 2, "FirstCrack")
@@ -240,7 +242,7 @@ function CrackService.AutoCrack(player: Player)
 		return
 	end
 	data.Geodes -= 1
-	local result = rollOne(player, data, true)
+	local result = rollOne(player, data, Crystals.RELIC)
 	ctx.Data.MarkDirty(player)
 	Remotes.Event("CrackResult"):FireClient(player, { result }, true)
 	announceRare(player, result)

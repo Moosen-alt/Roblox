@@ -38,7 +38,7 @@ Monetization.Gamepasses = {
 
 -- Developer products (repeatable purchases): { id, suggested price in Robux }
 Monetization.Products = {
-	StarterPack = { Id = 0, Price = 200, Title = "Starter Pack", Desc = "2,500 coins + a guaranteed Rainbow Trout + 24h of 2x coins. One time only." },
+	StarterPack = { Id = 0, Price = 200, Title = "Starter Pack", Desc = "2,500 coins + a guaranteed Red Snapper + 24h of 2x coins. One time only." },
 	Coins1k = { Id = 0, Price = 100, Title = "Coin Pouch", Coins = 1000 },
 	Coins5k = { Id = 0, Price = 500, Title = "Coin Chest", Coins = 5500 },
 	Coins12k = { Id = 0, Price = 1000, Title = "Coin Vault", Coins = 12000 },

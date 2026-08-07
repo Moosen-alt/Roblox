@@ -17,11 +17,19 @@ always produces something, and skill produces more.
 It's one input, so it plays the same with a finger and a mouse. Deeper areas fight harder — but
 the bracket can always outrun the fish, because unfair reads as broken.
 
-Roughly seven catches in eight are a **fish**, which goes straight into your hold: species ×
-aura × **weight in pounds**, with a per-species personal best that never stops being beatable.
-The rest are **treasure chests**, carried back to the Chest station and opened there with the
-full reveal and the odds panel. Every chest is a guaranteed Rare-or-better, which is what earns
-it the ceremony — you are never gambling on whether the walk back was worth it.
+**Two collections, and two ways to get them.**
+
+Roughly seven catches in eight are a **fish** — 33 real species, stocked by habitat, so reef
+fish live on the reef and Anglerfish live in the trench. Species × aura × **weight in pounds**,
+with a per-species personal best that never stops being beatable.
+
+The rest are **treasure chests**, carried back to the Chest station and opened with the full
+reveal and the odds panel. A chest never contains a fish: it contains a **relic** — 11 pieces of
+sunken treasure from a Rusty Anchor up to Poseidon's Trident. That is what makes carrying one
+home worth the walk, and it is the only way to fill the other half of the Index.
+
+The two pools roll separately and publish separate odds, so the panel beside a chest is always
+the relic table. 264 Index entries in all.
 
 Sell fish for coins or display them in the **Aquarium**, where they earn **while you're offline**.
 
@@ -62,16 +70,21 @@ paid random items (chests bought with earnable coins — odds shown, policy-gate
 ## Store page
 
 - **Name:** `Reel a Relic! [Fishing Simulator]`
-- **Hook line:** `🎣 FIGHT every fish in! 21 species, 5 oceans — and your aquarium earns coins WHILE YOU SLEEP! 🐠`
+- **Hook line:** `🎣 FIGHT every fish in! 33 real species + 11 sunken relics — and your aquarium earns coins WHILE YOU SLEEP! 🐠`
 
   Three hooks in one line, in the order they matter. **The fight** is the differentiator — a
   fishing game where you reel is a different product from one where you click. **The number** is
   the collection promise: an unfinished set is why people come back tomorrow. **While you sleep**
   is the idle promise, which is what makes a lapsed player reopen the app a week later.
 
-- Description: adapt the root game's template. Lead with the reel-in fight, then: 21 species ×
-  6 auras, per-fish **weight records** that never finish, five oceans to unlock with coins,
-  offline aquarium earnings, Feeding Frenzy events, daily streaks, exact odds shown on every chest.
+- Description: adapt the root game's template. Lead with the reel-in fight, then: 33 real fish
+  and 11 sunken relics × 6 auras, per-fish **weight records** that never finish, five oceans to
+  unlock with coins, offline aquarium earnings, Feeding Frenzy events, daily streaks, exact odds
+  shown on every chest.
+
+  Real species is a marketing asset, not just flavour. "I caught a Leopard Shark" is a thing a
+  kid says at school; "I caught a Kelp Dragon" is not. Half of these are already known from a
+  nature documentary, which does recognition work no invented name can.
 - Thumbnails: **the reel bar mid-fight** with the meter nearly full ("DON'T LOSE IT!"), a Moonlit
   Leviathan reveal, the welcome-back offline earnings popup. The bar is the best thumbnail the
   game has — it shows a verb, and a stranger scrolling knows instantly what they'd be doing.
@@ -94,10 +107,13 @@ paid random items (chests bought with earnable coins — odds shown, policy-gate
 - [ ] Track well: "PERFECT REEL!" and visibly more fish than a scrappy one
 - [ ] Walk backwards mid-reel — the fight is NOT cancelled
 - [ ] Both outcomes appear: a fish lands straight in the hold, a chest goes to the station
-- [ ] Chest opens with the odds panel and is always Rare+; third open ever is Rare+ (pity)
+- [ ] A chest opens into a RELIC, never a fish, and its odds panel lists relics
+- [ ] Third chest ever opened is Rare+ (pity) — check in area 1, where the Rare pool is thinnest
+- [ ] Reveal card: a relic renders as an artifact with no weight line; a fish shows its pounds
 - [ ] Hold counter shows fish + chests together, and fills up (boat capacity gates both)
 - [ ] Catch the same species twice: the heavier one fires "HEAVIEST … YET" and updates the Index
-- [ ] Socket fish in the Aquarium: they appear swimming in the tank, and it gets busier each time
+- [ ] Socket fish in the Aquarium: they swim, and it gets busier each time. Socket a relic:
+      it rests on the gravel instead of swimming
 - [ ] Dock Master lists all five areas with prices; buying area 2 teleports you and the
       Sunny Shallows species stop biting
 - [ ] Set Sail: resets run, +25% coins, and **area unlocks are still there afterwards**

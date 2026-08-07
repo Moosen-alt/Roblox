@@ -190,7 +190,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 	-- global counter that only ever creeps.
 	local areas = {}
 	for index = 1, Balance.MaxLayer do
-		local species = Crystals.BasesInLayer(index)
+		local species = Crystals.BasesInLayer(index, Crystals.FISH)
 		local caught = 0
 		for _, def in species do
 			for _, mut in Crystals.MutationNames do

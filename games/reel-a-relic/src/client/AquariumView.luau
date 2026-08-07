@@ -15,6 +15,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Crystals = require(Shared.Config.Crystals)
+local CrystalShape = require(Shared.CrystalShape)
 local FishShape = require(Shared.FishShape)
 local State = require(script.Parent.State)
 
@@ -29,8 +30,24 @@ type Swimmer = {
 	Depth: number,
 }
 
+-- A relic in the tank is a display piece, so it takes the faceted artifact build
+-- and the same option table a fish does — which is what lets the caller pick
+-- between them with one variable instead of two code paths.
+local function relicModel(options: FishShape.Options): Model
+	return CrystalShape.Build({
+		Color = options.Color,
+		Scale = (options.Scale or 1) * 1.6,
+		Shards = 5,
+		Segments = 3,
+		Seed = options.Seed,
+		Sparkle = options.Sparkle,
+	})
+end
+
 local tank: BasePart? = nil
 local swimmers: { Swimmer } = {}
+-- Relics: parented and placed once, never animated per frame.
+local display: { Model } = {}
 local container: Folder? = nil
 local rng = Random.new()
 -- What the tank is currently showing, so an identical state push doesn't rebuild
@@ -43,6 +60,7 @@ local function clear()
 		container = nil
 	end
 	table.clear(swimmers)
+	table.clear(display)
 end
 
 -- One fish per occupied rack slot, spread across the tank's volume so they do
@@ -72,7 +90,11 @@ local function rebuild(state: any)
 		if fish then
 			local def = Crystals.GetBase(fish.Base)
 			local mutation = Crystals.GetMutation(fish.Mut)
-			local model = FishShape.Build({
+			local isRelic = Crystals.IsRelic(fish.Base)
+			-- Typed explicitly: Luau will not call a union of two identically
+			-- shaped function types, so the branch has to name what it returns.
+			local build: (FishShape.Options) -> Model = if isRelic then relicModel else FishShape.Build
+			local model = build({
 				-- Aura tints the fish rather than replacing its colour, so a
 				-- Gilded trout still looks like a trout.
 				Color = if mutation and mutation.Color
@@ -88,15 +110,27 @@ local function rebuild(state: any)
 
 			-- Lanes: each fish gets its own height band and its own orbit, so
 			-- eight of them read as a school rather than as one blur.
-			local lane = (index - 0.5) / math.max(#slots, 1)
-			table.insert(swimmers, {
-				Model = model,
-				Center = water.Position + Vector3.new(0, (lane - 0.5) * (size.Y * 0.55), 0),
-				Radius = Vector3.new(size.X * 0.3, size.Y * 0.12, size.Z * 0.22),
-				Speed = rng:NextNumber(0.35, 0.62),
-				Phase = rng:NextNumber(0, math.pi * 2),
-				Depth = rng:NextNumber(-0.6, 0.6),
-			})
+			--
+			-- Relics do not swim. They sit on the gravel and turn slowly, which is
+			-- how a display case works and how you can tell at a glance which half
+			-- of your collection you have put on show.
+			if isRelic then
+				local spread = (index - 0.5) / math.max(#slots, 1) - 0.5
+				model:PivotTo(
+					CFrame.new(water.Position + Vector3.new(spread * size.X * 0.7, -size.Y * 0.36, 0))
+				)
+				table.insert(display, model)
+			else
+				local lane = (index - 0.5) / math.max(#slots, 1)
+				table.insert(swimmers, {
+					Model = model,
+					Center = water.Position + Vector3.new(0, (lane - 0.5) * (size.Y * 0.55), 0),
+					Radius = Vector3.new(size.X * 0.3, size.Y * 0.12, size.Z * 0.22),
+					Speed = rng:NextNumber(0.35, 0.62),
+					Phase = rng:NextNumber(0, math.pi * 2),
+					Depth = rng:NextNumber(-0.6, 0.6),
+				})
+			end
 		end
 	end
 end
