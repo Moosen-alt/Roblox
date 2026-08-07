@@ -72,9 +72,9 @@ Reel a Relic,Prop,ChestBase,props/fishing_relic_chest_base.obj,117569798192650,1
 Reel a Relic,Prop,ChestLid,props/fishing_relic_chest_lid.obj,84305083533626,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Prop,ChestBase,props/crystal_geode_chest_base.obj,73620068125097,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Prop,ChestLid,props/crystal_geode_chest_lid.obj,131543048004444,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Crack a Geode,Prop,GeodeHalfA,props/geode_half_a.obj,,0.674,0,0,0,Blue Agate Geode by ArcticGreenhouse,"CC BY 4.0 - credit required, see Config/Credits.luau"
-Crack a Geode,Prop,GeodeHalfB,props/geode_half_b.obj,,0.674,0,0,0,Blue Agate Geode by ArcticGreenhouse,"CC BY 4.0 - credit required, see Config/Credits.luau"
-Crack a Geode,World,Hero Crystal Cluster,world/crack-a-geode/01_Crystal_Cavern/Hero_Crystal_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,Prop,GeodeHalfA,props/geode_half_a.obj,93767624394202,0.674,0,0,0,Blue Agate Geode by ArcticGreenhouse,"CC BY 4.0 - credit required, see Config/Credits.luau"
+Crack a Geode,Prop,GeodeHalfB,props/geode_half_b.obj,83706691568376,0.674,0,0,0,Blue Agate Geode by ArcticGreenhouse,"CC BY 4.0 - credit required, see Config/Credits.luau"
+Crack a Geode,World,Hero Crystal Cluster,world/crack-a-geode/01_Crystal_Cavern/Hero_Crystal_Cluster.obj,102783224246936,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
 Crack a Geode,World,Cave Boulder A,world/crack-a-geode/01_Crystal_Cavern/Cave_Boulder_A.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
 Crack a Geode,World,Cave Boulder B,world/crack-a-geode/01_Crystal_Cavern/Cave_Boulder_B.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
 Crack a Geode,World,Crystal Arch,world/crack-a-geode/01_Crystal_Cavern/Crystal_Arch.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled

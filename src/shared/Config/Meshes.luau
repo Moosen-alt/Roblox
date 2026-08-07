@@ -113,6 +113,8 @@ Meshes.Crystal = {
 Meshes.Prop = {
 	["ChestBase"] = { Mesh = 73620068125097, Scale = 1 },
 	["ChestLid"] = { Mesh = 131543048004444, Scale = 1 },
+	["GeodeHalfA"] = { Mesh = 93767624394202, Scale = 0.674 },
+	["GeodeHalfB"] = { Mesh = 83706691568376, Scale = 0.674 },
 } :: { [string]: MeshDef }
 
 -- World decoration: rocks, spires, arches, landmarks. Not collectibles and not
@@ -122,7 +124,9 @@ Meshes.Prop = {
 -- procedural geometry alone. That is the whole reason decoration lives behind
 -- its own table: the map must never depend on an asset that might be in
 -- moderation.
-Meshes.World = {} :: { [string]: MeshDef }
+Meshes.World = {
+	["Hero Crystal Cluster"] = { Mesh = 102783224246936, Scale = 1, Size = Vector3.new(6.427, 5.317, 4.35), Floor = -0.6287, Middle = Vector3.new(-0.004441, 2.03, -0.07343), Material = Enum.Material.Neon, Tint = Color3.fromRGB(170, 110, 240) },
+} :: { [string]: MeshDef }
 
 function Meshes.ForProp(name: string?): MeshDef?
 	return if name then Meshes.Prop[name] else nil
