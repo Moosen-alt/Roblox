@@ -85,6 +85,12 @@ Balance.Pickaxes = {
 -- reaching it and extra catches grow with the logarithm of damage, so tier 40 is
 -- still a real improvement over tier 39 — small, but never zero, and never a
 -- wall you hit without being told.
+-- How long a fish takes to find your bait, before the rod's factor is applied.
+-- Lives here rather than inside MiningService so the shop can quote a real
+-- number of seconds at the player instead of an abstract stat.
+Balance.BiteDelayMin = 1.5
+Balance.BiteDelayMax = 4.0
+
 Balance.BiteFloor = 0.45 -- fastest possible bite, as a fraction of the base wait
 Balance.BiteSharpness = 0.08 -- how quickly early rods approach that floor
 Balance.ExtraCatchScale = 0.35 -- catches per landing grow as log(1 + damage) * this
@@ -101,6 +107,16 @@ end
 -- the chance of one more — so 1.9 means "always +1, and 90% of the time +2".
 function Balance.RodExtraCatch(damage: number): number
 	return math.max(math.log(1 + math.max(damage, 0)) * Balance.ExtraCatchScale - Balance.ExtraCatchBase, 0)
+end
+
+-- The two numbers a player can actually feel, for the shop to show: how long
+-- they wait for a bite, and how many fish come up when they land one.
+function Balance.RodAverageWait(damage: number): number
+	return (Balance.BiteDelayMin + Balance.BiteDelayMax) * 0.5 * Balance.RodBiteFactor(damage)
+end
+
+function Balance.RodFishPerCatch(damage: number): number
+	return 1 + Balance.RodExtraCatch(damage)
 end
 
 Balance.PickaxeDamageGrowth = 1.55

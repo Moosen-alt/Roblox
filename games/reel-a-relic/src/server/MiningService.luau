@@ -199,7 +199,7 @@ end
 
 local function biteDelay(data: any?): number
 	local speedup = if data then Balance.RodBiteFactor(rodDamage(data)) else 1
-	return rng:NextNumber(1.5, 4.0) * speedup
+	return rng:NextNumber(Balance.BiteDelayMin, Balance.BiteDelayMax) * speedup
 end
 
 -- How many fish come up on one landing. The whole part of the rod's extra-catch

@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local Purchase = require(script.Parent.Parent.Purchase)
@@ -118,9 +119,19 @@ local function renderStock()
 	if state then
 		local upgrades = {}
 		if state.NextPickaxe then
+			-- "Damage 8 -> 12" is a leftover from the mining engine this game is
+			-- built on, and it tells a fisherman nothing. A rod does exactly two
+			-- things a player can feel — bites arrive sooner, and more fish come up
+			-- per catch — so the card says those, in seconds and in fish.
+			local now, next = state.Pickaxe.Damage, state.NextPickaxe.Damage
 			table.insert(upgrades, {
 				Title = "Rod: " .. state.NextPickaxe.Name,
-				Sub = "Damage " .. state.Pickaxe.Damage .. " -> " .. state.NextPickaxe.Damage,
+				Sub = ("Bite %.1fs -> %.1fs   •   %.1f -> %.1f fish per catch"):format(
+					Balance.RodAverageWait(now),
+					Balance.RodAverageWait(next),
+					Balance.RodFishPerCatch(now),
+					Balance.RodFishPerCatch(next)
+				),
 				Cost = state.NextPickaxe.Cost,
 				Kind = "Pickaxe",
 			})
