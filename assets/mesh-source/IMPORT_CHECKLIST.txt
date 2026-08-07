@@ -1,0 +1,13 @@
+REEL A RELIC
+[ ] Upload fish OBJs
+[ ] Upload relic OBJs
+[ ] Fill MeshId column in asset_manifest.csv
+[ ] Run tools/build_meshes_luau.py
+[ ] Paste generated tables into games/reel-a-relic/src/shared/Config/Meshes.luau
+[ ] Push and confirm check-models.py passes
+[ ] Inspect each fish in Index for scale/orientation
+[ ] Inspect relic reveal cards and aquarium placement
+
+CRACK A GEODE
+[ ] Keep current procedural crystals unless you want external meshes
+[ ] Upload crystal OBJs only after adding a Geode mesh override seam

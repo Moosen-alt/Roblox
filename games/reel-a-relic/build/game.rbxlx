@@ -4284,11 +4284,33 @@ end
 -- Exposed because the shop grants fish without going through any roll here.
 CrackService.RecordRarest = recordRarest
 
--- Personal bests by weight, keyed by species name alone. This is the treadmill
--- that never finishes and never inflates: a 14.2 lb bass is beaten only by a
--- heavier bass, it costs nothing to chase, and unlike a value record it survives
--- every Set Sail. Returns true when this catch is a new best.
-local function recordWeight(data: any, baseName: string, weight: number): boolean
+-- Personal bests by weight. This is the treadmill that never finishes and never
+-- inflates: a 14.2 lb bass is beaten only by a heavier bass, it costs nothing to
+-- chase, and unlike a value record it survives every Set Sail.
+--
+-- TWO records, because they answer different questions.
+--
+--   BestWeight   — keyed by species. "The biggest bass I have ever landed."
+--                  This is the headline record and what the callout fires on.
+--   BestVariant  — keyed by species|aura. "The biggest GILDED bass."
+--
+-- The Index is a grid of species x aura, so a species-only record printed the
+-- same number into all six cells of a row: bass 13 lb, Gilded bass 13 lb,
+-- Frosted bass 13 lb. Identical numbers side by side read as a bug however they
+-- were meant, and the per-variant record is the more interesting one anyway —
+-- it turns 33 records into 198 without inventing any new content.
+--
+-- Returns true when this catch is a new SPECIES best, which is the loud one.
+-- Variant bests update silently; firing a toast for every first-catch of every
+-- aura would be six times the noise for a sixth of the achievement.
+local function recordWeight(data: any, baseName: string, mutName: string, weight: number): boolean
+	data.BestVariant = data.BestVariant or {}
+	local key = Crystals.IndexKey(baseName, mutName)
+	local variantBest = data.BestVariant[key]
+	if not variantBest or weight > variantBest then
+		data.BestVariant[key] = weight
+	end
+
 	local best = data.BestWeight[baseName]
 	if best and weight <= best then
 		return false
@@ -4380,7 +4402,7 @@ local function rollOne(player: Player, data: any, kind: string): CrackedCrystal
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, mutName, value)
 	local weight = Crystals.WeightOf(baseName, size)
-	local best = recordWeight(data, baseName, weight)
+	local best = recordWeight(data, baseName, mutName, weight)
 
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -4495,7 +4517,7 @@ function CrackService.GrantFixedCrystal(player: Player, baseName: string, size: 
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, "Normal", value)
 	local weight = Crystals.WeightOf(baseName, size)
-	local best = recordWeight(data, baseName, weight)
+	local best = recordWeight(data, baseName, "Normal", weight)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -4541,7 +4563,7 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, mutName, value)
 	local weight = Crystals.WeightOf(baseName, size)
-	local best = recordWeight(data, baseName, weight)
+	local best = recordWeight(data, baseName, mutName, weight)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	local result: CrackedCrystal = {
@@ -4660,6 +4682,10 @@ local TEMPLATE = {
 	-- Anglers track "biggest bass", not "biggest shiny bass", and a best that
 	-- splits six ways per species stops being a record anyone recognises.
 	BestWeight = {} :: { [string]: number },
+	-- Per species|aura, so every cell of the Index grid carries its own record
+	-- instead of six cells repeating the species number. Reconcile backfills it;
+	-- existing saves keep their species bests and start variant records fresh.
+	BestVariant = {} :: { [string]: number },
 	Collection = {} :: { [string]: boolean },
 	CollectionCount = 0,
 	Streak = { Count = 0, LastDay = 0, Best = 0 },
@@ -4851,6 +4877,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		AreaUnlocked = data.AreaUnlocked,
 		AreaCurrent = data.AreaCurrent,
 		BestWeight = data.BestWeight,
+		BestVariant = data.BestVariant,
 		Pickaxe = { Level = data.Pickaxe, Name = pickaxe.Name, Damage = pickaxe.Damage },
 		NextPickaxe = nextPickaxe and { Name = nextPickaxe.Name, Damage = nextPickaxe.Damage, Cost = nextPickaxe.Cost } or nil,
 		Backpack = { Level = data.Backpack, Name = backpack.Name },
@@ -5186,6 +5213,13 @@ function FilmMode.Apply(data: any)
 	for _, def in Crystals.BasesInLayer(layer, Crystals.FISH) do
 		if data.Collection[Crystals.IndexKey(def.Name, "Normal")] then
 			data.BestWeight[def.Name] = Crystals.WeightOf(def.Name, 1.05)
+			-- Variant records too: the Index draws from those now, and film mode
+			-- exists to make the Index look full for a screenshot.
+			data.BestVariant = data.BestVariant or {}
+			for _, mutName in Crystals.MutationNames do
+				data.BestVariant[Crystals.IndexKey(def.Name, mutName)] =
+					Crystals.WeightOf(def.Name, 1.02 + (#mutName % 5) * 0.03)
+			end
 		end
 	end
 end
@@ -16437,9 +16471,11 @@ local function render()
 					AnchorPoint = Vector2.new(0.5, 0.5),
 					Parent = cell,
 				})
-				-- Keyed by species alone, so every aura of a bass shows the same
-				-- "biggest bass" — which is the record an angler actually tracks.
-				local best = state.BestWeight and state.BestWeight[base.Name]
+				-- Per species|aura. Keying by species alone printed the same
+				-- number into all six cells of a row — bass 13 lb, Gilded bass
+				-- 13 lb, Frosted bass 13 lb — which reads as a bug however it
+				-- was meant, and hides the more interesting record.
+				local best = state.BestVariant and state.BestVariant[key]
 				UiKit.Label({
 					Text = best and ("Best %.1f lb"):format(best) or "",
 					Font = Enum.Font.Gotham,

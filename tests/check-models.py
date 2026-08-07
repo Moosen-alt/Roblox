@@ -73,10 +73,12 @@ def check_meshes(config: Path, meshes: Path) -> list[str]:
     asset id of 0 is worse - it renders an untextured blank where a fish was.
     """
     text = meshes.read_text()
-    names = set(re.findall(r'\{ Name = "([^"]+)", Kind = "(?:Fish|Relic)"', config.read_text()))
+    # Reel rows carry Kind; the geode game's crystal rows do not. Match the
+    # leading `{ Name = "..."` common to both rather than one game's shape.
+    names = set(re.findall(r'^\t\{ Name = "([^"]+)"', config.read_text(), re.M))
     problems = []
     total = 0
-    for table, kind in (("Fish", "fish"), ("Relic", "relic")):
+    for table, kind in (("Fish", "fish"), ("Relic", "relic"), ("Crystal", "crystal")):
         try:
             body = text[text.index(f"Meshes.{table} = {{"):]
             body = body[: body.index("\n") if body.startswith(f"Meshes.{table} = {{}}") else body.index("\n}")]

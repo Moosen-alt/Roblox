@@ -73,9 +73,11 @@ local function render()
 					AnchorPoint = Vector2.new(0.5, 0.5),
 					Parent = cell,
 				})
-				-- Keyed by species alone, so every aura of a bass shows the same
-				-- "biggest bass" — which is the record an angler actually tracks.
-				local best = state.BestWeight and state.BestWeight[base.Name]
+				-- Per species|aura. Keying by species alone printed the same
+				-- number into all six cells of a row — bass 13 lb, Gilded bass
+				-- 13 lb, Frosted bass 13 lb — which reads as a bug however it
+				-- was meant, and hides the more interesting record.
+				local best = state.BestVariant and state.BestVariant[key]
 				UiKit.Label({
 					Text = best and ("Best %.1f lb"):format(best) or "",
 					Font = Enum.Font.Gotham,

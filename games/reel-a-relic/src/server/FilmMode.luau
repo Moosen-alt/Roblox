@@ -130,6 +130,13 @@ function FilmMode.Apply(data: any)
 	for _, def in Crystals.BasesInLayer(layer, Crystals.FISH) do
 		if data.Collection[Crystals.IndexKey(def.Name, "Normal")] then
 			data.BestWeight[def.Name] = Crystals.WeightOf(def.Name, 1.05)
+			-- Variant records too: the Index draws from those now, and film mode
+			-- exists to make the Index look full for a screenshot.
+			data.BestVariant = data.BestVariant or {}
+			for _, mutName in Crystals.MutationNames do
+				data.BestVariant[Crystals.IndexKey(def.Name, mutName)] =
+					Crystals.WeightOf(def.Name, 1.02 + (#mutName % 5) * 0.03)
+			end
 		end
 	end
 end

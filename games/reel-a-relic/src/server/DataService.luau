@@ -33,6 +33,10 @@ local TEMPLATE = {
 	-- Anglers track "biggest bass", not "biggest shiny bass", and a best that
 	-- splits six ways per species stops being a record anyone recognises.
 	BestWeight = {} :: { [string]: number },
+	-- Per species|aura, so every cell of the Index grid carries its own record
+	-- instead of six cells repeating the species number. Reconcile backfills it;
+	-- existing saves keep their species bests and start variant records fresh.
+	BestVariant = {} :: { [string]: number },
 	Collection = {} :: { [string]: boolean },
 	CollectionCount = 0,
 	Streak = { Count = 0, LastDay = 0, Best = 0 },
@@ -224,6 +228,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		AreaUnlocked = data.AreaUnlocked,
 		AreaCurrent = data.AreaCurrent,
 		BestWeight = data.BestWeight,
+		BestVariant = data.BestVariant,
 		Pickaxe = { Level = data.Pickaxe, Name = pickaxe.Name, Damage = pickaxe.Damage },
 		NextPickaxe = nextPickaxe and { Name = nextPickaxe.Name, Damage = nextPickaxe.Damage, Cost = nextPickaxe.Cost } or nil,
 		Backpack = { Level = data.Backpack, Name = backpack.Name },

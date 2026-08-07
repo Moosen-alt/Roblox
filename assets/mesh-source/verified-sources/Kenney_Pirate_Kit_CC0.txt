@@ -1,0 +1,6 @@
+Pirate Kit (1.1)
+Created/distributed by Kenney (www.kenney.nl)
+License: Creative Commons Zero (CC0)
+https://creativecommons.org/publicdomain/zero/1.0/
+Free for personal, educational and commercial projects.
+Credit is appreciated but not mandatory.

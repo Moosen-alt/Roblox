@@ -4,9 +4,15 @@
 -- crystal inside every geode, and the spinning 3D gem on reveal cards — so a
 -- Sapphire is recognisably the same rock everywhere in the game.
 
+local MeshBuild = require(script.Parent.MeshBuild)
+local Meshes = require(script.Parent.Config.Meshes)
+
 local CrystalShape = {}
 
 export type Options = {
+	-- The crystal's name, when the caller knows it. Only used to look up a mesh
+	-- override; the procedural cluster does not care which gem it is.
+	Name: string?,
 	Color: Color3,
 	Scale: number?, -- overall size multiplier (1 ~= 3.5 studs tall)
 	Shards: number?, -- spikes in the cluster
@@ -91,6 +97,13 @@ local function spike(
 end
 
 function CrystalShape.Build(options: Options): Model
+	-- An uploaded mesh wins if one exists for this crystal. Per-crystal, not
+	-- all-or-nothing, so a partly-uploaded set is a valid state to ship in.
+	local override = Meshes.ForCrystal(options.Name)
+	if override then
+		return MeshBuild.Build(override, options.Name or "Crystal", options.Color, options.Scale or 1, options.Glow)
+	end
+
 	local model = Instance.new("Model")
 	model.Name = "Crystal"
 

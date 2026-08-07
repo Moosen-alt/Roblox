@@ -66,11 +66,33 @@ end
 -- Exposed because the shop grants fish without going through any roll here.
 CrackService.RecordRarest = recordRarest
 
--- Personal bests by weight, keyed by species name alone. This is the treadmill
--- that never finishes and never inflates: a 14.2 lb bass is beaten only by a
--- heavier bass, it costs nothing to chase, and unlike a value record it survives
--- every Set Sail. Returns true when this catch is a new best.
-local function recordWeight(data: any, baseName: string, weight: number): boolean
+-- Personal bests by weight. This is the treadmill that never finishes and never
+-- inflates: a 14.2 lb bass is beaten only by a heavier bass, it costs nothing to
+-- chase, and unlike a value record it survives every Set Sail.
+--
+-- TWO records, because they answer different questions.
+--
+--   BestWeight   — keyed by species. "The biggest bass I have ever landed."
+--                  This is the headline record and what the callout fires on.
+--   BestVariant  — keyed by species|aura. "The biggest GILDED bass."
+--
+-- The Index is a grid of species x aura, so a species-only record printed the
+-- same number into all six cells of a row: bass 13 lb, Gilded bass 13 lb,
+-- Frosted bass 13 lb. Identical numbers side by side read as a bug however they
+-- were meant, and the per-variant record is the more interesting one anyway —
+-- it turns 33 records into 198 without inventing any new content.
+--
+-- Returns true when this catch is a new SPECIES best, which is the loud one.
+-- Variant bests update silently; firing a toast for every first-catch of every
+-- aura would be six times the noise for a sixth of the achievement.
+local function recordWeight(data: any, baseName: string, mutName: string, weight: number): boolean
+	data.BestVariant = data.BestVariant or {}
+	local key = Crystals.IndexKey(baseName, mutName)
+	local variantBest = data.BestVariant[key]
+	if not variantBest or weight > variantBest then
+		data.BestVariant[key] = weight
+	end
+
 	local best = data.BestWeight[baseName]
 	if best and weight <= best then
 		return false
@@ -162,7 +184,7 @@ local function rollOne(player: Player, data: any, kind: string): CrackedCrystal
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, mutName, value)
 	local weight = Crystals.WeightOf(baseName, size)
-	local best = recordWeight(data, baseName, weight)
+	local best = recordWeight(data, baseName, mutName, weight)
 
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -277,7 +299,7 @@ function CrackService.GrantFixedCrystal(player: Player, baseName: string, size: 
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, "Normal", value)
 	local weight = Crystals.WeightOf(baseName, size)
-	local best = recordWeight(data, baseName, weight)
+	local best = recordWeight(data, baseName, "Normal", weight)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -323,7 +345,7 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, mutName, value)
 	local weight = Crystals.WeightOf(baseName, size)
-	local best = recordWeight(data, baseName, weight)
+	local best = recordWeight(data, baseName, mutName, weight)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	local result: CrackedCrystal = {
