@@ -44,7 +44,7 @@ function RebirthService.Perform(player: Player, free: boolean): (boolean, string
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 5, "FirstRebirth")
 	local layer = ctx.Data.Layer(data)
-	local layerName = Balance.LayerNames[layer]
+	local layerName = Balance.LayerName(layer)
 	local bonus = math.floor(Balance.RebirthCoinBonus * data.Rebirths * 100 + 0.5)
 
 	-- The prestige ritual. Giving up everything you built deserves more than a

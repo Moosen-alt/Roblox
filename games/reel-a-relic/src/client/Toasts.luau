@@ -91,7 +91,7 @@ local function showRareFind(payload: { [string]: any })
 	stroke.Parent = banner
 	UiKit.Label({
 		Text = mine and "★  YOU REELED IN A " .. string.upper(payload.Label or "") .. "!  ★"
-			or ((payload.Player or "Someone") .. " reeled in a " .. (payload.Label or "relic") .. "!"),
+			or ((payload.Player or "Someone") .. " reeled in a " .. (payload.Label or "fish") .. "!"),
 		Font = Enum.Font.FredokaOne,
 		TextColor3 = color,
 		Size = UDim2.new(1, -20, 0, 34),

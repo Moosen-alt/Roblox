@@ -27,9 +27,10 @@ Monetization.CompUserIds = {
 } :: { [number]: boolean | { [string]: boolean } }
 
 Monetization.Gamepasses = {
-	AutoCrack = { Id = 0, Price = 100, Title = "Auto-Open", Desc = "Chests open themselves as you reel them in." },
+	AutoCrack = { Id = 0, Price = 100, Title = "Auto-Open", Desc = "Chests open themselves the moment you reel them in." },
 	Coins2x = { Id = 0, Price = 250, Title = "2x Coins", Desc = "Permanently double every coin you earn." },
-	Luck2x = { Id = 0, Price = 350, Title = "2x Luck", Desc = "Double your odds of rare relics, forever." },
+	Luck2x = { Id = 0, Price = 350, Title = "2x Luck", Desc = "Double your odds of rare fish, forever." },
+	AutoCast = { Id = 0, Price = 450, Title = "Auto-Cast", Desc = "Hold the button on a buoy and your rod casts and strikes for you. No more clicking." },
 	TripleCrack = { Id = 0, Price = 450, Title = "Triple Open", Desc = "Open 3 chests at once." },
 	OvernightMiner = { Id = 0, Price = 500, Title = "Overnight Aquarium", Desc = "Offline progress: 8h cap -> 24h, +50% offline earnings." },
 	Vip = { Id = 0, Price = 1000, Title = "VIP Sea Captain", Desc = "Golden name, exclusive aura, +25% coins, +1 Daily Deal." },
@@ -37,7 +38,7 @@ Monetization.Gamepasses = {
 
 -- Developer products (repeatable purchases): { id, suggested price in Robux }
 Monetization.Products = {
-	StarterPack = { Id = 0, Price = 200, Title = "Starter Pack", Desc = "2,500 coins + a guaranteed Sunken Crown + 24h of 2x coins. One time only." },
+	StarterPack = { Id = 0, Price = 200, Title = "Starter Pack", Desc = "2,500 coins + a guaranteed Rainbow Trout + 24h of 2x coins. One time only." },
 	Coins1k = { Id = 0, Price = 100, Title = "Coin Pouch", Coins = 1000 },
 	Coins5k = { Id = 0, Price = 500, Title = "Coin Chest", Coins = 5500 },
 	Coins12k = { Id = 0, Price = 1000, Title = "Coin Vault", Coins = 12000 },

@@ -1,7 +1,13 @@
 --!strict
--- Geode cracking: the reveal moment. All rolls go through shared RarityMath so
--- the client odds panel is provably the same math. Includes the first-session
--- pity roll (Nth lifetime crack guaranteed Rare+).
+-- Everything that turns a roll into a fish in your hold.
+--
+-- Two ways in, one set of maths. A fish on the line calls LandFish and goes
+-- straight to the hold. A chest is opened at the station through Crack, which
+-- rolls guaranteed Rare-or-better with the full reveal animation, the odds panel
+-- and the policy gating — the ceremony a chest has to earn.
+--
+-- All rolls go through shared RarityMath so the client odds panel is provably
+-- the same math. Includes the first-session pity roll.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -24,6 +30,9 @@ export type CrackedCrystal = {
 	Tier: string,
 	New: boolean,
 	Pity: boolean?,
+	Weight: number,
+	Best: boolean?, -- heaviest of this species this player has ever landed
+	Color: Color3?,
 }
 
 local ctx: any = nil
@@ -46,8 +55,22 @@ local function recordRarest(player: Player, data: any, baseName: string, mutName
 	ctx.Flex.Set(player, baseName, mutName, value)
 end
 
--- Exposed because the shop grants crystals without going through any roll here.
+-- Exposed because the shop grants fish without going through any roll here.
 CrackService.RecordRarest = recordRarest
+
+-- Personal bests by weight, keyed by species name alone. This is the treadmill
+-- that never finishes and never inflates: a 14.2 lb bass is beaten only by a
+-- heavier bass, it costs nothing to chase, and unlike a value record it survives
+-- every Set Sail. Returns true when this catch is a new best.
+local function recordWeight(data: any, baseName: string, weight: number): boolean
+	local best = data.BestWeight[baseName]
+	if best and weight <= best then
+		return false
+	end
+	data.BestWeight[baseName] = weight
+	-- Not a "best" the first time you catch a species — you had nothing to beat.
+	return best ~= nil
+end
 
 local function tierRank(tier: string): number
 	for i, name in Crystals.Tiers do
@@ -86,20 +109,27 @@ local function announceRare(player: Player, crystal: CrackedCrystal)
 	Spotlight.Pillar(player, color)
 end
 
-local function rollOne(player: Player, data: any): CrackedCrystal
+-- One roll, used by both catch paths. `forceRare` is what a chest is: the same
+-- species table, the same auras, the same value maths — just a pull that cannot
+-- come up common.
+local function rollOne(player: Player, data: any, forceRare: boolean?): CrackedCrystal
 	local layer = ctx.Data.Layer(data)
 	local luck = ctx.Data.LuckMult(player, data)
 	local event = ctx.Events.Current()
 
-	data.PityCracks += 1
 	local baseName
 	local pity = false
-	if not data.RareGiven and data.PityCracks >= Balance.PityForcedRareCrack then
+	if forceRare then
 		baseName = RarityMath.RollRarePlus(layer, luck, rng)
-		data.RareGiven = true
-		pity = true
 	else
-		baseName = RarityMath.RollBase(layer, luck, rng)
+		data.PityCracks += 1
+		if not data.RareGiven and data.PityCracks >= Balance.PityForcedRareCrack then
+			baseName = RarityMath.RollRarePlus(layer, luck, rng)
+			data.RareGiven = true
+			pity = true
+		else
+			baseName = RarityMath.RollBase(layer, luck, rng)
+		end
 	end
 	local mutName = RarityMath.RollMutation(event.MutationMult, rng)
 	local size = 0.9 + rng:NextNumber() * 0.3
@@ -119,6 +149,8 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, mutName, value)
+	local weight = Crystals.WeightOf(baseName, size)
+	local best = recordWeight(data, baseName, weight)
 
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -131,9 +163,32 @@ local function rollOne(player: Player, data: any): CrackedCrystal
 		Tier = def and def.Tier or "Common",
 		New = isNew,
 		-- The first-session guaranteed Rare+ did not beat any odds, so the card
-		-- must not claim it did.
+		-- must not claim it did. Same reasoning for a chest: it says CHEST, not
+		-- "against the odds".
 		Pity = pity,
+		Weight = weight,
+		Best = best,
+		Color = def and def.Color or nil,
 	}
+end
+
+-- A fish on the line. No opening step, no ceremony beyond the splash and the
+-- weight on the billboard — that restraint is what keeps the chest special.
+function CrackService.LandFish(player: Player): CrackedCrystal?
+	local data = ctx.Data.Get(player)
+	if not data then
+		return nil
+	end
+	local result = rollOne(player, data, false)
+	ctx.Data.MarkDirty(player)
+	if result.Best then
+		Remotes.Event("Notify"):FireClient(player, {
+			Text = ("NEW PERSONAL BEST!  %s — %.1f lb"):format(result.Base, result.Weight),
+			Color = Color3.fromRGB(255, 210, 90),
+		})
+	end
+	announceRare(player, result)
+	return result
 end
 
 -- Manual crack from the Crack Station UI. count is clamped by passes.
@@ -148,12 +203,15 @@ function CrackService.Crack(player: Player, count: number?): ({ CrackedCrystal }
 	end
 	wanted = math.min(wanted, data.Geodes)
 	if wanted < 1 then
-		return nil, "No chests! Go fishing first."
+		return nil, "No chests! Fish one up first."
 	end
 	data.Geodes -= wanted
 	local results = {}
 	for _ = 1, wanted do
-		table.insert(results, rollOne(player, data))
+		-- Chests are guaranteed Rare+. That is the deal that makes the opening
+		-- animation honest: you are not gambling on whether it was worth walking
+		-- back, only on how far past "worth it" you landed.
+		table.insert(results, rollOne(player, data, true))
 	end
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 2, "FirstCrack")
@@ -182,7 +240,7 @@ function CrackService.AutoCrack(player: Player)
 		return
 	end
 	data.Geodes -= 1
-	local result = rollOne(player, data)
+	local result = rollOne(player, data, true)
 	ctx.Data.MarkDirty(player)
 	Remotes.Event("CrackResult"):FireClient(player, { result }, true)
 	announceRare(player, result)
@@ -207,6 +265,8 @@ function CrackService.GrantFixedCrystal(player: Player, baseName: string, size: 
 	end
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, "Normal", value)
+	local weight = Crystals.WeightOf(baseName, size)
+	local best = recordWeight(data, baseName, weight)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	return {
@@ -218,6 +278,9 @@ function CrackService.GrantFixedCrystal(player: Player, baseName: string, size: 
 		Value = value,
 		Tier = def and def.Tier or "Rare",
 		New = isNew,
+		Weight = weight,
+		Best = best,
+		Color = def and def.Color or nil,
 	}
 end
 
@@ -247,6 +310,8 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 	end
 	local value = ctx.Data.CrystalValue(data, crystal)
 	recordRarest(player, data, baseName, mutName, value)
+	local weight = Crystals.WeightOf(baseName, size)
+	local best = recordWeight(data, baseName, weight)
 	ctx.Data.MarkDirty(player)
 	local def = Crystals.GetBase(baseName)
 	local result: CrackedCrystal = {
@@ -258,6 +323,9 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 		Value = value,
 		Tier = def and def.Tier or "Common",
 		New = isNew,
+		Weight = weight,
+		Best = best,
+		Color = def and def.Color or nil,
 	}
 	announceRare(player, result)
 	return result
@@ -283,7 +351,7 @@ function CrackService.SellCrystal(player: Player, idOrAll: string): (boolean, st
 	else
 		local crystal = data.Crystals[idOrAll]
 		if not crystal then
-			return false, "Relic not found."
+			return false, "Fish not found."
 		end
 		if socketed[idOrAll] then
 			return false, "Remove it from the aquarium first."

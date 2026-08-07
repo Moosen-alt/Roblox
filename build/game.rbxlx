@@ -26,21 +26,63 @@ local Balance = {}
 Balance.FilmMode = false
 
 -- Cave layers (unlocked by rebirths). Values multiply, rarity luck creeps up.
-Balance.MaxLayer = 5
+--
+-- 25, not 5. Layers are the only knob in the game where the reward and the cost
+-- move together by construction — deposit toughness x3 and crystal value x2.5
+-- per layer — so making the ladder long is safe in a way that inflating any
+-- single number is not. At five layers the whole game bottomed out four rebirths
+-- in: nothing got deeper, so nothing needed a better pickaxe, so the upgrade
+-- button stopped mattering. That was the real wall behind "you can't upgrade
+-- your pickaxe any more".
+Balance.MaxLayer = 25
 Balance.LayerValueMult = 2.5 -- crystal value x 2.5 per layer
 Balance.LayerLuckBonus = 0.15 -- +15% luck per layer past the first
 Balance.LayerNames = { "Crystal Cavern", "Amber Depths", "Frost Hollow", "Ember Rift", "Starfall Core" }
+
+-- Named layers past the authored five. Two words drawn from independent lists,
+-- so twenty generated names read as places rather than as "Starfall Core 7".
+local DEEP_PREFIX =
+	{ "Obsidian", "Hollow", "Cinder", "Glacier", "Verdant", "Ashen", "Radiant", "Drowned", "Gilded", "Shattered" }
+local DEEP_SUFFIX = { "Reach", "Abyss", "Expanse", "Undercroft", "Spire", "Maw", "Vault", "Chasm" }
+
+function Balance.LayerName(layer: number): string
+	local authored = Balance.LayerNames[layer]
+	if authored then
+		return authored
+	end
+	local past = layer - #Balance.LayerNames
+	local prefix = DEEP_PREFIX[(past - 1) % #DEEP_PREFIX + 1]
+	local suffix = DEEP_SUFFIX[(past - 1) % #DEEP_SUFFIX + 1]
+	return prefix .. " " .. suffix
+end
 
 -- Mining
 Balance.MineCooldown = 0.22 -- seconds between counted taps (server enforced)
 Balance.NodeBaseHealth = 3 -- damage to pop a layer-1 geode (pickaxe damage 1 = 3 taps)
 Balance.NodeHealthLayerGrowth = 3 -- deposit toughness x3 per layer, so every pickaxe tier stays relevant
-Balance.NodeRespawnTime = 2.5
+Balance.NodeRespawnTime = 2.5 -- per player, not per server: see MiningService
 Balance.NodeCount = 12 -- deposit nodes on the mine wall
+Balance.MineRange = 32 -- studs; how close you must stand to swing at a geode
+-- Auto Miner is offered once, after this many lifetime geodes — late enough
+-- that the player has felt the tapping, early enough that they still care.
+Balance.AutoMineOfferAfterGeodes = 150
 Balance.PityForcedRareCrack = 3 -- the Nth lifetime crack is guaranteed Rare+ (first-session hook)
 
 -- Pickaxes: damage per tap. Index 1 is the freebie. Color/Material/Glow drive
 -- the held pickaxe model so every upgrade is visible in your hand.
+--
+-- These twenty are the hand-authored run. Past them `Balance.Pickaxe(level)`
+-- keeps generating tiers forever, so the upgrade button is never greyed out with
+-- nothing behind it — see below.
+export type PickaxeTier = {
+	Name: string,
+	Damage: number,
+	Cost: number,
+	Color: Color3,
+	Material: Enum.Material,
+	Glow: boolean,
+}
+
 Balance.Pickaxes = {
 	{ Name = "Rusty Pick", Damage = 1, Cost = 0, Color = Color3.fromRGB(160, 158, 165), Material = Enum.Material.Metal, Glow = false },
 	{ Name = "Copper Pick", Damage = 2, Cost = 150, Color = Color3.fromRGB(205, 125, 70), Material = Enum.Material.Metal, Glow = false },
@@ -50,16 +92,92 @@ Balance.Pickaxes = {
 	{ Name = "Laser Pick", Damage = 12, Cost = 30000, Color = Color3.fromRGB(255, 60, 80), Material = Enum.Material.Neon, Glow = true },
 	{ Name = "Plasma Pick", Damage = 20, Cost = 120000, Color = Color3.fromRGB(80, 220, 255), Material = Enum.Material.Neon, Glow = true },
 	{ Name = "Singularity Pick", Damage = 30, Cost = 500000, Color = Color3.fromRGB(60, 30, 90), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Meteorite Pick", Damage = 46, Cost = 1_800_000, Color = Color3.fromRGB(120, 90, 70), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Thunder Pick", Damage = 72, Cost = 6_500_000, Color = Color3.fromRGB(255, 240, 120), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Frostbite Pick", Damage = 112, Cost = 24_000_000, Color = Color3.fromRGB(160, 230, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Magma Pick", Damage = 175, Cost = 90_000_000, Color = Color3.fromRGB(255, 110, 40), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Prism Pick", Damage = 270, Cost = 340_000_000, Color = Color3.fromRGB(255, 150, 220), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Nebula Pick", Damage = 420, Cost = 1_300_000_000, Color = Color3.fromRGB(150, 110, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Eclipse Pick", Damage = 650, Cost = 5_000_000_000, Color = Color3.fromRGB(70, 60, 110), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Quasar Pick", Damage = 1000, Cost = 19_000_000_000, Color = Color3.fromRGB(120, 255, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Aurora Pick", Damage = 1550, Cost = 72_000_000_000, Color = Color3.fromRGB(120, 255, 190), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Riftbreaker", Damage = 2400, Cost = 280_000_000_000, Color = Color3.fromRGB(255, 60, 140), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Starforge Pick", Damage = 3700, Cost = 1_050_000_000_000, Color = Color3.fromRGB(255, 210, 90), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Voidheart Pick", Damage = 5700, Cost = 4_000_000_000_000, Color = Color3.fromRGB(190, 60, 255), Material = Enum.Material.Neon, Glow = true },
 }
 
--- Backpacks: how many uncracked geodes you can carry.
+-- Past the authored list, tiers keep coming. Damage and cost both grow
+-- geometrically at the same ratios the hand-written run uses, so the generated
+-- tail is indistinguishable from more of the same rather than a different game.
+Balance.PickaxeDamageGrowth = 1.55
+Balance.PickaxeCostGrowth = 3.85
+local PICK_TITLES =
+	{ "Ascendant", "Celestial", "Infinite", "Paradox", "Sovereign", "Titanfall", "Everdark", "Worldsplitter" }
+local PICK_TINTS = {
+	Color3.fromRGB(255, 210, 90),
+	Color3.fromRGB(120, 255, 255),
+	Color3.fromRGB(190, 90, 255),
+	Color3.fromRGB(255, 60, 140),
+	Color3.fromRGB(120, 255, 190),
+	Color3.fromRGB(150, 110, 255),
+}
+
+-- The one way to look up a pickaxe. Always returns a tier: there is no top.
+function Balance.Pickaxe(level: number): PickaxeTier
+	local authored = Balance.Pickaxes[math.max(math.floor(level), 1)]
+	if authored then
+		return authored
+	end
+	local count = #Balance.Pickaxes
+	local past = math.floor(level) - count
+	local last = Balance.Pickaxes[count]
+	local title = PICK_TITLES[(past - 1) % #PICK_TITLES + 1]
+	local mark = math.floor((past - 1) / #PICK_TITLES) + 1
+	return {
+		Name = if mark > 1 then ("%s Pick %d"):format(title, mark) else (title .. " Pick"),
+		Damage = math.floor(last.Damage * Balance.PickaxeDamageGrowth ^ past + 0.5),
+		Cost = math.floor(last.Cost * Balance.PickaxeCostGrowth ^ past + 0.5),
+		Color = PICK_TINTS[(past - 1) % #PICK_TINTS + 1],
+		Material = Enum.Material.Neon,
+		Glow = true,
+	}
+end
+
+-- Backpacks: how many uncracked geodes you can carry. Endless for the same
+-- reason as the pickaxe — a pickaxe that never stops improving fills a fixed
+-- backpack faster and faster, which turns the fix into a new wall.
+export type BackpackTier = { Name: string, Capacity: number, Cost: number }
+
 Balance.Backpacks = {
 	{ Name = "Pouch", Capacity = 6, Cost = 0 },
 	{ Name = "Satchel", Capacity = 12, Cost = 200 },
 	{ Name = "Rucksack", Capacity = 24, Cost = 900 },
 	{ Name = "Miner's Pack", Capacity = 48, Cost = 4000 },
 	{ Name = "Void Pack", Capacity = 96, Cost = 18000 },
+	{ Name = "Cavern Hauler", Capacity = 180, Cost = 85_000 },
+	{ Name = "Gravity Sack", Capacity = 340, Cost = 400_000 },
+	{ Name = "Pocket Dimension", Capacity = 640, Cost = 1_900_000 },
+	{ Name = "Collapsed Star", Capacity = 1200, Cost = 9_000_000 },
+	{ Name = "Eventide Vault", Capacity = 2400, Cost = 44_000_000 },
 }
+
+Balance.BackpackCapacityGrowth = 1.9
+Balance.BackpackCostGrowth = 4.8
+
+function Balance.Backpack(level: number): BackpackTier
+	local authored = Balance.Backpacks[math.max(math.floor(level), 1)]
+	if authored then
+		return authored
+	end
+	local count = #Balance.Backpacks
+	local past = math.floor(level) - count
+	local last = Balance.Backpacks[count]
+	return {
+		Name = ("Eventide Vault %d"):format(past + 1),
+		Capacity = math.floor(last.Capacity * Balance.BackpackCapacityGrowth ^ past + 0.5),
+		Cost = math.floor(last.Cost * Balance.BackpackCostGrowth ^ past + 0.5),
+	}
+end
 
 -- Growth racks: socketed crystals produce coins and slowly grow in size (value).
 Balance.BaseRackSlots = 2
@@ -242,11 +360,12 @@ Monetization.GroupId = 346261815
 Monetization.CompUserIds = {
 	-- [123456789] = true, -- everything, free
 	-- [123456789] = { TripleCrack = true, Vip = true }, -- just these
-	[4430949466] = { TripleCrack = true },
+	[4430949466] = { TripleCrack = true, AutoMine = true },
 } :: { [number]: boolean | { [string]: boolean } }
 
 Monetization.Gamepasses = {
 	AutoCrack = { Id = 1936664483, Price = 100, Title = "Auto-Crack", Desc = "Geodes crack themselves as you mine." },
+	AutoMine = { Id = 0, Price = 450, Title = "Auto Swing", Desc = "Hold the button down and your pickaxe keeps swinging. No more tapping." },
 	Coins2x = { Id = 1934463944, Price = 250, Title = "2x Coins", Desc = "Permanently double every coin you earn." },
 	Luck2x = { Id = 1935363873, Price = 350, Title = "2x Luck", Desc = "Double your odds of rare crystals, forever." },
 	TripleCrack = { Id = 1935177874, Price = 450, Title = "Triple Crack", Desc = "Crack 3 geodes at once." },
@@ -780,6 +899,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Remotes = require(Shared.Remotes)
 
 local AnalyticsService = require(script.AnalyticsService)
+local AutoMineService = require(script.AutoMineService)
 local CrackService = require(script.CrackService)
 local DataService = require(script.DataService)
 local EventService = require(script.EventService)
@@ -803,6 +923,7 @@ local map = MapBuilder.Build()
 local ctx: any = {
 	Data = DataService,
 	Crack = CrackService,
+	Mining = MiningService,
 	Racks = RackService,
 	Rebirth = RebirthService,
 	Shop = ShopService,
@@ -849,6 +970,7 @@ UpgradeService.Init(ctx)
 ShopService.Init(ctx)
 StreakService.Init(ctx)
 MiningService.Init(ctx, map.Nodes)
+AutoMineService.Init(ctx) -- after MiningService: it drives swings through it
 PickaxeVisual.Init(ctx)
 Leaderboards.Init(ctx, map.BoardRebirths, map.BoardRarest)
 DataService.Init(ctx)
@@ -910,6 +1032,102 @@ return AnalyticsService
         </Properties>
       </Item>
       <Item class="ModuleScript" referent="13">
+        <Properties>
+          <string name="Name">AutoMineService</string>
+          <string name="Source"><![CDATA[--!strict
+-- Everything server-side about the Auto Swing pass.
+--
+-- The mining itself is not here, and that is the design: Auto Swing is a HOLD,
+-- not an auto-clicker. The client repeats the swing while the button is down and
+-- sends the same MineNode event a tap sends, so MiningService cannot tell the
+-- difference and does not need to — every swing runs the identical range,
+-- cooldown, capacity and per-player-availability checks. Nothing mines on your
+-- behalf while you stand still, and because the server's mine cooldown paces the
+-- swings either way, holding can never out-earn a very fast tapper.
+--
+-- What is left here is the two things the server does owe the pass: telling a
+-- new owner how it works, once, and offering it to the person it is actually for.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Monetization = require(Shared.Config.Monetization)
+local Remotes = require(Shared.Remotes)
+
+local AutoMineService = {}
+
+local ctx: any = nil
+
+-- A pass whose whole benefit is an input change has to say so, or it reads as
+-- broken: you buy it, nothing visibly happens, and you keep tapping.
+local function maybeTip(player: Player)
+	local data = ctx.Data.Get(player)
+	if not data or data.Funnel.AutoSwingTip then
+		return
+	end
+	if not ctx.Monetization.OwnsPass(player, "AutoMine") then
+		return
+	end
+	data.Funnel.AutoSwingTip = true
+	ctx.Data.MarkDirty(player)
+	Remotes.Event("Notify"):FireClient(player, {
+		Text = "Auto Swing is on — hold the button down to keep mining.",
+		Color = Color3.fromRGB(120, 255, 200),
+	})
+end
+
+-- The pass sells itself to exactly one person: someone who has just tapped a
+-- rock several hundred times and knows precisely how that feels. Showing it
+-- then is honest — it is an offer to stop doing the thing they are visibly
+-- tired of — and it is worth far more than a permanent button they scrolled
+-- past in their first minute. Once per player, ever.
+local function maybeOffer(player: Player)
+	local data = ctx.Data.Get(player)
+	if not data or data.Funnel.AutoMineOffer then
+		return
+	end
+	if data.Stats.GeodesMined < Balance.AutoMineOfferAfterGeodes then
+		return
+	end
+	if Monetization.PassIdByKey("AutoMine") == 0 then
+		return -- pass not created yet; don't advertise something unbuyable
+	end
+	if ctx.Monetization.OwnsPass(player, "AutoMine") then
+		data.Funnel.AutoMineOffer = true -- they already have it; never offer later
+		ctx.Data.MarkDirty(player)
+		return
+	end
+	data.Funnel.AutoMineOffer = true
+	ctx.Data.MarkDirty(player)
+	Remotes.Event("Notify"):FireClient(player, {
+		Text = ("%d geodes tapped out by hand. Auto Swing lets you just hold — see the Store."):format(
+			data.Stats.GeodesMined
+		),
+		Color = Color3.fromRGB(255, 210, 90),
+	})
+end
+
+function AutoMineService.Init(serviceCtx: any)
+	ctx = serviceCtx
+
+	task.spawn(function()
+		while true do
+			task.wait(20)
+			for _, player in Players:GetPlayers() do
+				maybeTip(player)
+				maybeOffer(player)
+			end
+		end
+	end)
+end
+
+return AutoMineService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">CrackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1238,7 +1456,7 @@ return CrackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1353,7 +1571,7 @@ function DataService.CrystalValue(data: Profile, crystal: { Base: string, Mut: s
 end
 
 function DataService.BackpackCapacity(data: Profile): number
-	local tier = Balance.Backpacks[math.clamp(data.Backpack, 1, #Balance.Backpacks)]
+	local tier = Balance.Backpack(data.Backpack)
 	return tier.Capacity
 end
 
@@ -1391,10 +1609,10 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 	for key in require(Shared.Config.Monetization).Gamepasses :: any do
 		passes[key] = ctx.Monetization.OwnsPass(player, key)
 	end
-	local pickaxe = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
-	local nextPickaxe = Balance.Pickaxes[data.Pickaxe + 1]
-	local backpack = Balance.Backpacks[math.clamp(data.Backpack, 1, #Balance.Backpacks)]
-	local nextBackpack = Balance.Backpacks[data.Backpack + 1]
+	local pickaxe = Balance.Pickaxe(data.Pickaxe)
+	local nextPickaxe = Balance.Pickaxe(data.Pickaxe + 1)
+	local backpack = Balance.Backpack(data.Backpack)
+	local nextBackpack = Balance.Backpack(data.Backpack + 1)
 	return {
 		Coins = data.Coins,
 		Geodes = data.Geodes,
@@ -1409,7 +1627,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		NextRackSlotCost = Balance.RackSlotCosts[data.RackSlots - Balance.BaseRackSlots + 1],
 		Rebirths = data.Rebirths,
 		Layer = layer,
-		LayerName = Balance.LayerNames[layer],
+		LayerName = Balance.LayerName(layer),
 		RebirthCost = DataService.RebirthCost(data),
 		CoinMult = DataService.CoinMult(player, data),
 		LuckMult = DataService.LuckMult(player, data),
@@ -1528,7 +1746,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">EventService</string>
           <string name="Source"><![CDATA[--!strict
@@ -1598,7 +1816,7 @@ return EventService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">FilmMode</string>
           <string name="Source"><![CDATA[--!strict
@@ -1728,7 +1946,7 @@ return FilmMode
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">FlexAura</string>
           <string name="Source"><![CDATA[--!strict
@@ -1792,18 +2010,17 @@ return FlexAura
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">GeodeNode</string>
           <string name="Source"><![CDATA[--!strict
--- Builds the geodes embedded in the mine wall and owns their shared visual
--- state (intact -> broken -> respawned). Per-player damage feedback lives on
--- the client (WorldFx) because mining progress is per-player: your cracks
--- should widen for you without touching what anyone else sees.
+-- Builds the geodes embedded in the mine wall. That is all it does: mining is
+-- per-player from the first tap to the respawn, so every bit of geode state —
+-- widening cracks, the break, the regrow — lives on the client in WorldFx.
+-- Nothing here mutates a geode after it is built.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CrystalShape = require(Shared.CrystalShape)
@@ -1822,10 +2039,6 @@ export type Node = {
 	Origin: Vector3,
 }
 
--- Every visible part of a geode plus the look it should snap back to when it
--- respawns. Restoring from this table (rather than remembering deltas) means a
--- half-mined geode can never get stuck looking chewed.
-local restore: { [BasePart]: { [BasePart]: { Transparency: number, Size: Vector3 } } } = {}
 local info: { [BasePart]: Node } = {}
 
 GeodeNode.Info = info
@@ -1988,15 +2201,6 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		Origin = position,
 	}
 	info[hitbox] = node
-
-	local snapshot: { [BasePart]: { Transparency: number, Size: Vector3 } } = {}
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") and descendant ~= hitbox then
-			snapshot[descendant] = { Transparency = descendant.Transparency, Size = descendant.Size }
-		end
-	end
-	restore[hitbox] = snapshot
-
 	return node
 end
 
@@ -2057,100 +2261,11 @@ function GeodeNode.Buried(position: Vector3, color: Color3, scale: number, seed:
 	model.Parent = parent
 end
 
--- The payoff frame: shockwave, shard burst, the rock vanishing.
-function GeodeNode.Break(node: Node)
-	local shock = part({
-		Name = "Shockwave",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.4, 3, 3),
-		CFrame = CFrame.new(node.Origin + Vector3.new(0, 0, 3.4)) * CFrame.Angles(0, math.rad(90), 0),
-		Color = node.Color,
-		Material = Enum.Material.Neon,
-		Transparency = 0.25,
-		CanQuery = false,
-	}, node.Model)
-	TweenService:Create(shock, TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-		Size = Vector3.new(0.4, 30, 30),
-		Transparency = 1,
-	}):Play()
-	task.delay(0.7, function()
-		shock:Destroy()
-	end)
-
-	local burst = Instance.new("ParticleEmitter")
-	burst.Color = ColorSequence.new(node.Color)
-	burst.LightEmission = 0.8
-	burst.Lifetime = NumberRange.new(0.4, 0.9)
-	burst.Speed = NumberRange.new(14, 30)
-	burst.SpreadAngle = Vector2.new(180, 180)
-	burst.Size = NumberSequence.new(0.9, 0)
-	burst.Rate = 0
-	burst.Parent = node.Core
-	burst:Emit(34)
-	task.delay(1.4, function()
-		burst:Destroy()
-	end)
-
-	node.Light.Brightness = 0
-	for target in restore[node.Hitbox] do
-		TweenService:Create(target, TweenInfo.new(0.22), {
-			Transparency = 1,
-			Size = target.Size * 0.55,
-		}):Play()
-	end
-	local click = node.Hitbox:FindFirstChildOfClass("ClickDetector")
-	if click then
-		click.MaxActivationDistance = 0
-	end
-end
-
--- Respawning geodes reroll their colour. Costs nothing, and it means the wall
--- you have been staring at for twenty minutes keeps producing something you
--- have not seen in that exact spot before.
-local PALETTE = {
-	Color3.fromRGB(170, 110, 240),
-	Color3.fromRGB(60, 220, 130),
-	Color3.fromRGB(60, 120, 255),
-	Color3.fromRGB(255, 200, 60),
-	Color3.fromRGB(150, 255, 245),
-	Color3.fromRGB(255, 60, 80),
-}
-
-local function recolor(node: Node, color: Color3)
-	node.Color = color
-	node.Light.Color = color
-	local rockColor = color:Lerp(Color3.fromRGB(52, 46, 66), 0.86)
-	for _, descendant in node.Model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			if descendant.Material == Enum.Material.Neon then
-				descendant.Color = color
-			elseif descendant.Material == Enum.Material.Rock then
-				descendant.Color = rockColor
-			end
-		elseif descendant:IsA("ParticleEmitter") then
-			descendant.Color = ColorSequence.new(color)
-		end
-	end
-end
-
-function GeodeNode.Reset(node: Node)
-	for target, look in restore[node.Hitbox] do
-		target.Size = look.Size
-		target.Transparency = look.Transparency
-	end
-	recolor(node, PALETTE[rng:NextInteger(1, #PALETTE)])
-	node.Light.Brightness = 1.6
-	local click = node.Hitbox:FindFirstChildOfClass("ClickDetector")
-	if click then
-		click.MaxActivationDistance = 32
-	end
-end
-
 return GeodeNode
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">Leaderboards</string>
           <string name="Source"><![CDATA[--!strict
@@ -2276,7 +2391,7 @@ return Leaderboards
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -3105,16 +3220,25 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">MiningService</string>
           <string name="Source"><![CDATA[--!strict
--- Tap-to-mine loop. Deposit nodes are shared per server; each tap applies the
--- player's pickaxe damage. Depleted node -> geode into the tapper's backpack.
+-- Tap-to-mine loop. Deposit nodes are shared per server, but a geode you crack
+-- open belongs to you: it disappears and regrows on YOUR timer while the player
+-- beside you keeps mining the same rock.
+--
+-- That is not a cosmetic choice. A single global respawn timer caps the whole
+-- server at (#nodes / NodeRespawnTime) breaks per second — 4.8/s with twelve
+-- nodes — which fifteen tappers already exceed, and which a single Auto Miner
+-- would eat outright. Per-player availability removes the ceiling entirely.
+--
+-- Because availability is per player, so are the break visuals: the server no
+-- longer touches geode geometry at all. WorldFx runs the pop, the shockwave and
+-- the local respawn on the miner's own client.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
@@ -3127,107 +3251,84 @@ local ctx: any = nil
 -- Mining progress is per-player: deposit toughness scales with each miner's
 -- own layer, so upgrades matter for everyone regardless of who shares the wall.
 local progress: { [BasePart]: { [Player]: number } } = {}
+-- os.clock() deadlines: until this passes, THIS player cannot mine THIS node.
+local depletedUntil: { [BasePart]: { [Player]: number } } = {}
 local lastTap: { [Player]: number } = {}
-local rng = Random.new()
+local nodeList: { BasePart } = {}
 
 local function requiredHealth(layer: number): number
 	return Balance.NodeBaseHealth * Balance.NodeHealthLayerGrowth ^ (math.max(layer, 1) - 1)
 end
 
-local function playSound(parent: Instance, id: string, pitch: number, volume: number)
-	local sound = Instance.new("Sound")
-	sound.SoundId = id
-	sound.PlaybackSpeed = pitch
-	sound.Volume = volume
-	sound.Parent = parent
-	sound:Play()
-	task.delay(2, function()
-		if sound.Parent then
-			sound:Destroy()
-		end
-	end)
+-- True when `player` may mine `node` right now — i.e. it is a real node and
+-- they are not still waiting out their own respawn on it.
+function MiningService.IsAvailable(node: BasePart, player: Player): boolean
+	if not progress[node] then
+		return false
+	end
+	local depleted = depletedUntil[node]
+	return not depleted or (depleted[player] or 0) <= os.clock()
 end
 
--- The geode-break moment everyone in the server sees: shockwave, shard burst,
--- pop, floating "+1".
-local function popEffects(node: BasePart, info: GeodeNode.Node)
-	playSound(node, "rbxasset://sounds/snap.mp3", 1 + rng:NextNumber(-0.1, 0.2), 0.7)
-	GeodeNode.Break(info)
+MiningService.Nodes = nodeList
 
-	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromScale(7, 1.9)
-	billboard.StudsOffset = Vector3.new(0, 4, 0)
-	billboard.AlwaysOnTop = true
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.Text = "+1 GEODE!"
-	label.TextColor3 = info.Color
-	label.TextScaled = true
-	label.TextStrokeTransparency = 0.2
-	label.Parent = billboard
-	billboard.Parent = node
-	TweenService:Create(billboard, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		StudsOffset = Vector3.new(0, 9, 0),
-	}):Play()
-	TweenService:Create(label, TweenInfo.new(0.9), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-	task.delay(1, function()
-		billboard:Destroy()
-	end)
+local function depleteFor(node: BasePart, player: Player)
+	local map = depletedUntil[node]
+	if not map then
+		map = {}
+		depletedUntil[node] = map
+	end
+	map[player] = os.clock() + Balance.NodeRespawnTime
+	local nodeProgress = progress[node]
+	if nodeProgress then
+		nodeProgress[player] = nil
+	end
 end
 
-local function respawnNode(node: BasePart, info: GeodeNode.Node)
-	progress[node] = nil
-	task.delay(Balance.NodeRespawnTime, function()
-		progress[node] = {}
-		GeodeNode.Reset(info)
-		-- Tell every client to drop its local crack progress on this geode, so a
-		-- half-mined deposit never respawns looking chewed.
-		Remotes.Event("MineFx"):FireAllClients({ Node = node, Reset = true })
-	end)
-end
-
-local function onNodeTapped(node: BasePart, player: Player)
+local function onNodeTapped(node: BasePart, player: Player): boolean
 	local data = ctx.Data.Get(player)
 	if not data then
-		return
+		return false
 	end
 	local now = os.clock()
 	if now - (lastTap[player] or 0) < Balance.MineCooldown then
-		return
+		return false
 	end
 	lastTap[player] = now
 
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root or (root.Position - node.Position).Magnitude > 32 then
-		return
+	if not root or (root.Position - node.Position).Magnitude > Balance.MineRange then
+		return false
 	end
 
 	ctx.PickaxeVis.Swing(player)
 
 	if data.Geodes >= ctx.Data.BackpackCapacity(data) then
 		Remotes.Event("Notify"):FireClient(player, { Text = "Backpack full! Crack your geodes.", Color = Color3.fromRGB(255, 120, 120) })
-		return
+		return false
 	end
 
 	local nodeProgress = progress[node]
 	if not nodeProgress then
-		return -- respawning
+		return false
+	end
+	local depleted = depletedUntil[node]
+	if depleted and (depleted[player] or 0) > now then
+		return false -- this player already cracked it; theirs is still regrowing
 	end
 	local info = GeodeNode.Info[node]
 	if not info then
-		return
+		return false
 	end
-	local pickaxe = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
+	local pickaxe = Balance.Pickaxe(data.Pickaxe)
 	local required = requiredHealth(ctx.Data.Layer(data))
 	local done = (nodeProgress[player] or 0) + pickaxe.Damage
 	nodeProgress[player] = done
 	local broke = done >= required
 
-	-- Crack feedback is per-player, so it runs on the miner's client: their
-	-- cracks widen, their screen shakes, their damage numbers fly.
+	-- Every bit of mining feedback is per-player, so it all runs on the miner's
+	-- client: their cracks widen, their screen shakes, their geode pops.
 	Remotes.Event("MineFx"):FireClient(player, {
 		Node = node,
 		Fraction = math.clamp(done / required, 0, 1),
@@ -3237,7 +3338,6 @@ local function onNodeTapped(node: BasePart, player: Player)
 	})
 
 	if broke then
-		popEffects(node, info)
 		data.Geodes += 1
 		data.Stats.GeodesMined += 1
 		ctx.Data.MarkDirty(player)
@@ -3245,8 +3345,19 @@ local function onNodeTapped(node: BasePart, player: Player)
 		if ctx.Monetization.OwnsPass(player, "AutoCrack") and data.Settings.AutoCrack ~= false then
 			ctx.Crack.AutoCrack(player)
 		end
-		respawnNode(node, info)
+		depleteFor(node, player)
 	end
+	return true
+end
+
+-- The one and only mining entry point. AutoMineService drives swings through
+-- here so an automated tap runs every validation, reward, analytics step and
+-- effect that a human tap does — there is no second code path to drift.
+function MiningService.TryMine(player: Player, node: BasePart): boolean
+	if not ctx or not progress[node] then
+		return false
+	end
+	return onNodeTapped(node, player)
 end
 
 function MiningService.Init(serviceCtx: any, nodes: { BasePart })
@@ -3255,6 +3366,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 	for _, node in nodes do
 		progress[node] = {}
 		nodeSet[node] = true
+		table.insert(nodeList, node)
 		local click = node:FindFirstChildOfClass("ClickDetector")
 		if click then
 			click.MouseClick:Connect(function(player)
@@ -3275,6 +3387,9 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 		for _, nodeProgress in progress do
 			nodeProgress[player] = nil
 		end
+		for _, depleted in depletedUntil do
+			depleted[player] = nil
+		end
 	end)
 end
 
@@ -3282,7 +3397,7 @@ return MiningService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">MonetizationService</string>
           <string name="Source"><![CDATA[--!strict
@@ -3465,11 +3580,11 @@ return MonetizationService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="23">
+      <Item class="Folder" referent="24">
         <Properties>
           <string name="Name">Packages</string>
         </Properties>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">ProfileStore</string>
             <string name="Source">--[[
@@ -5718,7 +5833,7 @@ return ProfileStore</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">PickaxeVisual</string>
           <string name="Source"><![CDATA[--!strict
@@ -5829,7 +5944,7 @@ function PickaxeVisual.Refresh(player: Player)
 		return
 	end
 	clearOldTools(player)
-	local tier = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
+	local tier = Balance.Pickaxe(data.Pickaxe)
 	local tool = buildTool(tier)
 	tool.Parent = player:FindFirstChild("Backpack") or player
 	humanoid:EquipTool(tool)
@@ -5888,7 +6003,7 @@ return PickaxeVisual
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">PolicyGuard</string>
           <string name="Source"><![CDATA[--!strict
@@ -5940,7 +6055,7 @@ return PolicyGuard
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">RackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6115,7 +6230,7 @@ return RackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6164,7 +6279,7 @@ function RebirthService.Perform(player: Player, free: boolean): (boolean, string
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 5, "FirstRebirth")
 	local layer = ctx.Data.Layer(data)
-	local layerName = Balance.LayerNames[layer]
+	local layerName = Balance.LayerName(layer)
 	local bonus = math.floor(Balance.RebirthCoinBonus * data.Rebirths * 100 + 0.5)
 
 	-- The prestige ritual. Giving up everything you built deserves more than a
@@ -6197,7 +6312,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6437,7 +6552,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">Spotlight</string>
           <string name="Source"><![CDATA[--!strict
@@ -6502,7 +6617,7 @@ return Spotlight
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6597,7 +6712,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[--!strict
@@ -6618,11 +6733,11 @@ function UpgradeService.Buy(player: Player, kind: string): (boolean, string?)
 	if not data then
 		return false, "Loading..."
 	end
+	-- There is no top tier any more: Balance.Pickaxe and Balance.Backpack always
+	-- return one, generating past the hand-authored list. The old "Best pickaxe
+	-- already!" dead end is gone, which is the whole point.
 	if kind == "Pickaxe" then
-		local nextTier = Balance.Pickaxes[data.Pickaxe + 1]
-		if not nextTier then
-			return false, "Best pickaxe already!"
-		end
+		local nextTier = Balance.Pickaxe(data.Pickaxe + 1)
 		if data.Coins < nextTier.Cost then
 			return false, "Not enough coins."
 		end
@@ -6631,10 +6746,7 @@ function UpgradeService.Buy(player: Player, kind: string): (boolean, string?)
 		ctx.PickaxeVis.Refresh(player)
 		Remotes.Event("Notify"):FireClient(player, { Text = nextTier.Name .. " equipped!", Color = Color3.fromRGB(120, 255, 200) })
 	elseif kind == "Backpack" then
-		local nextTier = Balance.Backpacks[data.Backpack + 1]
-		if not nextTier then
-			return false, "Biggest backpack already!"
-		end
+		local nextTier = Balance.Backpack(data.Backpack + 1)
 		if data.Coins < nextTier.Cost then
 			return false, "Not enough coins."
 		end
@@ -6676,16 +6788,16 @@ return UpgradeService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="33">
+  <Item class="StarterPlayer" referent="34">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterWalkSpeed">20</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="34">
+    <Item class="StarterPlayerScripts" referent="35">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="35">
+      <Item class="LocalScript" referent="36">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -6769,7 +6881,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt)
 end)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">FlexAura</string>
             <string name="Source"><![CDATA[--!strict
@@ -6910,7 +7022,7 @@ return FlexAura
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">GemView</string>
             <string name="Source"><![CDATA[--!strict
@@ -7006,7 +7118,7 @@ return GemView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -7034,6 +7146,7 @@ local eventBanner: TextLabel? = nil
 local starterButton: TextButton? = nil
 local starterOffer: Frame? = nil
 local indexBadge: TextLabel? = nil
+local autoSwingBadge: TextLabel? = nil
 
 -- Coins roll up to their new value instead of snapping, and the pill punches
 -- when they land. A number that visibly climbs is worth more than the same
@@ -7207,6 +7320,29 @@ function Hud.Init(gui: ScreenGui)
 		end)
 	end
 
+	-- Auto Swing badge, for owners only. A label, not a button: the pass has no
+	-- setting to change — you hold to mine or you don't — so a toggle here would
+	-- be a control that does nothing. It exists purely so the pass is visibly
+	-- doing something, which a pure input change otherwise isn't.
+	--
+	-- Its own band at y = H-192: clear of the starter pack (H-140..H-94) and the
+	-- button row (H-70..H-14), so it cannot swallow their taps on a phone the way
+	-- an earlier overlapping offer button did.
+	local autoSwing = UiKit.Create("TextLabel", {
+		Text = "⛏ Auto Swing — hold to mine",
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(28, 24, 20),
+		BackgroundColor3 = UiKit.Colors.Good,
+		Size = UDim2.fromOffset(230, 34),
+		Position = UDim2.new(0, 12, 1, -192),
+		Visible = false,
+		Parent = gui,
+	}) :: TextLabel
+	UiKit.Corner(10).Parent = autoSwing
+	UiKit.Pad(6).Parent = autoSwing
+	autoSwingBadge = autoSwing
+
 	-- Starter pack offer (hidden once owned / unconfigured)
 	local starter = UiKit.Create("TextButton", {
 		Text = "Starter Pack  R$" .. Monetization.Products.StarterPack.Price,
@@ -7318,6 +7454,10 @@ function Hud.Init(gui: ScreenGui)
 			local remaining = state.TotalIndex - state.CollectionCount
 			badge.BackgroundColor3 = if remaining <= 5 then UiKit.Colors.Accent else UiKit.Colors.Good
 		end
+		local swingBadge = autoSwingBadge
+		if swingBadge then
+			swingBadge.Visible = (state.Passes and state.Passes.AutoMine) == true
+		end
 		local packAvailable = not state.StarterPackOwned and Monetization.Products.StarterPack.Id ~= 0
 		if starterButton then
 			starterButton.Visible = packAvailable
@@ -7376,29 +7516,43 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">MiningInput</string>
             <string name="Source"><![CDATA[--!strict
 -- Tap-to-mine input: the equipped pickaxe Tool swallows clicks before
 -- ClickDetectors fire, so we raycast the tap ourselves and report the node.
+--
+-- With the Auto Swing pass, holding the button down keeps swinging instead of
+-- needing one tap per hit. That is deliberately a HOLD and not an auto-clicker:
+-- you still aim, you still choose the rock, you still have to be there. It
+-- removes the finger damage, not the game — and because the server's mine
+-- cooldown is what actually paces the swings, holding can never out-earn a very
+-- fast tapper. It just means you don't have to be one.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
+local State = require(script.Parent.State)
 
 local MiningInput = {}
 
 local MAX_TAP_RANGE = 140
 
-local function tryMine(position: Vector2)
+-- Where the finger/cursor currently is while held, or nil when nothing is held.
+local holding: Vector2? = nil
+local sinceSwing = 0
+
+local function nodeAt(position: Vector2): BasePart?
 	local camera = Workspace.CurrentCamera
 	if not camera then
-		return
+		return nil
 	end
 	local ray = camera:ViewportPointToRay(position.X, position.Y)
 	local params = RaycastParams.new()
@@ -7407,8 +7561,21 @@ local function tryMine(position: Vector2)
 	params.FilterDescendantsInstances = character and { character } or {}
 	local hit = Workspace:Raycast(ray.Origin, ray.Direction * MAX_TAP_RANGE, params)
 	if hit and hit.Instance:GetAttribute("NodeIndex") ~= nil then
-		Remotes.Event("MineNode"):FireServer(hit.Instance)
+		return hit.Instance
 	end
+	return nil
+end
+
+local function swingAt(position: Vector2)
+	local node = nodeAt(position)
+	if node then
+		Remotes.Event("MineNode"):FireServer(node)
+	end
+end
+
+local function ownsAutoSwing(): boolean
+	local state = State.Get()
+	return state ~= nil and state.Passes ~= nil and state.Passes.AutoMine == true
 end
 
 function MiningInput.Init()
@@ -7417,8 +7584,49 @@ function MiningInput.Init()
 			return
 		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			tryMine(Vector2.new(input.Position.X, input.Position.Y))
+			local position = Vector2.new(input.Position.X, input.Position.Y)
+			swingAt(position)
+			holding = position
+			sinceSwing = 0
 		end
+	end)
+
+	-- Track the pointer while held so dragging across the wall keeps mining
+	-- whatever you are actually pointing at, rather than the rock you first hit.
+	UserInputService.InputChanged:Connect(function(input)
+		if holding == nil then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			holding = Vector2.new(input.Position.X, input.Position.Y)
+		end
+	end)
+
+	local function release(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			holding = nil
+		end
+	end
+	UserInputService.InputEnded:Connect(release)
+	-- Losing focus (alt-tab, a Roblox prompt) must stop the swing, or the
+	-- pickaxe keeps going at a window nobody is looking at.
+	UserInputService.WindowFocusReleased:Connect(function()
+		holding = nil
+	end)
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		local position = holding
+		if position == nil or not ownsAutoSwing() then
+			return
+		end
+		sinceSwing += dt
+		-- The server enforces MineCooldown regardless; firing a little faster
+		-- here just means jitter never costs you a swing.
+		if sinceSwing < Balance.MineCooldown * 0.5 then
+			return
+		end
+		sinceSwing = 0
+		swingAt(position)
 	end)
 end
 
@@ -7426,7 +7634,7 @@ return MiningInput
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">ObjectiveBanner</string>
             <string name="Source"><![CDATA[--!strict
@@ -7520,7 +7728,7 @@ return ObjectiveBanner
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -7559,7 +7767,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">RebirthFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -7748,7 +7956,7 @@ return RebirthFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -8163,7 +8371,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -8220,11 +8428,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="45">
+        <Item class="Folder" referent="46">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="46">
+          <Item class="ModuleScript" referent="47">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -8842,7 +9050,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="47">
+          <Item class="ModuleScript" referent="48">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -8965,7 +9173,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="48">
+          <Item class="ModuleScript" referent="49">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9257,7 +9465,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="49">
+          <Item class="ModuleScript" referent="50">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9291,7 +9499,7 @@ local function render()
 	infoLabel.Text = table.concat({
 		("Layer: %s   •   Rebirths: %d"):format(state.LayerName, state.Rebirths),
 		("Coin bonus: +%d%%  ->  +%d%%"):format(currentBonus, nextBonus),
-		"Next layer: " .. Balance.LayerNames[nextLayer],
+		"Next layer: " .. Balance.LayerName(nextLayer),
 		"",
 		"Resets: coins, pickaxe, backpack, rack slots.",
 		"Keeps: crystals, collection, gamepasses, streak.",
@@ -9356,7 +9564,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="50">
+          <Item class="ModuleScript" referent="51">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9617,7 +9825,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="52">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -9637,7 +9845,7 @@ local StoreScreen = {}
 
 local list: ScrollingFrame? = nil
 
-local PASS_ORDER = { "AutoCrack", "Coins2x", "Luck2x", "TripleCrack", "OvernightMiner", "Vip" }
+local PASS_ORDER = { "AutoMine", "AutoCrack", "Coins2x", "Luck2x", "TripleCrack", "OvernightMiner", "Vip" }
 local PRODUCT_ORDER = { "StarterPack", "Coins1k", "Coins5k", "Coins12k", "TimeWarp", "InstantRestock", "InstantRebirth" }
 
 local function addCard(order: number, title: string, desc: string, price: number, owned: boolean, onBuy: () -> ()): number
@@ -9799,7 +10007,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -9846,7 +10054,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -10198,7 +10406,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -10358,7 +10566,7 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">WorldFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -10376,6 +10584,7 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
 
 local WorldFx = {}
@@ -10452,6 +10661,42 @@ end
 
 local CHIP_COLOR = Color3.fromRGB(120, 108, 140)
 
+-- Geodes reroll their colour when they come back. It costs nothing, and it means
+-- the wall you have been staring at for twenty minutes keeps producing something
+-- you have not seen in that exact spot before — which matters a great deal more
+-- now that Auto Miner lets people stare at it for an hour.
+local PALETTE = {
+	Color3.fromRGB(170, 110, 240),
+	Color3.fromRGB(60, 220, 130),
+	Color3.fromRGB(60, 120, 255),
+	Color3.fromRGB(255, 200, 60),
+	Color3.fromRGB(150, 255, 245),
+	Color3.fromRGB(255, 60, 80),
+}
+
+-- Every geode's look as the server built it, captured on this client the first
+-- time we are about to change anything about it. Snapshotting beats hard-coding
+-- the numbers: there is no constant here to drift out of sync with GeodeNode,
+-- and a geode can always be put back exactly as it started.
+local pristine: { [Model]: { [BasePart]: { Transparency: number, Size: Vector3 } } } = {}
+-- This client's own colour for each geode, once it has respawned at least once.
+local localColor: { [Model]: Color3 } = {}
+
+local function snapshot(model: Model): { [BasePart]: { Transparency: number, Size: Vector3 } }
+	local existing = pristine[model]
+	if existing then
+		return existing
+	end
+	local snap: { [BasePart]: { Transparency: number, Size: Vector3 } } = {}
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant.Name ~= "Hitbox" then
+			snap[descendant] = { Transparency = descendant.Transparency, Size = descendant.Size }
+		end
+	end
+	pristine[model] = snap
+	return snap
+end
+
 local function geodeParts(node: BasePart): (Model?, BasePart?, { BasePart })
 	local model = node.Parent
 	if not model or not model:IsA("Model") then
@@ -10468,48 +10713,174 @@ local function geodeParts(node: BasePart): (Model?, BasePart?, { BasePart })
 end
 
 -- Absolute, not incremental: every update paints the geode from the fraction
--- the server sent, so a dropped packet can't leave it stuck half-cracked.
+-- the server sent, so a dropped packet can't leave it stuck half-cracked. Every
+-- size and transparency it interpolates comes out of the snapshot, so this can
+-- never disagree with how GeodeNode actually built the thing.
 local function paintDamage(node: BasePart, fraction: number)
 	local model, core, veins = geodeParts(node)
 	if not model then
 		return
 	end
+	local snap = snapshot(model)
 	for i, vein in veins do
-		local grow = 1 + fraction * 1.9
-		vein.Size = Vector3.new(0.3 * grow, vein.Size.Y, 0.4 * grow)
-		vein.Transparency = math.max(0.72 - fraction * 0.72, 0)
+		local look = snap[vein]
+		if look then
+			local grow = 1 + fraction * 1.9
+			vein.Size = Vector3.new(look.Size.X * grow, look.Size.Y, look.Size.Z * grow)
+			vein.Transparency = math.max(look.Transparency * (1 - fraction), 0)
+		end
 		-- Cracks light up in sequence as the geode gives way
 		if fraction > (i - 1) / #veins then
 			vein.Material = Enum.Material.Neon
 		end
 	end
 	if core then
-		core.Transparency = math.max(0.28 - fraction * 0.26, 0.02)
-		core.Size = Vector3.new(4, 4, 4) * (1 + fraction * 0.25)
+		local look = snap[core]
+		if look then
+			core.Transparency = math.max(look.Transparency - fraction * 0.26, 0.02)
+			core.Size = look.Size * (1 + fraction * 0.25)
+		end
 	end
 	local rock = model:FindFirstChild("Rock")
-	if rock and rock:IsA("BasePart") then
+	if rock and rock:IsA("BasePart") and snap[rock] then
 		-- Squash-and-stretch punch on the rock itself
-		rock.Size = Vector3.new(7.4, 7.4, 7.4) * 0.93
+		local full = snap[rock].Size
+		rock.Size = full * 0.93
 		TweenService:Create(rock, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Size = Vector3.new(7.4, 7.4, 7.4),
+			Size = full,
 		}):Play()
 	end
 end
 
-local function resetDamage(node: BasePart)
-	local model, core, veins = geodeParts(node)
-	if not model then
+-- Put a geode back exactly as it was built, and give it a fresh colour.
+local function restoreGeode(node: BasePart, color: Color3?)
+	local model = node.Parent
+	if not model or not model:IsA("Model") then
 		return
 	end
-	for _, vein in veins do
-		vein.Size = Vector3.new(0.3, vein.Size.Y, 0.4)
-		vein.Transparency = 0.72
+	local snap = pristine[model]
+	if not snap then
+		return -- never touched on this client; nothing to undo
 	end
-	if core then
-		core.Transparency = 0.28
-		core.Size = Vector3.new(4, 4, 4)
+	for target, look in snap do
+		target.Size = look.Size
+		target.Transparency = look.Transparency
 	end
+	if color then
+		localColor[model] = color
+		local rockColor = color:Lerp(Color3.fromRGB(52, 46, 66), 0.86)
+		for _, descendant in model:GetDescendants() do
+			if descendant:IsA("BasePart") then
+				if descendant.Material == Enum.Material.Neon then
+					descendant.Color = color
+				elseif descendant.Material == Enum.Material.Rock then
+					descendant.Color = rockColor
+				end
+			elseif descendant:IsA("ParticleEmitter") then
+				descendant.Color = ColorSequence.new(color)
+			elseif descendant:IsA("PointLight") then
+				descendant.Color = color
+				descendant.Brightness = 1.6
+			end
+		end
+	else
+		for _, descendant in model:GetDescendants() do
+			if descendant:IsA("PointLight") then
+				descendant.Brightness = 1.6
+			end
+		end
+	end
+end
+
+-- The payoff frame, run locally: shockwave, shard burst, the rock collapsing —
+-- then, on this player's own timer, the geode grows back in a new colour. Only
+-- the miner sees any of it, which is exactly the point: the player next to them
+-- is still working on the same rock and should never watch it vanish.
+local function breakGeode(node: BasePart, color: Color3)
+	local model = node.Parent
+	if not model or not model:IsA("Model") then
+		return
+	end
+	local snap = snapshot(model)
+	local core = model:FindFirstChild("Core")
+
+	local shock = Instance.new("Part")
+	shock.Name = "Shockwave"
+	shock.Anchored = true
+	shock.CanCollide = false
+	shock.CanQuery = false
+	shock.CanTouch = false
+	shock.Shape = Enum.PartType.Cylinder
+	shock.Material = Enum.Material.Neon
+	shock.Color = color
+	shock.Transparency = 0.25
+	shock.Size = Vector3.new(0.4, 3, 3)
+	shock.CFrame = CFrame.new(node.Position + Vector3.new(0, 0, 2.4)) * CFrame.Angles(0, math.rad(90), 0)
+	shock.Parent = model
+	TweenService:Create(shock, TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.4, 30, 30),
+		Transparency = 1,
+	}):Play()
+	task.delay(0.7, function()
+		shock:Destroy()
+	end)
+
+	local burst = Instance.new("ParticleEmitter")
+	burst.Color = ColorSequence.new(color)
+	burst.LightEmission = 0.8
+	burst.Lifetime = NumberRange.new(0.4, 0.9)
+	burst.Speed = NumberRange.new(14, 30)
+	burst.SpreadAngle = Vector2.new(180, 180)
+	burst.Size = NumberSequence.new(0.9, 0)
+	burst.Rate = 0
+	burst.Parent = (core :: BasePart?) or node
+	burst:Emit(34)
+	task.delay(1.4, function()
+		burst:Destroy()
+	end)
+
+	for target, look in snap do
+		TweenService:Create(target, TweenInfo.new(0.22), {
+			Transparency = 1,
+			Size = look.Size * 0.55,
+		}):Play()
+	end
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("PointLight") then
+			descendant.Brightness = 0
+		end
+	end
+
+	task.delay(Balance.NodeRespawnTime, function()
+		if node.Parent then
+			restoreGeode(node, PALETTE[rng:NextInteger(1, #PALETTE)])
+		end
+	end)
+end
+
+-- The "+1 GEODE!" moment. Local, like everything else about a break.
+local function popLabel(node: BasePart, color: Color3)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(7, 1.9)
+	billboard.StudsOffset = Vector3.new(0, 4, 0)
+	billboard.AlwaysOnTop = true
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.Text = "+1 GEODE!"
+	label.TextColor3 = color
+	label.TextScaled = true
+	label.TextStrokeTransparency = 0.2
+	label.Parent = billboard
+	billboard.Parent = node
+	TweenService:Create(billboard, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		StudsOffset = Vector3.new(0, 9, 0),
+	}):Play()
+	TweenService:Create(label, TweenInfo.new(0.9), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	task.delay(1, function()
+		billboard:Destroy()
+	end)
 end
 
 local function chips(node: BasePart, color: Color3)
@@ -10577,16 +10948,18 @@ local function onMineFx(payload: any)
 	if typeof(node) ~= "Instance" or not node:IsA("BasePart") then
 		return
 	end
-	if payload.Reset then
-		resetDamage(node)
-		return
-	end
-	local color = typeof(payload.Color) == "Color3" and payload.Color or Color3.fromRGB(255, 210, 90)
+	-- The server only knows the colour it built the geode in. Once this client
+	-- has respawned it at least once, ours is the truthful one.
+	local model = node.Parent
+	local mine = model and model:IsA("Model") and localColor[model] or nil
+	local color = mine
+		or (typeof(payload.Color) == "Color3" and payload.Color)
+		or Color3.fromRGB(255, 210, 90)
 	local fraction = tonumber(payload.Fraction) or 0
 	if not payload.Broke then
-		-- On the final hit the server's Break animation owns every part of this
-		-- geode; painting damage over it would snap the rock small and spring it
-		-- back up while the same parts are tweening to invisible.
+		-- On the final hit the break animation owns every part of this geode;
+		-- painting damage over it would snap the rock small and spring it back up
+		-- while the same parts are tweening to invisible.
 		paintDamage(node, fraction)
 	end
 	chips(node, color)
@@ -10594,6 +10967,9 @@ local function onMineFx(payload: any)
 		damageNumber(node, payload.Damage, color)
 	end
 	if payload.Broke then
+		playLocal(node, "rbxasset://sounds/snap.mp3", 1 + rng:NextNumber(-0.1, 0.2), 0.7)
+		breakGeode(node, color)
+		popLabel(node, color)
 		WorldFx.Shake(1.5)
 	else
 		-- Pitch climbs with progress: you can hear the geode about to go

@@ -64,8 +64,17 @@ Gamepasses (Monetization → Passes):
 | 2x Coins | 250 |
 | 2x Luck | 350 |
 | Triple Crack | 450 |
+| Auto Swing | 450 |
 | Overnight Miner | 500 |
 | VIP Geode Baron | 1,000 |
+
+**Auto Swing** removes the tapping: hold the button down and the pickaxe keeps swinging at
+whatever you're pointing at. It is deliberately a *hold*, not an auto-clicker — you still aim,
+you still pick the rock, you still have to be there — and because the server's mine cooldown
+paces the swings either way, it can never out-earn a very fast tapper. It just means nobody
+has to be one. It ships with `Id = 0`, which hides it from the store until you paste a real ID
+in; everything else already works, so test it first by adding your own UserId to
+`Monetization.CompUserIds`.
 
 Developer Products (Monetization → Developer Products):
 

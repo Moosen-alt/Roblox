@@ -24,11 +24,12 @@ Monetization.GroupId = 346261815
 Monetization.CompUserIds = {
 	-- [123456789] = true, -- everything, free
 	-- [123456789] = { TripleCrack = true, Vip = true }, -- just these
-	[4430949466] = { TripleCrack = true },
+	[4430949466] = { TripleCrack = true, AutoMine = true },
 } :: { [number]: boolean | { [string]: boolean } }
 
 Monetization.Gamepasses = {
 	AutoCrack = { Id = 1936664483, Price = 100, Title = "Auto-Crack", Desc = "Geodes crack themselves as you mine." },
+	AutoMine = { Id = 0, Price = 450, Title = "Auto Swing", Desc = "Hold the button down and your pickaxe keeps swinging. No more tapping." },
 	Coins2x = { Id = 1934463944, Price = 250, Title = "2x Coins", Desc = "Permanently double every coin you earn." },
 	Luck2x = { Id = 1935363873, Price = 350, Title = "2x Luck", Desc = "Double your odds of rare crystals, forever." },
 	TripleCrack = { Id = 1935177874, Price = 450, Title = "Triple Crack", Desc = "Crack 3 geodes at once." },

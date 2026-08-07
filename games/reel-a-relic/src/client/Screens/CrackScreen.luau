@@ -122,7 +122,7 @@ local function renderOdds()
 			Parent = oddsList,
 		})
 	end
-	addRow(("Relic odds (Luck x%.2f)"):format(state.LuckMult), UiKit.Colors.Accent, true)
+	addRow(("Fish odds (Luck x%.2f)"):format(state.LuckMult), UiKit.Colors.Accent, true)
 	for _, entry in RarityMath.GetBaseOdds(state.Layer, state.LuckMult) do
 		addRow(entry.Name .. "  —  " .. Format.Percent(entry.Chance), entry.Color)
 	end
@@ -200,7 +200,7 @@ local function makeCard(
 		Parent = card,
 	})
 	UiKit.Label({
-		Text = "Value: " .. Format.Number(crystal.Value),
+		Text = ("Value: %s   •   %.1f lb"):format(Format.Number(crystal.Value), crystal.Weight or 0),
 		TextColor3 = UiKit.Colors.Accent,
 		Size = UDim2.new(1, -12, 0, 26),
 		Position = UDim2.fromOffset(6, 182),
@@ -209,11 +209,16 @@ local function makeCard(
 	})
 
 	-- Two brag lines, both earned rather than decorative: the true odds you beat,
-	-- and whether this is the best thing you have ever pulled.
+	-- and whether this is the best thing you have ever pulled. `crystal.Best` is
+	-- the server's own weight record, so a heaviest-ever bass gets the callout
+	-- even when a Mythic elsewhere in your collection is worth more coins.
 	local brag = oddsBrag(crystal)
-	local isBest = crystal.Value > previousBest and previousBest > 0
+	local isBest = crystal.Best == true or (crystal.Value > previousBest and previousBest > 0)
 	UiKit.Label({
-		Text = isBest and "★ NEW PERSONAL BEST ★" or (brag or ""),
+		Text = if crystal.Best == true
+			then ("★ HEAVIEST %s YET ★"):format(string.upper(crystal.Base))
+			elseif isBest then "★ NEW PERSONAL BEST ★"
+			else (brag or ""),
 		Font = Enum.Font.FredokaOne,
 		TextColor3 = isBest and Color3.fromRGB(255, 230, 120) or UiKit.Colors.TextDim,
 		Size = UDim2.new(1, -12, 0, 22),
@@ -586,7 +591,11 @@ function CrackScreen.Init(gui: ScreenGui)
 
 	State.Changed:Connect(function(state)
 		if geodeLabel then
-			geodeLabel.Text = ("Chests: %d / %d"):format(state.Geodes, state.BackpackCapacity)
+			geodeLabel.Text = ("Chests: %d   •   Hold %d / %d"):format(
+				state.Geodes,
+				state.Hold or state.Geodes,
+				state.BackpackCapacity
+			)
 		end
 		local ownsAuto = state.Passes and state.Passes.AutoCrack == true
 		autoToggle.Visible = ownsAuto == true

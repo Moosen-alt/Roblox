@@ -1,12 +1,11 @@
 --!strict
--- Builds the geodes embedded in the mine wall and owns their shared visual
--- state (intact -> broken -> respawned). Per-player damage feedback lives on
--- the client (WorldFx) because mining progress is per-player: your cracks
--- should widen for you without touching what anyone else sees.
+-- Builds the geodes embedded in the mine wall. That is all it does: mining is
+-- per-player from the first tap to the respawn, so every bit of geode state —
+-- widening cracks, the break, the regrow — lives on the client in WorldFx.
+-- Nothing here mutates a geode after it is built.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CrystalShape = require(Shared.CrystalShape)
@@ -25,10 +24,6 @@ export type Node = {
 	Origin: Vector3,
 }
 
--- Every visible part of a geode plus the look it should snap back to when it
--- respawns. Restoring from this table (rather than remembering deltas) means a
--- half-mined geode can never get stuck looking chewed.
-local restore: { [BasePart]: { [BasePart]: { Transparency: number, Size: Vector3 } } } = {}
 local info: { [BasePart]: Node } = {}
 
 GeodeNode.Info = info
@@ -191,15 +186,6 @@ function GeodeNode.Build(index: number, position: Vector3, color: Color3, parent
 		Origin = position,
 	}
 	info[hitbox] = node
-
-	local snapshot: { [BasePart]: { Transparency: number, Size: Vector3 } } = {}
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") and descendant ~= hitbox then
-			snapshot[descendant] = { Transparency = descendant.Transparency, Size = descendant.Size }
-		end
-	end
-	restore[hitbox] = snapshot
-
 	return node
 end
 
@@ -258,95 +244,6 @@ function GeodeNode.Buried(position: Vector3, color: Color3, scale: number, seed:
 	end
 
 	model.Parent = parent
-end
-
--- The payoff frame: shockwave, shard burst, the rock vanishing.
-function GeodeNode.Break(node: Node)
-	local shock = part({
-		Name = "Shockwave",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.4, 3, 3),
-		CFrame = CFrame.new(node.Origin + Vector3.new(0, 0, 3.4)) * CFrame.Angles(0, math.rad(90), 0),
-		Color = node.Color,
-		Material = Enum.Material.Neon,
-		Transparency = 0.25,
-		CanQuery = false,
-	}, node.Model)
-	TweenService:Create(shock, TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-		Size = Vector3.new(0.4, 30, 30),
-		Transparency = 1,
-	}):Play()
-	task.delay(0.7, function()
-		shock:Destroy()
-	end)
-
-	local burst = Instance.new("ParticleEmitter")
-	burst.Color = ColorSequence.new(node.Color)
-	burst.LightEmission = 0.8
-	burst.Lifetime = NumberRange.new(0.4, 0.9)
-	burst.Speed = NumberRange.new(14, 30)
-	burst.SpreadAngle = Vector2.new(180, 180)
-	burst.Size = NumberSequence.new(0.9, 0)
-	burst.Rate = 0
-	burst.Parent = node.Core
-	burst:Emit(34)
-	task.delay(1.4, function()
-		burst:Destroy()
-	end)
-
-	node.Light.Brightness = 0
-	for target in restore[node.Hitbox] do
-		TweenService:Create(target, TweenInfo.new(0.22), {
-			Transparency = 1,
-			Size = target.Size * 0.55,
-		}):Play()
-	end
-	local click = node.Hitbox:FindFirstChildOfClass("ClickDetector")
-	if click then
-		click.MaxActivationDistance = 0
-	end
-end
-
--- Respawning geodes reroll their colour. Costs nothing, and it means the wall
--- you have been staring at for twenty minutes keeps producing something you
--- have not seen in that exact spot before.
-local PALETTE = {
-	Color3.fromRGB(170, 110, 240),
-	Color3.fromRGB(60, 220, 130),
-	Color3.fromRGB(60, 120, 255),
-	Color3.fromRGB(255, 200, 60),
-	Color3.fromRGB(150, 255, 245),
-	Color3.fromRGB(255, 60, 80),
-}
-
-local function recolor(node: Node, color: Color3)
-	node.Color = color
-	node.Light.Color = color
-	local rockColor = color:Lerp(Color3.fromRGB(52, 46, 66), 0.86)
-	for _, descendant in node.Model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			if descendant.Material == Enum.Material.Neon then
-				descendant.Color = color
-			elseif descendant.Material == Enum.Material.Rock then
-				descendant.Color = rockColor
-			end
-		elseif descendant:IsA("ParticleEmitter") then
-			descendant.Color = ColorSequence.new(color)
-		end
-	end
-end
-
-function GeodeNode.Reset(node: Node)
-	for target, look in restore[node.Hitbox] do
-		target.Size = look.Size
-		target.Transparency = look.Transparency
-	end
-	recolor(node, PALETTE[rng:NextInteger(1, #PALETTE)])
-	node.Light.Brightness = 1.6
-	local click = node.Hitbox:FindFirstChildOfClass("ClickDetector")
-	if click then
-		click.MaxActivationDistance = 32
-	end
 end
 
 return GeodeNode

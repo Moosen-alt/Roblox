@@ -7,6 +7,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Remotes = require(Shared.Remotes)
 
 local AnalyticsService = require(script.AnalyticsService)
+local AutoMineService = require(script.AutoMineService)
 local CrackService = require(script.CrackService)
 local DataService = require(script.DataService)
 local EventService = require(script.EventService)
@@ -30,6 +31,7 @@ local map = MapBuilder.Build()
 local ctx: any = {
 	Data = DataService,
 	Crack = CrackService,
+	Mining = MiningService,
 	Racks = RackService,
 	Rebirth = RebirthService,
 	Shop = ShopService,
@@ -76,6 +78,7 @@ UpgradeService.Init(ctx)
 ShopService.Init(ctx)
 StreakService.Init(ctx)
 MiningService.Init(ctx, map.Nodes)
+AutoMineService.Init(ctx) -- after MiningService: it drives swings through it
 PickaxeVisual.Init(ctx)
 Leaderboards.Init(ctx, map.BoardRebirths, map.BoardRarest)
 DataService.Init(ctx)

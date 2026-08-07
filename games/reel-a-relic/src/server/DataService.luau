@@ -25,6 +25,14 @@ local TEMPLATE = {
 	Pickaxe = 1,
 	Backpack = 1,
 	Rebirths = 0,
+	-- Areas: bought once with coins, kept through every Set Sail. `AreaUnlocked`
+	-- is the furthest you own, `AreaCurrent` is where your line is in the water.
+	AreaUnlocked = 1,
+	AreaCurrent = 1,
+	-- Heaviest fish ever landed, keyed by species NAME ONLY — not species|aura.
+	-- Anglers track "biggest bass", not "biggest shiny bass", and a best that
+	-- splits six ways per species stops being a record anyone recognises.
+	BestWeight = {} :: { [string]: number },
 	Collection = {} :: { [string]: boolean },
 	CollectionCount = 0,
 	Streak = { Count = 0, LastDay = 0, Best = 0 },
@@ -67,8 +75,33 @@ function DataService.MarkDirty(player: Player)
 	dirty[player] = true
 end
 
+-- The one seam between "areas" and everything downstream. Value scaling, luck
+-- creep, species gating, shop costs and the UI all read a content tier through
+-- this function; changing what it returns moved the whole game from
+-- rebirth-gated depth to coin-bought areas without touching a single call site.
+--
+-- The internal name stays `Layer` on purpose. This codebase already keeps
+-- engine-side names through a re-theme — `Crystals` holds fish, `CrackService`
+-- opens chests — and renaming ~50 call sites across a dozen files to say `Area`
+-- would be a large diff that changes no behaviour and hides the ones that do.
 function DataService.Layer(data: Profile): number
-	return math.min(data.Rebirths + 1, Balance.MaxLayer)
+	return math.clamp(data.AreaCurrent, 1, Balance.MaxLayer)
+end
+
+-- What is on your boat: fish you have not sold plus chests you have not opened.
+-- One number with one meaning, gated by one upgrade, and the reason to sail home.
+function DataService.HoldCount(data: Profile): number
+	local socketed: { [string]: boolean } = {}
+	for _, rack in data.Racks do
+		socketed[rack.CrystalId] = true
+	end
+	local held = data.Geodes
+	for id in data.Crystals do
+		if not socketed[id] then
+			held += 1
+		end
+	end
+	return held
 end
 
 function DataService.CoinMult(player: Player, data: Profile): number
@@ -110,7 +143,7 @@ function DataService.CrystalValue(data: Profile, crystal: { Base: string, Mut: s
 end
 
 function DataService.BackpackCapacity(data: Profile): number
-	local tier = Balance.Backpacks[math.clamp(data.Backpack, 1, #Balance.Backpacks)]
+	local tier = Balance.Backpack(data.Backpack)
 	return tier.Capacity
 end
 
@@ -148,14 +181,42 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 	for key in require(Shared.Config.Monetization).Gamepasses :: any do
 		passes[key] = ctx.Monetization.OwnsPass(player, key)
 	end
-	local pickaxe = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
-	local nextPickaxe = Balance.Pickaxes[data.Pickaxe + 1]
-	local backpack = Balance.Backpacks[math.clamp(data.Backpack, 1, #Balance.Backpacks)]
-	local nextBackpack = Balance.Backpacks[data.Backpack + 1]
+	local pickaxe = Balance.Pickaxe(data.Pickaxe)
+	local nextPickaxe = Balance.Pickaxe(data.Pickaxe + 1)
+	local backpack = Balance.Backpack(data.Backpack)
+	local nextBackpack = Balance.Backpack(data.Backpack + 1)
+	-- Species counts per area drive the "8 / 12 in Kelp Forest" line. An area you
+	-- can actually finish is a far better reason to keep casting than a single
+	-- global counter that only ever creeps.
+	local areas = {}
+	for index = 1, Balance.MaxLayer do
+		local species = Crystals.BasesInLayer(index)
+		local caught = 0
+		for _, def in species do
+			for _, mut in Crystals.MutationNames do
+				if data.Collection[Crystals.IndexKey(def.Name, mut)] then
+					caught += 1
+					break -- one tick per species; auras are the Index's job
+				end
+			end
+		end
+		areas[index] = {
+			Name = Balance.LayerNames[index],
+			Cost = Balance.AreaCosts[index] or 0,
+			Unlocked = index <= data.AreaUnlocked,
+			Species = #species,
+			Caught = caught,
+		}
+	end
 	return {
 		Coins = data.Coins,
 		Geodes = data.Geodes,
+		Hold = DataService.HoldCount(data),
 		BackpackCapacity = backpack.Capacity,
+		Areas = areas,
+		AreaUnlocked = data.AreaUnlocked,
+		AreaCurrent = data.AreaCurrent,
+		BestWeight = data.BestWeight,
 		Pickaxe = { Level = data.Pickaxe, Name = pickaxe.Name, Damage = pickaxe.Damage },
 		NextPickaxe = nextPickaxe and { Name = nextPickaxe.Name, Damage = nextPickaxe.Damage, Cost = nextPickaxe.Cost } or nil,
 		Backpack = { Level = data.Backpack, Name = backpack.Name },

@@ -23,6 +23,7 @@ local eventBanner: TextLabel? = nil
 local starterButton: TextButton? = nil
 local starterOffer: Frame? = nil
 local indexBadge: TextLabel? = nil
+local autoCastBadge: TextLabel? = nil
 
 -- Coins roll up to their new value instead of snapping, and the pill punches
 -- when they land. A number that visibly climbs is worth more than the same
@@ -136,10 +137,12 @@ function Hud.Init(gui: ScreenGui)
 		end
 	end)
 
-	-- Bottom button row
+	-- Bottom button row. Seven buttons at 92 + six 8px gaps = 692, so the row is
+	-- 700 wide: the layout centres its children and would silently overflow a
+	-- frame sized for the old six.
 	local row = UiKit.Create("Frame", {
-		Size = UDim2.fromOffset(660, 56),
-		Position = UDim2.new(0.5, -330, 1, -70),
+		Size = UDim2.fromOffset(700, 56),
+		Position = UDim2.new(0.5, -350, 1, -70),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	})
@@ -153,6 +156,7 @@ function Hud.Init(gui: ScreenGui)
 		{ Label = "Aquarium", Screen = "Racks", Color = Color3.fromRGB(120, 255, 200) },
 		{ Label = "Shop", Screen = "Shop", Color = Color3.fromRGB(120, 170, 255) },
 		{ Label = "Index", Screen = "Index", Color = Color3.fromRGB(190, 90, 255) },
+		{ Label = "Areas", Screen = "Dock", Color = Color3.fromRGB(120, 200, 255) },
 		{ Label = "Set Sail", Screen = "Rebirth", Color = Color3.fromRGB(255, 120, 255) },
 		{ Label = "Store", Screen = "Store", Color = UiKit.Colors.Accent },
 	}
@@ -163,7 +167,7 @@ function Hud.Init(gui: ScreenGui)
 			TextScaled = true,
 			TextColor3 = Color3.fromRGB(28, 24, 20),
 			BackgroundColor3 = def.Color,
-			Size = UDim2.fromOffset(102, 52),
+			Size = UDim2.fromOffset(92, 52),
 			LayoutOrder = i,
 			Parent = row,
 		})
@@ -195,6 +199,28 @@ function Hud.Init(gui: ScreenGui)
 			ScreenManager.Toggle(screenName)
 		end)
 	end
+
+	-- Auto-Cast badge, for owners only. A label, not a button: the pass has no
+	-- setting to change — you hold to fish or you don't — so a toggle would be a
+	-- control that does nothing. It exists so the pass is visibly doing
+	-- something, which a pure input change otherwise isn't.
+	--
+	-- Its own band at y = H-192, clear of the starter pack (H-140..H-94) and the
+	-- button row (H-70..H-14), so it cannot swallow their taps on a phone.
+	local autoCast = UiKit.Create("TextLabel", {
+		Text = "🎣 Auto-Cast — hold to fish",
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(28, 24, 20),
+		BackgroundColor3 = UiKit.Colors.Good,
+		Size = UDim2.fromOffset(220, 34),
+		Position = UDim2.new(0, 12, 1, -192),
+		Visible = false,
+		Parent = gui,
+	}) :: TextLabel
+	UiKit.Corner(10).Parent = autoCast
+	UiKit.Pad(6).Parent = autoCast
+	autoCastBadge = autoCast
 
 	-- Starter pack offer (hidden once owned / unconfigured)
 	local starter = UiKit.Create("TextButton", {
@@ -249,7 +275,7 @@ function Hud.Init(gui: ScreenGui)
 	UiKit.Corner(10).Parent = offerClose
 	local offerLines = {
 		{ Text = "💰  2,500 Coins", Color = UiKit.Colors.Accent },
-		{ Text = "👑  A guaranteed SUNKEN CROWN relic", Color = Color3.fromRGB(60, 220, 130) },
+		{ Text = "🐟  A guaranteed RAINBOW TROUT", Color = Color3.fromRGB(60, 220, 130) },
 		{ Text = "⚡  24 hours of 2x Coins", Color = Color3.fromRGB(120, 200, 255) },
 		{ Text = "One-time offer — best value in the game!", Color = UiKit.Colors.TextDim },
 	}
@@ -294,7 +320,15 @@ function Hud.Init(gui: ScreenGui)
 			displayedCoins = state.Coins -- spending is instant; earning is savoured
 		end
 		if geodesLabel then
-			geodesLabel.Text = "Chests: " .. state.Geodes .. " / " .. state.BackpackCapacity
+			-- One number for the whole boat: fish you haven't sold plus chests you
+			-- haven't opened. Two separate counters would need two upgrade paths.
+			local hold = state.Hold or state.Geodes
+			geodesLabel.Text = ("Hold: %d / %d  (%d chest%s)"):format(
+				hold,
+				state.BackpackCapacity,
+				state.Geodes,
+				state.Geodes == 1 and "" or "s"
+			)
 		end
 		if streakLabel then
 			streakLabel.Text = "Streak: Day " .. state.Streak.Count
@@ -306,6 +340,10 @@ function Hud.Init(gui: ScreenGui)
 			-- number, and it is true rather than manufactured.
 			local remaining = state.TotalIndex - state.CollectionCount
 			badge.BackgroundColor3 = if remaining <= 5 then UiKit.Colors.Accent else UiKit.Colors.Good
+		end
+		local castBadge = autoCastBadge
+		if castBadge then
+			castBadge.Visible = (state.Passes and state.Passes.AutoCast) == true
 		end
 		local packAvailable = not state.StarterPackOwned and Monetization.Products.StarterPack.Id ~= 0
 		if starterButton then

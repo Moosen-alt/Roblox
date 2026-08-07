@@ -15,7 +15,7 @@ local StoreScreen = {}
 
 local list: ScrollingFrame? = nil
 
-local PASS_ORDER = { "AutoCrack", "Coins2x", "Luck2x", "TripleCrack", "OvernightMiner", "Vip" }
+local PASS_ORDER = { "AutoCast", "AutoCrack", "Coins2x", "Luck2x", "TripleCrack", "OvernightMiner", "Vip" }
 local PRODUCT_ORDER = { "StarterPack", "Coins1k", "Coins5k", "Coins12k", "TimeWarp", "InstantRestock", "InstantRebirth" }
 
 local function addCard(order: number, title: string, desc: string, price: number, owned: boolean, onBuy: () -> ()): number

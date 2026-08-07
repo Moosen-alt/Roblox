@@ -1,8 +1,17 @@
 --!strict
--- Fishing loop (this game's replacement for tap-mining): click a fishing spot
--- to cast, wait for the bite flash, click again during the window to land a
--- treasure chest. One angler per spot at a time; better rods bite faster and
--- can hook a bonus chest.
+-- Fishing loop: click a spot to cast, wait for the bite flash, click again
+-- inside the window to land it. One angler per spot at a time; better rods bite
+-- sooner and can hook a second catch.
+--
+-- What you land is rolled here, and it is the whole shape of the game:
+--   * roughly seven times in eight, a FISH — straight into your hold, no
+--     opening step. This is the collectible.
+--   * otherwise a CHEST — carried back to the Chest station and opened there,
+--     with the reveal animation, the odds panel and the policy gating intact.
+--     Every chest is a guaranteed Rare+, which is what earns it the ceremony.
+--
+-- Spots belong to an area. A cast only registers at spots in the water the
+-- player is actually fishing, so five areas share one service and one loop.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,11 +32,16 @@ type SpotState = {
 	BiteAt: number?, -- os.clock() when the bite window opens
 	Resolved: boolean,
 	BaseColor: Color3,
+	Area: number,
 }
 
 local ctx: any = nil
 local spots: { [BasePart]: SpotState } = {}
+local spotsByArea: { [number]: { BasePart } } = {}
 local rng = Random.new()
+
+-- Every spot in one area, for Auto-Cast's "find me somewhere to fish" search.
+MiningService.SpotsByArea = spotsByArea
 
 local function playSound(parent: Instance, id: string, pitch: number, volume: number)
 	local sound = Instance.new("Sound")
@@ -43,8 +57,9 @@ local function playSound(parent: Instance, id: string, pitch: number, volume: nu
 	end)
 end
 
--- Catch celebration: pop sound, splash burst, floating "+N Chest!".
-local function catchEffects(spot: BasePart, caught: number)
+-- Catch celebration. The label names what actually came up, because "+1 Chest!"
+-- when it was a fish is the kind of small lie that makes a whole loop feel fake.
+local function catchEffects(spot: BasePart, text: string, color: Color3)
 	playSound(spot, "rbxasset://sounds/snap.mp3", 1 + rng:NextNumber(-0.1, 0.2), 0.7)
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Color = ColorSequence.new(Color3.fromRGB(160, 220, 255))
@@ -60,15 +75,15 @@ local function catchEffects(spot: BasePart, caught: number)
 	end)
 
 	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromScale(6, 1.6)
+	billboard.Size = UDim2.fromScale(7, 1.6)
 	billboard.StudsOffset = Vector3.new(0, 3, 0)
 	billboard.AlwaysOnTop = true
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.FredokaOne
-	label.Text = caught > 1 and ("+" .. caught .. " Chests!") or "+1 Chest!"
-	label.TextColor3 = Color3.fromRGB(255, 210, 90)
+	label.Text = text
+	label.TextColor3 = color
 	label.TextScaled = true
 	label.TextStrokeTransparency = 0.3
 	label.Parent = billboard
@@ -105,8 +120,13 @@ local function setBite(spot: BasePart)
 end
 
 local function rodDamage(data: any): number
-	local rod = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
+	local rod = Balance.Pickaxe(data.Pickaxe)
 	return rod.Damage
+end
+
+local function biteDelay(data: any?): number
+	local speedup = data and math.clamp(1 - rodDamage(data) * 0.015, 0.5, 1) or 1
+	return rng:NextNumber(1.5, 4.0) * speedup
 end
 
 local function landCatch(spot: BasePart, state: SpotState, player: Player)
@@ -115,75 +135,156 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player)
 		setIdle(spot, state)
 		return
 	end
-	local damage = rodDamage(data)
-	local caught = 1
-	if rng:NextNumber() < math.min(damage * 0.02, 0.6) then
-		caught += 1 -- bonus chest on strong rods
-	end
-	local space = ctx.Data.BackpackCapacity(data) - data.Geodes
+	local space = ctx.Data.BackpackCapacity(data) - ctx.Data.HoldCount(data)
 	if space <= 0 then
-		Remotes.Event("Notify"):FireClient(player, { Text = "Boat full! Open your chests.", Color = Color3.fromRGB(255, 120, 120) })
+		Remotes.Event("Notify"):FireClient(player, {
+			Text = "Boat full! Sell your catch at the Aquarium.",
+			Color = Color3.fromRGB(255, 120, 120),
+		})
 		setIdle(spot, state)
 		return
 	end
+
+	local caught = 1
+	if rng:NextNumber() < math.min(rodDamage(data) * 0.02, 0.6) then
+		caught += 1 -- strong rods sometimes bring up two
+	end
 	caught = math.min(caught, space)
-	data.Geodes += caught
+
+	local chests = 0
+	local fish: { any } = {}
+	for _ = 1, caught do
+		if rng:NextNumber() < Balance.CrateChance then
+			chests += 1
+		else
+			local result = ctx.Crack.LandFish(player)
+			if result then
+				table.insert(fish, result)
+			end
+		end
+	end
+	if chests > 0 then
+		data.Geodes += chests
+	end
 	data.Stats.GeodesMined += caught
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 1, "FirstGeode")
-	catchEffects(spot, caught)
+
+	if chests > 0 then
+		catchEffects(spot, chests > 1 and ("+" .. chests .. " Chests!") or "TREASURE CHEST!", Color3.fromRGB(255, 210, 90))
+		Remotes.Event("Notify"):FireClient(player, {
+			Text = "A chest! Open it at the Chest station.",
+			Color = Color3.fromRGB(255, 210, 90),
+		})
+	end
+	if #fish > 0 then
+		local first = fish[1]
+		local label = if #fish > 1
+			then ("+%d Fish!"):format(#fish)
+			else ("%s  %.1f lb"):format(first.Base, first.Weight)
+		catchEffects(spot, label, first.Color or Color3.fromRGB(160, 220, 255))
+	end
 	if caught > 1 then
 		Remotes.Event("Notify"):FireClient(player, {
-			Text = "DOUBLE HOOK! +" .. caught .. " chests!",
+			Text = "DOUBLE HOOK! +" .. caught .. " on the line!",
 			Color = Color3.fromRGB(120, 255, 200),
 		})
 	end
-	if ctx.Monetization.OwnsPass(player, "AutoCrack") and data.Settings.AutoCrack ~= false then
-		for _ = 1, caught do
+
+	if chests > 0 and ctx.Monetization.OwnsPass(player, "AutoCrack") and data.Settings.AutoCrack ~= false then
+		for _ = 1, chests do
 			ctx.Crack.AutoCrack(player)
 		end
 	end
 	setIdle(spot, state)
 end
 
-local function onSpotClicked(spot: BasePart, player: Player)
+local function onSpotClicked(spot: BasePart, player: Player): boolean
 	local state = spots[spot]
 	local data = ctx.Data.Get(player)
 	if not state or not data then
-		return
+		return false
+	end
+	-- Your line only reaches the water you have sailed to.
+	if state.Area ~= ctx.Data.Layer(data) then
+		return false
 	end
 
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root or (root.Position - spot.Position).Magnitude > 60 then
-		return
+	if not root or (root.Position - spot.Position).Magnitude > Balance.CastRange then
+		return false
 	end
 
 	if state.OwnerUserId == nil then
 		-- Cast: claim the spot and schedule a bite (better rods bite sooner).
-		if data.Geodes >= ctx.Data.BackpackCapacity(data) then
-			Remotes.Event("Notify"):FireClient(player, { Text = "Boat full! Open your chests.", Color = Color3.fromRGB(255, 120, 120) })
-			return
+		if ctx.Data.HoldCount(data) >= ctx.Data.BackpackCapacity(data) then
+			Remotes.Event("Notify"):FireClient(player, {
+				Text = "Boat full! Sell your catch at the Aquarium.",
+				Color = Color3.fromRGB(255, 120, 120),
+			})
+			return false
 		end
 		state.OwnerUserId = player.UserId
 		state.Resolved = false
-		local speedup = math.clamp(1 - rodDamage(data) * 0.015, 0.5, 1)
-		state.BiteAt = os.clock() + rng:NextNumber(1.5, 4.0) * speedup
+		state.BiteAt = os.clock() + biteDelay(data)
 		setCast(spot)
+		return true
 	elseif state.OwnerUserId == player.UserId then
 		local now = os.clock()
 		if state.BiteAt and now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW then
 			landCatch(spot, state, player)
+			return true
 		end
 		-- clicking early does nothing — wait for the splash
 	end
 	-- clicking someone else's claimed spot does nothing
+	return false
+end
+
+-- True when this spot is free for `player` to claim right now.
+function MiningService.IsFree(spot: BasePart, player: Player): boolean
+	local state = spots[spot]
+	return state ~= nil and (state.OwnerUserId == nil or state.OwnerUserId == player.UserId)
+end
+
+-- Is `player`'s claimed spot flashing right now? Auto-Cast needs to know when to
+-- strike; it does not get to strike outside the same window a human has to hit.
+function MiningService.IsBiting(spot: BasePart, player: Player): boolean
+	local state = spots[spot]
+	if not state or state.OwnerUserId ~= player.UserId or not state.BiteAt then
+		return false
+	end
+	local now = os.clock()
+	return now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW
+end
+
+-- The single entry point for a cast or a strike, human or automated. Auto-Cast
+-- drives this so every check, reward and effect is literally the same code.
+function MiningService.TryFish(player: Player, spot: BasePart): boolean
+	if not ctx or not spots[spot] then
+		return false
+	end
+	return onSpotClicked(spot, player)
 end
 
 function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 	ctx = serviceCtx
 	for _, spot in nodes do
-		spots[spot] = { OwnerUserId = nil, BiteAt = nil, Resolved = true, BaseColor = spot.Color }
+		local area = (spot:GetAttribute("Area") :: number?) or 1
+		spots[spot] = {
+			OwnerUserId = nil,
+			BiteAt = nil,
+			Resolved = true,
+			BaseColor = spot.Color,
+			Area = area,
+		}
+		local list = spotsByArea[area]
+		if not list then
+			list = {}
+			spotsByArea[area] = list
+		end
+		table.insert(list, spot)
 		local click = spot:FindFirstChildOfClass("ClickDetector")
 		if click then
 			click.MouseClick:Connect(function(player)
@@ -193,7 +294,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 	end
 	-- Primary tap path: the equipped rod Tool swallows clicks before
 	-- ClickDetectors see them, so the client raycasts its tap and reports the
-	-- spot here. Same server-side validation (membership, distance, timing).
+	-- spot here. Same server-side validation (membership, area, distance, timing).
 	Remotes.Event("MineNode").OnServerEvent:Connect(function(player, spot)
 		if typeof(spot) == "Instance" and spots[spot :: any] then
 			onSpotClicked(spot :: BasePart, player)
@@ -219,15 +320,13 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 						setBite(spot)
 					end
 				elseif now > state.BiteAt + BITE_WINDOW then
-					-- missed the window: fish escaped, auto-recast for the same angler
+					-- missed the window: it got away, auto-recast for the same angler
 					if now > state.BiteAt + CLAIM_TIMEOUT then
 						setIdle(spot, state)
 					else
 						spot.Color = state.BaseColor
 						setCast(spot)
-						local data = ctx.Data.Get(owner)
-						local speedup = data and math.clamp(1 - rodDamage(data) * 0.015, 0.5, 1) or 1
-						state.BiteAt = now + rng:NextNumber(1.5, 4.0) * speedup
+						state.BiteAt = now + biteDelay(ctx.Data.Get(owner))
 					end
 				end
 			end

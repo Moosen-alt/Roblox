@@ -9,20 +9,53 @@ local Balance = {}
 -- false, so it can never affect the live game. See src/server/FilmMode.luau.
 Balance.FilmMode = false
 
--- Cave layers (unlocked by rebirths). Values multiply, rarity luck creeps up.
+-- Fishing areas. Internally these are still "layers" — the engine's word for a
+-- content tier, and the same name the sibling games use — but the player buys
+-- and sails to an AREA. Each is a physically separate stretch of water with its
+-- own species, its own lighting and its own dock.
 Balance.MaxLayer = 5
-Balance.LayerValueMult = 2.5 -- crystal value x 2.5 per layer
-Balance.LayerLuckBonus = 0.15 -- +15% luck per layer past the first
+Balance.LayerValueMult = 2.5 -- fish value x 2.5 per area
+Balance.LayerLuckBonus = 0.15 -- +15% luck per area past the first
 Balance.LayerNames = { "Sunny Shallows", "Kelp Forest", "Twilight Reef", "Midnight Trench", "The Abyss" }
 
--- Mining
-Balance.MineCooldown = 0.22 -- seconds between counted taps (server enforced)
-Balance.NodeBaseHealth = 3 -- taps to pop a geode at pickaxe damage 1
-Balance.NodeRespawnTime = 2.5
-Balance.NodeCount = 12 -- deposit nodes on the mine wall
-Balance.PityForcedRareCrack = 3 -- the Nth lifetime crack is guaranteed Rare+ (first-session hook)
+-- Coins to unlock each area, paid once and kept forever. Index 1 is free (you
+-- start there); index N is the price of sailing to area N.
+--
+-- Areas are bought with COINS, not Robux, and Set Sail does not take them back.
+-- That is what makes them safe to want: a locked dock you can see across the
+-- water is a goal, and a goal you can lose is a threat. The coin sink is the
+-- point — it gives selling fish a destination beyond the next rod.
+Balance.AreaCosts = { 0, 6000, 45000, 350000, 3000000 }
+Balance.AreaSpacing = 600 -- studs between area origins on the X axis
 
--- Pickaxes: damage per tap. Index 1 is the freebie.
+-- Fishing
+Balance.MineCooldown = 0.22 -- seconds between counted casts (server enforced)
+Balance.NodeBaseHealth = 3 -- unused by the fishing loop; kept for shared math
+Balance.NodeRespawnTime = 2.5
+Balance.NodeCount = 12 -- fishing spots per area
+Balance.CastRange = 60 -- studs; how far you can cast from a spot
+-- Roughly one catch in eight comes up as a chest instead of a fish. Frequent
+-- enough that the opening animation is a regular beat, rare enough that it stays
+-- an event — and every chest is a guaranteed Rare+, so it can never disappoint.
+Balance.CrateChance = 0.12
+Balance.PityForcedRareCrack = 3 -- the Nth lifetime open is guaranteed Rare+ (first-session hook)
+-- Auto-Cast is offered once, after this many lifetime catches — late enough that
+-- the player has felt the clicking, early enough that they still care.
+Balance.AutoCastOfferAfterCatches = 150
+
+-- Rods. `Damage` drives how fast fish bite and the double-hook chance. Index 1
+-- is the freebie. The authored run is long, and past it `Balance.Pickaxe(level)`
+-- keeps generating tiers forever — an upgrade button that greys out with nothing
+-- behind it is the fastest way to end a session.
+export type RodTier = {
+	Name: string,
+	Damage: number,
+	Cost: number,
+	Color: Color3,
+	Material: Enum.Material,
+	Glow: boolean,
+}
+
 Balance.Pickaxes = {
 	{ Name = "Twig Rod", Damage = 1, Cost = 0, Color = Color3.fromRGB(140, 105, 70), Material = Enum.Material.Wood, Glow = false },
 	{ Name = "Copper Rod", Damage = 2, Cost = 150, Color = Color3.fromRGB(205, 125, 70), Material = Enum.Material.Metal, Glow = false },
@@ -32,16 +65,83 @@ Balance.Pickaxes = {
 	{ Name = "Laser Rod", Damage = 12, Cost = 30000, Color = Color3.fromRGB(255, 60, 80), Material = Enum.Material.Neon, Glow = true },
 	{ Name = "Storm Rod", Damage = 20, Cost = 120000, Color = Color3.fromRGB(120, 200, 255), Material = Enum.Material.Neon, Glow = true },
 	{ Name = "Leviathan Rod", Damage = 30, Cost = 500000, Color = Color3.fromRGB(120, 90, 200), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Kraken Rod", Damage = 46, Cost = 1_800_000, Color = Color3.fromRGB(90, 200, 130), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Tidecaller", Damage = 72, Cost = 6_500_000, Color = Color3.fromRGB(90, 210, 220), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Moonlit Rod", Damage = 112, Cost = 24_000_000, Color = Color3.fromRGB(200, 220, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Trench Rod", Damage = 175, Cost = 90_000_000, Color = Color3.fromRGB(80, 70, 120), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Siren's Rod", Damage = 270, Cost = 340_000_000, Color = Color3.fromRGB(255, 150, 220), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Maelstrom Rod", Damage = 420, Cost = 1_300_000_000, Color = Color3.fromRGB(150, 110, 255), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Abyssal Rod", Damage = 650, Cost = 5_000_000_000, Color = Color3.fromRGB(70, 60, 110), Material = Enum.Material.Neon, Glow = true },
+	{ Name = "Poseidon's Rod", Damage = 1000, Cost = 19_000_000_000, Color = Color3.fromRGB(120, 255, 255), Material = Enum.Material.Neon, Glow = true },
 }
 
--- Backpacks: how many uncracked geodes you can carry.
+Balance.PickaxeDamageGrowth = 1.55
+Balance.PickaxeCostGrowth = 3.85
+local ROD_TITLES = { "Ascendant", "Celestial", "Infinite", "Leviathan's", "Sovereign", "Worldtide" }
+local ROD_TINTS = {
+	Color3.fromRGB(120, 255, 255),
+	Color3.fromRGB(150, 255, 245),
+	Color3.fromRGB(190, 90, 255),
+	Color3.fromRGB(255, 70, 120),
+	Color3.fromRGB(120, 255, 190),
+}
+
+-- The one way to look up a rod. Always returns a tier: there is no top.
+function Balance.Pickaxe(level: number): RodTier
+	local authored = Balance.Pickaxes[math.max(math.floor(level), 1)]
+	if authored then
+		return authored
+	end
+	local count = #Balance.Pickaxes
+	local past = math.floor(level) - count
+	local last = Balance.Pickaxes[count]
+	local title = ROD_TITLES[(past - 1) % #ROD_TITLES + 1]
+	local mark = math.floor((past - 1) / #ROD_TITLES) + 1
+	return {
+		Name = if mark > 1 then ("%s Rod %d"):format(title, mark) else (title .. " Rod"),
+		Damage = math.floor(last.Damage * Balance.PickaxeDamageGrowth ^ past + 0.5),
+		Cost = math.floor(last.Cost * Balance.PickaxeCostGrowth ^ past + 0.5),
+		Color = ROD_TINTS[(past - 1) % #ROD_TINTS + 1],
+		Material = Enum.Material.Neon,
+		Glow = true,
+	}
+end
+
+-- Boats: how much your hold carries (fish + unopened chests together). Endless
+-- for the same reason as the rod — a boat that stops growing is just the same
+-- wall one step later.
+export type BoatTier = { Name: string, Capacity: number, Cost: number }
+
 Balance.Backpacks = {
 	{ Name = "Dinghy", Capacity = 6, Cost = 0 },
 	{ Name = "Rowboat", Capacity = 12, Cost = 200 },
 	{ Name = "Sloop", Capacity = 24, Cost = 900 },
 	{ Name = "Trawler", Capacity = 48, Cost = 4000 },
 	{ Name = "Galleon", Capacity = 96, Cost = 18000 },
+	{ Name = "Clipper", Capacity = 180, Cost = 85_000 },
+	{ Name = "Icebreaker", Capacity = 340, Cost = 400_000 },
+	{ Name = "Research Vessel", Capacity = 640, Cost = 1_900_000 },
+	{ Name = "Submersible", Capacity = 1200, Cost = 9_000_000 },
+	{ Name = "Abyssal Ark", Capacity = 2400, Cost = 44_000_000 },
 }
+
+Balance.BackpackCapacityGrowth = 1.9
+Balance.BackpackCostGrowth = 4.8
+
+function Balance.Backpack(level: number): BoatTier
+	local authored = Balance.Backpacks[math.max(math.floor(level), 1)]
+	if authored then
+		return authored
+	end
+	local count = #Balance.Backpacks
+	local past = math.floor(level) - count
+	local last = Balance.Backpacks[count]
+	return {
+		Name = ("Abyssal Ark %d"):format(past + 1),
+		Capacity = math.floor(last.Capacity * Balance.BackpackCapacityGrowth ^ past + 0.5),
+		Cost = math.floor(last.Cost * Balance.BackpackCostGrowth ^ past + 0.5),
+	}
+end
 
 -- Growth racks: socketed crystals produce coins and slowly grow in size (value).
 Balance.BaseRackSlots = 2

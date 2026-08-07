@@ -9,18 +9,65 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
 local CrystalShape = require(Shared.CrystalShape)
 
 local MapBuilder = {}
 
 export type MapRefs = {
 	Nodes: { BasePart },
+	Origins: { Vector3 }, -- dock position of each area, for AreaService
 	CrackPrompt: ProximityPrompt,
 	RackPrompt: ProximityPrompt,
 	ShopPrompt: ProximityPrompt,
 	RebirthPrompt: ProximityPrompt,
+	DockPrompt: ProximityPrompt,
 	BoardRebirths: BasePart,
 	BoardRarest: BasePart,
+}
+
+-- Each area gets its own water, sand and buoy colours. Roblox lighting and
+-- terrain water tint are global, so colour is the only per-area atmosphere that
+-- actually varies — which makes it worth spending here rather than on a fog
+-- setting that would follow the player between areas anyway.
+type AreaTheme = {
+	Sand: Color3,
+	Water: Color3,
+	Spots: { Color3 },
+	Palms: number,
+}
+
+local AREA_THEMES: { AreaTheme } = {
+	{ -- 1 Sunny Shallows
+		Sand = Color3.fromRGB(232, 214, 165),
+		Water = Color3.fromRGB(120, 210, 230),
+		Spots = { Color3.fromRGB(255, 200, 60), Color3.fromRGB(120, 220, 255), Color3.fromRGB(120, 255, 160) },
+		Palms = 8,
+	},
+	{ -- 2 Kelp Forest
+		Sand = Color3.fromRGB(180, 190, 150),
+		Water = Color3.fromRGB(70, 160, 130),
+		Spots = { Color3.fromRGB(120, 255, 160), Color3.fromRGB(90, 200, 130), Color3.fromRGB(200, 255, 120) },
+		Palms = 5,
+	},
+	{ -- 3 Twilight Reef
+		Sand = Color3.fromRGB(205, 175, 175),
+		Water = Color3.fromRGB(90, 150, 220),
+		Spots = { Color3.fromRGB(255, 150, 220), Color3.fromRGB(90, 210, 220), Color3.fromRGB(255, 120, 80) },
+		Palms = 3,
+	},
+	{ -- 4 Midnight Trench
+		Sand = Color3.fromRGB(110, 105, 130),
+		Water = Color3.fromRGB(40, 60, 120),
+		Spots = { Color3.fromRGB(120, 200, 255), Color3.fromRGB(180, 160, 255), Color3.fromRGB(255, 240, 120) },
+		Palms = 0,
+	},
+	{ -- 5 The Abyss
+		Sand = Color3.fromRGB(70, 66, 88),
+		Water = Color3.fromRGB(20, 25, 60),
+		Spots = { Color3.fromRGB(190, 90, 255), Color3.fromRGB(255, 70, 120), Color3.fromRGB(150, 255, 245) },
+		Palms = 0,
+	},
 }
 
 local SPOT_COLORS = {
@@ -437,55 +484,97 @@ local function makeBoard(position: Vector3, lookAt: Vector3, title: string, pare
 	return board
 end
 
-function MapBuilder.Build(): MapRefs
-	setLighting()
-	local map = Instance.new("Folder")
-	map.Name = "GeneratedMap"
+-- One area: its own water, its own beach, its own dock, its own twelve buoys.
+-- Areas are built side by side along X rather than stitched together, because
+-- travel between them is by boat (a teleport) — there is no walk to preserve, so
+-- there is no reason to pay for contiguous terrain.
+--
+-- Returns the area's fishing spots, all tagged with an `Area` attribute so one
+-- MiningService can serve every area from a single flat node list.
+local function buildArea(index: number, origin: Vector3, parent: Instance): { BasePart }
+	local theme = AREA_THEMES[index] or AREA_THEMES[1]
+	local name = Balance.LayerNames[index] or ("Area " .. index)
+	local ox, oz = origin.X, origin.Z
 
-	-- Terrain: sandy beach shelf + a lagoon of real water in front of it
 	local terrain = Workspace.Terrain
-	terrain:FillBlock(CFrame.new(0, -6, 60), Vector3.new(280, 12, 140), Enum.Material.Sand)
-	terrain:FillBlock(CFrame.new(0, -10, -70), Vector3.new(280, 12, 160), Enum.Material.Sand)
-	terrain:FillBlock(CFrame.new(0, -3.2, -70), Vector3.new(280, 6, 160), Enum.Material.Water)
+	terrain:FillBlock(CFrame.new(ox, -6, oz + 60), Vector3.new(280, 12, 140), Enum.Material.Sand)
+	terrain:FillBlock(CFrame.new(ox, -10, oz - 70), Vector3.new(280, 12, 160), Enum.Material.Sand)
+	terrain:FillBlock(CFrame.new(ox, -3.2, oz - 70), Vector3.new(280, 6, 160), Enum.Material.Water)
 
-	-- Beach floor (walkable) and dock over the water
 	part({
-		Name = "Beach",
+		Name = "Beach" .. index,
 		Size = Vector3.new(240, 1, 110),
-		Position = Vector3.new(0, -0.5, 62),
-		Color = Color3.fromRGB(232, 214, 165),
+		Position = Vector3.new(ox, -0.5, oz + 62),
+		Color = theme.Sand,
 		Material = Enum.Material.Sand,
-	}, map)
+	}, parent)
 	part({
-		Name = "Dock",
+		Name = "Dock" .. index,
 		Size = Vector3.new(14, 1, 70),
-		Position = Vector3.new(0, 0.6, -20),
+		Position = Vector3.new(ox, 0.6, oz - 20),
 		Color = Color3.fromRGB(160, 120, 80),
 		Material = Enum.Material.WoodPlanks,
-	}, map)
+	}, parent)
 	part({
-		Name = "DockT",
+		Name = "DockT" .. index,
 		Size = Vector3.new(60, 1, 12),
-		Position = Vector3.new(0, 0.6, -52),
+		Position = Vector3.new(ox, 0.6, oz - 52),
 		Color = Color3.fromRGB(160, 120, 80),
 		Material = Enum.Material.WoodPlanks,
-	}, map)
-	for _ = 1, 8 do
-		makePalm(Vector3.new(rng:NextNumber(-110, 110), 0, rng:NextNumber(40, 100)), map)
+	}, parent)
+	-- A shallow water-coloured slab under each area's spots. Terrain water is one
+	-- global colour, so this is what actually makes the Abyss look like the Abyss
+	-- and not like the Sunny Shallows with different fish in it.
+	local tint = part({
+		Name = "WaterTint" .. index,
+		Size = Vector3.new(280, 0.4, 160),
+		Position = Vector3.new(ox, -0.4, oz - 70),
+		Color = theme.Water,
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.45,
+	}, parent)
+	tint.CanCollide = false
+	tint.CanQuery = false
+
+	for _ = 1, theme.Palms do
+		makePalm(Vector3.new(ox + rng:NextNumber(-110, 110), 0, oz + rng:NextNumber(40, 100)), parent)
 	end
+
+	-- A sign at the head of the dock, so you always know what water you are in.
+	local sign = part({
+		Name = "AreaSign" .. index,
+		Size = Vector3.new(18, 5, 0.6),
+		CFrame = CFrame.lookAt(Vector3.new(ox, 6, oz - 4), Vector3.new(ox, 6, oz - 40)),
+		Color = Color3.fromRGB(90, 65, 45),
+		Material = Enum.Material.Wood,
+	}, parent)
+	local signGui = Instance.new("SurfaceGui")
+	signGui.Face = Enum.NormalId.Front
+	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	signGui.PixelsPerStud = 40
+	local signLabel = Instance.new("TextLabel")
+	signLabel.Size = UDim2.fromScale(1, 1)
+	signLabel.BackgroundTransparency = 1
+	signLabel.Font = Enum.Font.FredokaOne
+	signLabel.Text = name
+	signLabel.TextColor3 = theme.Spots[1]
+	signLabel.TextScaled = true
+	signLabel.Parent = signGui
+	signGui.Parent = sign
 
 	-- Fishing spots: glowing buoys floating in an arc around the dock head
 	local nodes: { BasePart } = {}
 	local nodeFolder = Instance.new("Folder")
-	nodeFolder.Name = "Nodes"
-	nodeFolder.Parent = map
-	for i = 1, 12 do
-		local angle = math.rad(180 + (i - 1) * (180 / 11))
+	nodeFolder.Name = "Nodes" .. index
+	nodeFolder.Parent = parent
+	for i = 1, Balance.NodeCount do
+		local angle = math.rad(180 + (i - 1) * (180 / (Balance.NodeCount - 1)))
 		local radius = 32 + (i % 2) * 10
-		local position = Vector3.new(math.cos(angle) * radius, -0.2, -52 + math.sin(angle) * radius)
-		local color = SPOT_COLORS[rng:NextInteger(1, #SPOT_COLORS)]
+		local position =
+			Vector3.new(ox + math.cos(angle) * radius, -0.2, oz - 52 + math.sin(angle) * radius)
+		local color = theme.Spots[rng:NextInteger(1, #theme.Spots)]
 		local spot = part({
-			Name = "Spot" .. i,
+			Name = ("Spot%d_%d"):format(index, i),
 			Size = Vector3.new(3, 2, 3),
 			Position = position,
 			Color = color,
@@ -494,6 +583,7 @@ function MapBuilder.Build(): MapRefs
 			Shape = Enum.PartType.Ball,
 		}, nodeFolder)
 		spot:SetAttribute("NodeIndex", i)
+		spot:SetAttribute("Area", index)
 		spot.CanCollide = false
 		local glow = Instance.new("PointLight")
 		glow.Color = color
@@ -501,10 +591,10 @@ function MapBuilder.Build(): MapRefs
 		glow.Brightness = 1
 		glow.Parent = spot
 		local click = Instance.new("ClickDetector")
-		click.MaxActivationDistance = 60
+		click.MaxActivationDistance = Balance.CastRange
 		click.Parent = spot
-		-- Buoys ride the swell. The bob runs on each client, so twelve floating
-		-- markers cost the server nothing.
+		-- Buoys ride the swell. The bob runs on each client, so sixty floating
+		-- markers across five areas cost the server nothing.
 		CollectionService:AddTag(spot, "SpinCrystal")
 		spot:SetAttribute("SpinSpeed", 0)
 		spot:SetAttribute("BobHeight", rng:NextNumber(0.5, 0.9))
@@ -512,32 +602,55 @@ function MapBuilder.Build(): MapRefs
 		table.insert(nodes, spot)
 	end
 
-	-- Landmark relics turning above the water: something to look at on the walk
+	-- Landmark crystals turning above the water: something to look at on the walk
 	-- down the dock, and a hint of what is down there.
-	for _, spot in { Vector3.new(-46, 12, -58), Vector3.new(46, 12, -58) } do
+	for _, at in { Vector3.new(ox - 46, 12, oz - 58), Vector3.new(ox + 46, 12, oz - 58) } do
 		local crystal = CrystalShape.Build({
-			Color = SPOT_COLORS[rng:NextInteger(1, #SPOT_COLORS)],
+			Color = theme.Spots[rng:NextInteger(1, #theme.Spots)],
 			Scale = rng:NextNumber(2.4, 3.2),
 			Shards = 6,
 			Segments = 3,
-			Seed = math.floor(spot.X * 7 + spot.Z),
+			Seed = math.floor(at.X * 7 + at.Z),
 			Glow = 34,
 			Sparkle = true,
 		})
-		crystal.Name = "LandmarkRelic"
-		crystal:PivotTo(CFrame.new(spot))
-		crystal.Parent = map
+		crystal.Name = "Landmark" .. index
+		crystal:PivotTo(CFrame.new(at))
+		crystal.Parent = parent
 		CollectionService:AddTag(crystal, "SpinCrystal")
 		crystal:SetAttribute("SpinSpeed", rng:NextNumber(0.18, 0.32))
 		crystal:SetAttribute("BobHeight", rng:NextNumber(1.2, 2.2))
 		crystal:SetAttribute("BobSpeed", rng:NextNumber(0.5, 0.8))
 	end
 
-	-- Stations on the beach
+	return nodes
+end
+
+function MapBuilder.Build(): MapRefs
+	setLighting()
+	local map = Instance.new("Folder")
+	map.Name = "GeneratedMap"
+
+	-- Five areas along X. Stations exist once, at the home port in area 1: you
+	-- sail back to sell, open and upgrade, which is what gives the trip home a
+	-- purpose and keeps the whole economy in one place.
+	local nodes: { BasePart } = {}
+	local origins: { Vector3 } = {}
+	for index = 1, Balance.MaxLayer do
+		local origin = Vector3.new((index - 1) * Balance.AreaSpacing, 0, 0)
+		origins[index] = Vector3.new(origin.X, 1.6, -40) -- the dock, where boats land
+		for _, spot in buildArea(index, origin, map) do
+			table.insert(nodes, spot)
+		end
+	end
+
+	-- Stations on the home beach
 	local crackPrompt = makeStation(Vector3.new(-34, 0.5, 30), "Treasure Chests", "Crack", Color3.fromRGB(255, 170, 40), map)
 	local rackPrompt = makeStation(Vector3.new(0, 0.5, 40), "Aquarium", "Racks", Color3.fromRGB(120, 255, 200), map)
 	local shopPrompt = makeStation(Vector3.new(34, 0.5, 30), "Chest Shop", "Shop", Color3.fromRGB(120, 170, 255), map)
 	local rebirthPrompt = makeStation(Vector3.new(0, 0.5, 78), "Set Sail", "Rebirth", Color3.fromRGB(255, 120, 255), map)
+	-- The Dock Master: buy new water, and sail to any you already own.
+	local dockPrompt = makeStation(Vector3.new(-16, 0.5, -8), "Dock Master", "Dock", Color3.fromRGB(120, 200, 255), map)
 
 	-- Leaderboards
 	local boardRebirths = makeBoard(Vector3.new(-70, 7, 70), Vector3.new(0, 7, 20), "Top Voyagers", map)
@@ -581,10 +694,12 @@ function MapBuilder.Build(): MapRefs
 
 	return {
 		Nodes = nodes,
+		Origins = origins,
 		CrackPrompt = crackPrompt,
 		RackPrompt = rackPrompt,
 		ShopPrompt = shopPrompt,
 		RebirthPrompt = rebirthPrompt,
+		DockPrompt = dockPrompt,
 		BoardRebirths = boardRebirths,
 		BoardRarest = boardRarest,
 	}

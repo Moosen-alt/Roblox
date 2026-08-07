@@ -55,7 +55,7 @@ function RackService.Socket(player: Player, crystalId: string): (boolean, string
 		return false, "Loading..."
 	end
 	if not data.Crystals[crystalId] then
-		return false, "Relic not found."
+		return false, "Fish not found."
 	end
 	for _, rack in data.Racks do
 		if rack.CrystalId == crystalId then
@@ -128,7 +128,7 @@ function RackService.ApplyTimeWarp(player: Player)
 		ctx.Data.AddCoins(player, total, true)
 		Remotes.Event("Notify"):FireClient(player, { Text = "Time Warp! +" .. total .. " coins of growth.", Color = Color3.fromRGB(120, 255, 200) })
 	else
-		Remotes.Event("Notify"):FireClient(player, { Text = "Time Warp had nothing to grow — display relics first!", Color = Color3.fromRGB(255, 200, 90) })
+		Remotes.Event("Notify"):FireClient(player, { Text = "Time Warp had nothing to grow — display a fish first!", Color = Color3.fromRGB(255, 200, 90) })
 	end
 	ctx.Data.MarkDirty(player)
 end

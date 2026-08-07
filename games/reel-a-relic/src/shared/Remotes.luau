@@ -26,6 +26,8 @@ local FUNCTIONS = {
 	"GetShopStock", -- () -> stock table (policy-filtered)
 	"BuyShopItem", -- (itemIndex) -> ok, err
 	"ToggleAutoCrack", -- () -> nowEnabled (pass owners can watch the full reveal again)
+	"BuyArea", -- (areaIndex) -> ok, err  (coins; permanent, survives Set Sail)
+	"TravelArea", -- (areaIndex) -> ok, err  (sail to water you already own)
 }
 
 local Remotes = {}

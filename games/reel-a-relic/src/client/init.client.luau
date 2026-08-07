@@ -34,6 +34,7 @@ local ShopScreen = require(script.Screens.ShopScreen)
 local StoreScreen = require(script.Screens.StoreScreen)
 local IndexScreen = require(script.Screens.IndexScreen)
 local RebirthScreen = require(script.Screens.RebirthScreen)
+local DockScreen = require(script.Screens.DockScreen)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -59,6 +60,7 @@ ShopScreen.Init(gui)
 StoreScreen.Init(gui)
 IndexScreen.Init(gui)
 RebirthScreen.Init(gui)
+DockScreen.Init(gui)
 
 -- Walking up to a station and triggering its prompt opens the matching screen.
 local STATION_SCREENS: { [string]: string } = {
@@ -66,6 +68,7 @@ local STATION_SCREENS: { [string]: string } = {
 	Racks = "Racks",
 	Shop = "Shop",
 	Rebirth = "Rebirth",
+	Dock = "Dock",
 }
 
 ProximityPromptService.PromptTriggered:Connect(function(prompt)

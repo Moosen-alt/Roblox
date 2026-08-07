@@ -136,7 +136,7 @@ local function run(payload: { [string]: any })
 				Font = Enum.Font.FredokaOne,
 				Height = 40,
 			},
-			{ Text = "Your relics and collection were kept.", Color = UiKit.Colors.TextDim, Font = Enum.Font.Gotham, Height = 26 },
+			{ Text = "Your fish, collection and areas were kept.", Color = UiKit.Colors.TextDim, Font = Enum.Font.Gotham, Height = 26 },
 		}
 		local y = 14
 		for i, line in lines do

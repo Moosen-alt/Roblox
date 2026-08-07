@@ -110,7 +110,7 @@ function DataService.CrystalValue(data: Profile, crystal: { Base: string, Mut: s
 end
 
 function DataService.BackpackCapacity(data: Profile): number
-	local tier = Balance.Backpacks[math.clamp(data.Backpack, 1, #Balance.Backpacks)]
+	local tier = Balance.Backpack(data.Backpack)
 	return tier.Capacity
 end
 
@@ -148,10 +148,10 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 	for key in require(Shared.Config.Monetization).Gamepasses :: any do
 		passes[key] = ctx.Monetization.OwnsPass(player, key)
 	end
-	local pickaxe = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
-	local nextPickaxe = Balance.Pickaxes[data.Pickaxe + 1]
-	local backpack = Balance.Backpacks[math.clamp(data.Backpack, 1, #Balance.Backpacks)]
-	local nextBackpack = Balance.Backpacks[data.Backpack + 1]
+	local pickaxe = Balance.Pickaxe(data.Pickaxe)
+	local nextPickaxe = Balance.Pickaxe(data.Pickaxe + 1)
+	local backpack = Balance.Backpack(data.Backpack)
+	local nextBackpack = Balance.Backpack(data.Backpack + 1)
 	return {
 		Coins = data.Coins,
 		Geodes = data.Geodes,
@@ -166,7 +166,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		NextRackSlotCost = Balance.RackSlotCosts[data.RackSlots - Balance.BaseRackSlots + 1],
 		Rebirths = data.Rebirths,
 		Layer = layer,
-		LayerName = Balance.LayerNames[layer],
+		LayerName = Balance.LayerName(layer),
 		RebirthCost = DataService.RebirthCost(data),
 		CoinMult = DataService.CoinMult(player, data),
 		LuckMult = DataService.LuckMult(player, data),

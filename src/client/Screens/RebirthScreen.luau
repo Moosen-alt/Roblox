@@ -29,7 +29,7 @@ local function render()
 	infoLabel.Text = table.concat({
 		("Layer: %s   •   Rebirths: %d"):format(state.LayerName, state.Rebirths),
 		("Coin bonus: +%d%%  ->  +%d%%"):format(currentBonus, nextBonus),
-		"Next layer: " .. Balance.LayerNames[nextLayer],
+		"Next layer: " .. Balance.LayerName(nextLayer),
 		"",
 		"Resets: coins, pickaxe, backpack, rack slots.",
 		"Keeps: crystals, collection, gamepasses, streak.",

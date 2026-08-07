@@ -99,7 +99,7 @@ local function render()
 			end
 		else
 			UiKit.Label({
-				Text = "Empty tank — display a relic!",
+				Text = "Empty tank — display a fish!",
 				TextColor3 = UiKit.Colors.TextDim,
 				Font = Enum.Font.Gotham,
 				TextXAlignment = Enum.TextXAlignment.Left,
@@ -183,7 +183,7 @@ local function render()
 	if invCount == 0 then
 		order += 1
 		UiKit.Create("TextLabel", {
-			Text = "No loose relics — open some chests!",
+			Text = "No loose fish — go catch some!",
 			Font = Enum.Font.Gotham,
 			TextColor3 = UiKit.Colors.TextDim,
 			TextScaled = true,
@@ -242,7 +242,7 @@ function RacksScreen.Init(gui: ScreenGui)
 	rackList = racks
 
 	local sellAll = UiKit.Button({
-		Text = "Sell All Loose Relics",
+		Text = "Sell All Loose Fish",
 		BackgroundColor3 = UiKit.Colors.Accent,
 		Size = UDim2.new(1, -6, 0, 44),
 		Parent = right,

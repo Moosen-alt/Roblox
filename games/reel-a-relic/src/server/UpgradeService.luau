@@ -16,11 +16,10 @@ function UpgradeService.Buy(player: Player, kind: string): (boolean, string?)
 	if not data then
 		return false, "Loading..."
 	end
+	-- There is no top tier any more: Balance.Pickaxe and Balance.Backpack always
+	-- return one, generating past the hand-authored list.
 	if kind == "Pickaxe" then
-		local nextTier = Balance.Pickaxes[data.Pickaxe + 1]
-		if not nextTier then
-			return false, "Best rod already!"
-		end
+		local nextTier = Balance.Pickaxe(data.Pickaxe + 1)
 		if data.Coins < nextTier.Cost then
 			return false, "Not enough coins."
 		end
@@ -29,10 +28,7 @@ function UpgradeService.Buy(player: Player, kind: string): (boolean, string?)
 		ctx.RodVis.Refresh(player)
 		Remotes.Event("Notify"):FireClient(player, { Text = nextTier.Name .. " equipped!", Color = Color3.fromRGB(120, 255, 200) })
 	elseif kind == "Backpack" then
-		local nextTier = Balance.Backpacks[data.Backpack + 1]
-		if not nextTier then
-			return false, "Biggest boat already!"
-		end
+		local nextTier = Balance.Backpack(data.Backpack + 1)
 		if data.Coins < nextTier.Cost then
 			return false, "Not enough coins."
 		end

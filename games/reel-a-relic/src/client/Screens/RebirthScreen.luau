@@ -25,14 +25,13 @@ local function render()
 	end
 	local currentBonus = math.floor(Balance.RebirthCoinBonus * state.Rebirths * 100 + 0.5)
 	local nextBonus = math.floor(Balance.RebirthCoinBonus * (state.Rebirths + 1) * 100 + 0.5)
-	local nextLayer = math.min(state.Rebirths + 2, Balance.MaxLayer)
 	infoLabel.Text = table.concat({
-		("Layer: %s   •   Rebirths: %d"):format(state.LayerName, state.Rebirths),
+		("Fishing: %s   •   Voyages: %d"):format(state.LayerName, state.Rebirths),
 		("Coin bonus: +%d%%  ->  +%d%%"):format(currentBonus, nextBonus),
-		"Next waters: " .. Balance.LayerNames[nextLayer],
 		"",
 		"Resets: coins, rod, boat, aquarium tanks.",
-		"Keeps: relics, collection, gamepasses, streak.",
+		"Keeps: fish, collection, gamepasses, streak,",
+		"and every area you've unlocked.",
 	}, "\n")
 	local affordable = state.Coins >= state.RebirthCost
 	costButton.Text = "Set Sail  (" .. Format.Number(state.RebirthCost) .. " coins)"

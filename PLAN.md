@@ -45,8 +45,23 @@ Gamepasses — round-number ladder (round numbers outperform charm pricing with 
 | 2 | 2x Coins | 250 R$ | Flagship — highest-converting pass class on the platform |
 | 3 | 2x Luck | 350 R$ | The pass whales buy first; odds panel updates dynamically (compliance built in) |
 | 4 | Triple Crack | 450 R$ | Multi-open (Pet Simulator template); stacks with Auto-Crack so they upsell each other |
-| 5 | Overnight Miner | 500 R$ | Offline cap 8h → 24h + 1.5× offline rate — monetizes the retention mechanic itself |
-| 6 | VIP Geode Baron | 1,000 R$ | Whale anchor: exclusive aura, golden nametag, +25% coins, +1 Daily-Deal slot |
+| 5 | Auto Swing | 450 R$ | Hold to keep swinging instead of one tap per hit — removes the action players do hundreds of times a session. Deliberately a hold, not an auto-clicker: you still aim and you still have to be there, and the server's mine cooldown means it can't out-earn a fast tapper |
+| 6 | Overnight Miner | 500 R$ | Offline cap 8h → 24h + 1.5× offline rate — monetizes the retention mechanic itself |
+| 7 | VIP Geode Baron | 1,000 R$ | Whale anchor: exclusive aura, golden nametag, +25% coins, +1 Daily-Deal slot |
+
+Auto Swing is offered **once**, by toast, after 150 lifetime geodes — to someone who has just
+tapped a rock several hundred times and knows exactly how that feels. That is worth more than a
+permanent button they scrolled past in their first minute, and it is an honest offer rather than
+a manufactured one.
+
+**Progression has no ceiling.** Pickaxes and backpacks are hand-authored for their first twenty
+and ten tiers and then generated forever from the same growth ratios, and the cave runs 25
+layers deep instead of 5. The old 8-tier pickaxe list ran out four rebirths in, at which point
+the upgrade button greyed out and the deposit wall stopped getting harder — the game simply
+stopped having anything to sell you. Layers are the right knob to lengthen because deposit
+toughness (×3) and crystal value (×2.5) move together by construction, so a deeper cave stays
+balanced where inflating any single number would not. Late-tier pacing past roughly layer 12 is
+untested by play and is a `Balance.luau`-only edit.
 
 Dev products (repeatable consumables — the repeat-revenue engine, all **deterministic**, no loot-box surface):
 

@@ -31,7 +31,9 @@ function RarityMath.GetBaseOdds(layer: number, luck: number): { OddsEntry }
 	local weighted = {}
 	local total = 0
 	for _, def in Crystals.Bases do
-		if def.MinLayer <= layer then
+		-- A window, not a floor. Species drop OUT of the pool as you sail deeper,
+		-- so an area is a different set of fish rather than the last set plus a few.
+		if def.MinLayer <= layer and layer <= def.MaxLayer then
 			local weight = def.Weight
 			if tierIndex(def.Tier) >= Crystals.LuckyTierThreshold then
 				weight *= luck
@@ -124,7 +126,13 @@ function RarityMath.ComputeValue(baseName: string, mutationName: string, size: n
 	return math.floor(base.Value * mutationMult * size * layerMult + 0.5)
 end
 
--- Guaranteed Rare-or-better roll (pity + shop premium fallback).
+-- Guaranteed Rare-or-better roll. Drives pity, the premium shop offer, and every
+-- crate opened at the Chest station — a crate is exactly this: a pull that cannot
+-- disappoint, which is what earns it the opening animation.
+--
+-- The fallback is computed, not hard-coded. Species now drop out of the pool
+-- between areas, so naming one fish here would eventually return something that
+-- does not swim where the player is fishing.
 function RarityMath.RollRarePlus(layer: number, luck: number, rng: Random): string
 	for _ = 1, 40 do
 		local name = RarityMath.RollBase(layer, luck, rng)
@@ -133,7 +141,14 @@ function RarityMath.RollRarePlus(layer: number, luck: number, rng: Random): stri
 			return name
 		end
 	end
-	return "Sunken Crown"
+	-- 40 misses: fall back to the rarest species this area actually holds.
+	local best: Crystals.CrystalDef? = nil
+	for _, def in Crystals.BasesInLayer(layer) do
+		if not best or def.Weight < best.Weight then
+			best = def
+		end
+	end
+	return best and best.Name or Crystals.Bases[1].Name
 end
 
 return RarityMath

@@ -106,7 +106,7 @@ function PickaxeVisual.Refresh(player: Player)
 		return
 	end
 	clearOldTools(player)
-	local tier = Balance.Pickaxes[math.clamp(data.Pickaxe, 1, #Balance.Pickaxes)]
+	local tier = Balance.Pickaxe(data.Pickaxe)
 	local tool = buildTool(tier)
 	tool.Parent = player:FindFirstChild("Backpack") or player
 	humanoid:EquipTool(tool)

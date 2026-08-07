@@ -23,6 +23,7 @@ local eventBanner: TextLabel? = nil
 local starterButton: TextButton? = nil
 local starterOffer: Frame? = nil
 local indexBadge: TextLabel? = nil
+local autoSwingBadge: TextLabel? = nil
 
 -- Coins roll up to their new value instead of snapping, and the pill punches
 -- when they land. A number that visibly climbs is worth more than the same
@@ -196,6 +197,29 @@ function Hud.Init(gui: ScreenGui)
 		end)
 	end
 
+	-- Auto Swing badge, for owners only. A label, not a button: the pass has no
+	-- setting to change — you hold to mine or you don't — so a toggle here would
+	-- be a control that does nothing. It exists purely so the pass is visibly
+	-- doing something, which a pure input change otherwise isn't.
+	--
+	-- Its own band at y = H-192: clear of the starter pack (H-140..H-94) and the
+	-- button row (H-70..H-14), so it cannot swallow their taps on a phone the way
+	-- an earlier overlapping offer button did.
+	local autoSwing = UiKit.Create("TextLabel", {
+		Text = "⛏ Auto Swing — hold to mine",
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(28, 24, 20),
+		BackgroundColor3 = UiKit.Colors.Good,
+		Size = UDim2.fromOffset(230, 34),
+		Position = UDim2.new(0, 12, 1, -192),
+		Visible = false,
+		Parent = gui,
+	}) :: TextLabel
+	UiKit.Corner(10).Parent = autoSwing
+	UiKit.Pad(6).Parent = autoSwing
+	autoSwingBadge = autoSwing
+
 	-- Starter pack offer (hidden once owned / unconfigured)
 	local starter = UiKit.Create("TextButton", {
 		Text = "Starter Pack  R$" .. Monetization.Products.StarterPack.Price,
@@ -306,6 +330,10 @@ function Hud.Init(gui: ScreenGui)
 			-- number, and it is true rather than manufactured.
 			local remaining = state.TotalIndex - state.CollectionCount
 			badge.BackgroundColor3 = if remaining <= 5 then UiKit.Colors.Accent else UiKit.Colors.Good
+		end
+		local swingBadge = autoSwingBadge
+		if swingBadge then
+			swingBadge.Visible = (state.Passes and state.Passes.AutoMine) == true
 		end
 		local packAvailable = not state.StarterPackOwned and Monetization.Products.StarterPack.Id ~= 0
 		if starterButton then

@@ -164,7 +164,9 @@ function ShopService.Buy(player: Player, itemIndex: number): (boolean, string?)
 	end
 
 	if item.Kind == "Geode" or item.Kind == "GeodeBundle" then
-		local space = ctx.Data.BackpackCapacity(data) - data.Geodes
+		-- Against the whole hold, not just the chest count: fish and chests share
+		-- one boat, so buying chests has to respect the fish already on it.
+		local space = ctx.Data.BackpackCapacity(data) - ctx.Data.HoldCount(data)
 		local count = item.Count or 1
 		if space < count then
 			return false, "Boat full!"

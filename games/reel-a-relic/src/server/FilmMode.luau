@@ -48,12 +48,16 @@ function FilmMode.Apply(data: any)
 	data.Pickaxe = #Balance.Pickaxes
 	data.Backpack = #Balance.Backpacks
 	data.RackSlots = Balance.MaxRackSlots
-	data.Rebirths = 6 -- deepest layer, best drop table
-	local layer = math.min(data.Rebirths + 1, Balance.MaxLayer)
+	data.Rebirths = 6
+	-- Every area bought, fishing the deepest one: the drop table with the best
+	-- footage in it. Areas no longer follow rebirths, so both have to be staged.
+	data.AreaUnlocked = Balance.MaxLayer
+	data.AreaCurrent = Balance.MaxLayer
+	local layer = Balance.MaxLayer
 	data.Stats.GeodesMined = 4820
 	data.Stats.GeodesCracked = 4610
 
-	-- Collection at 36/48: enough to look like a real save, with the last dozen
+	-- Collection at 75%: enough to look like a real save, with the last stretch
 	-- still missing so the "what am I still hunting" shot has something to show.
 	local target = math.floor(Crystals.TotalIndexEntries() * 0.75)
 	local filled = 0
@@ -117,6 +121,15 @@ function FilmMode.Apply(data: any)
 		if not data.Collection[key] then
 			data.Collection[key] = true
 			data.CollectionCount += 1
+		end
+	end
+
+	-- Personal bests, for the Index shots. Staged from a size a real catch can
+	-- beat (rolls cap at 1.2) for the same reason the value record is: a wall of
+	-- unbeatable records on camera is a wall the player can never interact with.
+	for _, def in Crystals.BasesInLayer(layer) do
+		if data.Collection[Crystals.IndexKey(def.Name, "Normal")] then
+			data.BestWeight[def.Name] = Crystals.WeightOf(def.Name, 1.05)
 		end
 	end
 end

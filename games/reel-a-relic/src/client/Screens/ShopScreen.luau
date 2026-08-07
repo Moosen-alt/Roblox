@@ -56,7 +56,7 @@ local function renderStock()
 		})
 		local subtitle = ""
 		if item.Kind == "Crystal" then
-			subtitle = "Exactly this relic, value " .. Format.Number(item.Value or 0)
+			subtitle = "Exactly this fish, value " .. Format.Number(item.Value or 0)
 		elseif item.Kind == "PremiumGeode" then
 			subtitle = "Opens instantly with 3x luck"
 		elseif item.Kind == "GeodeBundle" then
