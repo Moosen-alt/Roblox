@@ -87,21 +87,44 @@ local function part(props: { [string]: any }, parent: Instance): Part
 	return p
 end
 
--- Bright, sunny and readable — not blown out. Haze compounds with every neon
--- surface and point light in view, and over open water there is nothing to break
--- it up, so the sea was washing to flat white. Sunlight and haze both came down;
--- the scene keeps its colour and the buoys keep their edges.
+-- Bright, sunny and readable — not blown out.
+--
+-- The white sheets lying across the sea were never the lights. Roblox terrain
+-- water ships with WaterReflectance at 1, so it mirrors the sky, and a bright
+-- sky over open water with nothing to break it up means large stretches of the
+-- surface render as flat white. Turning point lights down could never have fixed
+-- that, because the point lights were not doing it.
+--
+-- So: kill most of the reflectance and let the water be water. Exposure comes
+-- down a notch on top, which pulls the whole image back from the clip point
+-- rather than dimming any one thing in it.
 local function setLighting()
 	Lighting.ClockTime = 15.5
-	Lighting.Brightness = 1.9
-	Lighting.Ambient = Color3.fromRGB(128, 130, 142)
-	Lighting.OutdoorAmbient = Color3.fromRGB(120, 132, 152)
-	Lighting.FogColor = Color3.fromRGB(190, 220, 245)
-	Lighting.FogEnd = 900
+	Lighting.Brightness = 1.7
+	Lighting.ExposureCompensation = -0.4
+	Lighting.Ambient = Color3.fromRGB(122, 126, 140)
+	Lighting.OutdoorAmbient = Color3.fromRGB(116, 128, 150)
+	Lighting.FogColor = Color3.fromRGB(178, 208, 236)
+	Lighting.FogEnd = 1400 -- far enough to see the next area on the horizon
+	Lighting.FogStart = 260
+	-- Sun glare off a mirror-flat sea is the single brightest thing on screen and
+	-- it is not information. The scene keeps its own light instead.
+	Lighting.EnvironmentSpecularScale = 0.35
+	Lighting.EnvironmentDiffuseScale = 0.8
+
+	local terrain = Workspace.Terrain
+	terrain.WaterColor = Color3.fromRGB(46, 128, 168)
+	terrain.WaterReflectance = 0.12
+	terrain.WaterTransparency = 0.55
+	terrain.WaterWaveSize = 0.12
+	terrain.WaterWaveSpeed = 8
+
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.24
-	atmosphere.Color = Color3.fromRGB(199, 224, 255)
-	atmosphere.Haze = 0.5
+	atmosphere.Density = 0.3
+	atmosphere.Color = Color3.fromRGB(190, 214, 244)
+	atmosphere.Decay = Color3.fromRGB(120, 150, 190)
+	atmosphere.Haze = 1.4 -- distance haze, which is what makes a far vista read as far
+	atmosphere.Glare = 0
 	atmosphere.Parent = Lighting
 end
 
@@ -611,9 +634,15 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 	else
 		strandColor, strandMaterial = theme.Spots[1], Enum.Material.Neon
 	end
+	-- Rooted on the sea floor and kept BELOW the surface. These were tall enough
+	-- to break the waterline, which put kelp fronds and coral standing in mid-air
+	-- at odd angles all over the bay — they read as loose green boxes floating on
+	-- the sea, not as anything growing in it. Water tops out at y = -0.2, so the
+	-- tallest strand has to finish under that.
 	for _ = 1, 26 do
-		local at = Vector3.new(ox + rng:NextNumber(-120, 120), -5.5, oz - rng:NextNumber(10, 140))
-		makeStrand(at, rng:NextNumber(4, 11), strandColor, strandMaterial, parent)
+		local height = rng:NextNumber(3, 5.5)
+		local at = Vector3.new(ox + rng:NextNumber(-120, 120), -6.4, oz - rng:NextNumber(10, 140))
+		makeStrand(at, height, strandColor, strandMaterial, parent)
 	end
 
 	-- Beached rocks and driftwood on the sand
@@ -869,6 +898,96 @@ local function buildBuoy(name: string, position: Vector3, color: Color3, parent:
 	return float
 end
 
+-- A VISTA: the next area, seen from this one's dock.
+--
+-- Five stretches of water 600 studs apart are five separate rooms, and standing
+-- on the first dock the horizon was empty in every direction — which reads as
+-- "this is all there is" at exactly the moment the game wants you thinking about
+-- what you are saving for. The Dock Master can list the Abyss at three million
+-- coins; a shape on the horizon in the Abyss's own colours is a far better
+-- argument, because you found it yourself.
+--
+-- Deliberately far out and deliberately coarse: it is scenery to look at, not a
+-- place to swim to. Nothing collides, nothing answers a raycast, and it sits
+-- well past the fishing arc so it can never be mistaken for somewhere to cast.
+local function buildVista(theme: AreaTheme, name: string, ox: number, oz: number, parent: Instance)
+	local at = Vector3.new(ox + rng:NextNumber(-60, 60), 0, oz - 420)
+
+	-- An island: stacked rock in the target area's palette, big enough to read
+	-- through the haze.
+	for i = 1, 9 do
+		local t = (i - 1) / 9
+		local width = (52 - t * 40) * rng:NextNumber(0.8, 1.2)
+		local rock = deco({
+			Name = "VistaRock",
+			Size = Vector3.new(width, 16, width * rng:NextNumber(0.7, 1.3)),
+			CFrame = CFrame.new(at + Vector3.new(rng:NextNumber(-16, 16), i * 11 - 12, rng:NextNumber(-16, 16)))
+				* CFrame.Angles(0, rng:NextNumber(0, 3), 0),
+			Color = Color3.fromRGB(88, 86, 96):Lerp(theme.Water, 0.4),
+			Material = Enum.Material.Rock,
+		}, parent)
+		rock.CastShadow = false
+	end
+
+	-- A beacon on top in the area's own colour, so it is identifiable at a
+	-- glance and legible at night.
+	local beacon = deco({
+		Name = "VistaBeacon",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(14, 14, 14),
+		Position = at + Vector3.new(0, 104, 0),
+		Color = theme.Spots[1],
+		Material = Enum.Material.Neon,
+		Transparency = 0.25,
+	}, parent)
+	local light = Instance.new("PointLight")
+	light.Color = theme.Spots[1]
+	light.Range = 60
+	light.Brightness = 1.4
+	light.Shadows = false
+	light.Parent = beacon
+
+	-- And its name, floating above it. A landmark you can identify is a goal;
+	-- an unnamed rock is set dressing.
+	local sign = Instance.new("BillboardGui")
+	sign.Name = "VistaName"
+	sign.Size = UDim2.fromScale(46, 9)
+	sign.StudsOffset = Vector3.new(0, 22, 0)
+	sign.AlwaysOnTop = false
+	sign.MaxDistance = 900
+	sign.Parent = beacon
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.Text = name
+	label.TextColor3 = theme.Spots[1]
+	label.TextScaled = true
+	label.TextStrokeTransparency = 0.4
+	label.Parent = sign
+
+	-- A couple of giant fish circling it, in the water you cannot fish yet.
+	for i = 1, 2 do
+		local trophy = FishShape.Build({
+			Color = theme.Spots[math.min(i + 1, #theme.Spots)],
+			Scale = rng:NextNumber(7, 10),
+			Seed = math.floor(at.X) + i * 31,
+			Neon = true,
+			Glow = 26,
+		})
+		trophy.Name = "VistaFish"
+		trophy:PivotTo(
+			CFrame.new(at + Vector3.new(rng:NextNumber(-80, 80), rng:NextNumber(34, 70), rng:NextNumber(-40, 40)))
+				* CFrame.Angles(0, rng:NextNumber(0, 6), 0)
+		)
+		trophy.Parent = parent
+		CollectionService:AddTag(trophy, "SpinCrystal")
+		trophy:SetAttribute("SpinSpeed", rng:NextNumber(0.05, 0.1))
+		trophy:SetAttribute("BobHeight", rng:NextNumber(3, 6))
+		trophy:SetAttribute("BobSpeed", rng:NextNumber(0.2, 0.35))
+	end
+end
+
 -- One area: its own water, its own beach, its own dock, its own twelve buoys.
 -- Areas are built side by side along X rather than stitched together, because
 -- travel between them is by boat (a teleport) — there is no walk to preserve, so
@@ -925,6 +1044,14 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 		makePalm(Vector3.new(ox + rng:NextNumber(-110, 110), 0, oz + rng:NextNumber(40, 100)), parent)
 	end
 	scatterScenery(index, theme, ox, oz, parent)
+
+	-- Show this dock what comes next. The last area has nothing after it, so it
+	-- gets its own colours reflected back instead of an empty horizon — the Abyss
+	-- being the end of the map is the point, but "the end" should still look like
+	-- somewhere rather than like the world running out.
+	local nextIndex = math.min(index + 1, Balance.MaxLayer)
+	local nextTheme = AREA_THEMES[nextIndex] or theme
+	buildVista(nextTheme, Balance.LayerNames[nextIndex] or "", ox, oz, parent)
 
 	-- An ARCH over the head of the dock, not a board across it. The first version
 	-- was a solid 18x5 part standing at walking height in the middle of the only
