@@ -82,13 +82,71 @@ export type MeshDef = {
 -- Keyed by the exact Name in Config/Crystals.luau.
 Meshes.Fish = {
 	["Anchovy"] = { Mesh = 121171092141963, Scale = 1 },
+	["Anglerfish"] = { Mesh = 86978658342639, Scale = 1 },
+	["Barreleye"] = { Mesh = 97438542387533, Scale = 1 },
+	["Blue Tang"] = { Mesh = 112484093307603, Scale = 1 },
+	["Clownfish"] = { Mesh = 133544582733593, Scale = 1 },
+	["Colossal Squid"] = { Mesh = 121255622798835, Scale = 1 },
+	["Dumbo Octopus"] = { Mesh = 103956427559694, Scale = 1 },
+	["Flounder"] = { Mesh = 79460045225568, Scale = 1 },
+	["Frilled Shark"] = { Mesh = 78516639977769, Scale = 1 },
+	["Garibaldi"] = { Mesh = 80242442828280, Scale = 1 },
+	["Giant Isopod"] = { Mesh = 97381183399615, Scale = 1 },
+	["Giant Sea Bass"] = { Mesh = 91447580894451, Scale = 1 },
+	["Goblin Shark"] = { Mesh = 74063279991811, Scale = 1 },
+	["Gulper Eel"] = { Mesh = 108400062799188, Scale = 1 },
+	["Hammerhead"] = { Mesh = 107405624201854, Scale = 1 },
+	["Hatchetfish"] = { Mesh = 118729921338991, Scale = 1 },
+	["Kelp Bass"] = { Mesh = 108881124151455, Scale = 1 },
+	["Lanternfish"] = { Mesh = 127693954000676, Scale = 1 },
+	["Leopard Shark"] = { Mesh = 110207492074425, Scale = 1 },
+	["Lionfish"] = { Mesh = 134873942004405, Scale = 1 },
+	["Mackerel"] = { Mesh = 116221983997623, Scale = 1 },
+	["Manta Ray"] = { Mesh = 78459337569713, Scale = 1 },
+	["Megalodon"] = { Mesh = 112413024335932, Scale = 1 },
+	["Moray Eel"] = { Mesh = 91902901790397, Scale = 1 },
+	["Oarfish"] = { Mesh = 100572064963067, Scale = 1 },
+	["Parrotfish"] = { Mesh = 89971934030485, Scale = 1 },
+	["Red Snapper"] = { Mesh = 119602273109627, Scale = 1 },
+	["Reef Shark"] = { Mesh = 85816007385693, Scale = 1 },
+	["Sailfish"] = { Mesh = 120083050036774, Scale = 1 },
+	["Sea Bass"] = { Mesh = 76445943452424, Scale = 1 },
+	["Seahorse"] = { Mesh = 107490553351674, Scale = 1 },
+	["Sheephead"] = { Mesh = 113110118412598, Scale = 1 },
+	["Viperfish"] = { Mesh = 131328733349835, Scale = 1 },
 } :: { [string]: MeshDef }
-Meshes.Relic = {} :: { [string]: MeshDef }
+Meshes.Relic = {
+	["Abalone Shell"] = { Mesh = 127064647598834, Scale = 1 },
+	["Captain's Spyglass"] = { Mesh = 119699815333351, Scale = 1 },
+	["Conch Shell"] = { Mesh = 121460576036221, Scale = 1 },
+	["Coral Crown"] = { Mesh = 80759227689672, Scale = 1 },
+	["Diver's Helmet"] = { Mesh = 115385589063173, Scale = 1 },
+	["Galleon Bell"] = { Mesh = 100280888289309, Scale = 1 },
+	["Glass Float"] = { Mesh = 103777146803386, Scale = 1 },
+	["Golden Astrolabe"] = { Mesh = 120399699987033, Scale = 1 },
+	["Hurricane Lamp"] = { Mesh = 103754047244337, Scale = 1 },
+	["Mermaid's Mirror"] = { Mesh = 88163239279176, Scale = 1 },
+	["Message in a Bottle"] = { Mesh = 125309269255533, Scale = 1 },
+	["Oni Mask"] = { Mesh = 104462567041434, Scale = 1 },
+	["Pirate Cutlass"] = { Mesh = 137385746525325, Scale = 1 },
+	["Poseidon's Trident"] = { Mesh = 129579584333901, Scale = 1 },
+	["Rusty Anchor"] = { Mesh = 95776638567257, Scale = 1 },
+	["Shell Lei"] = { Mesh = 120336921119198, Scale = 1 },
+	["Ship's Compass"] = { Mesh = 139609542054494, Scale = 1 },
+	["Sonar Beacon"] = { Mesh = 116890143162461, Scale = 1 },
+	["Submersible Porthole"] = { Mesh = 137244813316448, Scale = 1 },
+	["Sunken Crown"] = { Mesh = 124258050565359, Scale = 1 },
+	["Temple Bell"] = { Mesh = 89482190751483, Scale = 1 },
+	["Whale Tooth Pendant"] = { Mesh = 138294552059695, Scale = 1 },
+} :: { [string]: MeshDef }
 
 -- Props are not collectibles — they are scenery and UI furniture, keyed by a
 -- name this codebase chooses rather than one from Crystals.luau. The chest is
 -- split into ChestBase and ChestLid so the lid can actually swing.
-Meshes.Prop = {} :: { [string]: MeshDef }
+Meshes.Prop = {
+	["ChestBase"] = { Mesh = 117569798192650, Scale = 1 },
+	["ChestLid"] = { Mesh = 84305083533626, Scale = 1 },
+} :: { [string]: MeshDef }
 
 function Meshes.ForProp(name: string?): MeshDef?
 	return if name then Meshes.Prop[name] else nil

@@ -80,12 +80,24 @@ export type MeshDef = {
 }
 
 -- Keyed by the exact Name in Config/Crystals.luau.
-Meshes.Crystal = {} :: { [string]: MeshDef }
+Meshes.Crystal = {
+	["Amethyst"] = { Mesh = 92583408964793, Scale = 1 },
+	["Diamond"] = { Mesh = 78952983628622, Scale = 1 },
+	["Emerald"] = { Mesh = 98546010452110, Scale = 1 },
+	["Opal"] = { Mesh = 80277452297193, Scale = 1 },
+	["Quartz"] = { Mesh = 113033354243136, Scale = 1 },
+	["Ruby"] = { Mesh = 99957108703251, Scale = 1 },
+	["Sapphire"] = { Mesh = 118255444108074, Scale = 1 },
+	["Topaz"] = { Mesh = 92414990957174, Scale = 1 },
+} :: { [string]: MeshDef }
 
 -- Props are not collectibles — they are scenery and UI furniture, keyed by a
 -- name this codebase chooses rather than one from Crystals.luau. The chest is
 -- split into ChestBase and ChestLid so the lid can actually swing.
-Meshes.Prop = {} :: { [string]: MeshDef }
+Meshes.Prop = {
+	["ChestBase"] = { Mesh = 73620068125097, Scale = 1 },
+	["ChestLid"] = { Mesh = 131543048004444, Scale = 1 },
+} :: { [string]: MeshDef }
 
 function Meshes.ForProp(name: string?): MeshDef?
 	return if name then Meshes.Prop[name] else nil
