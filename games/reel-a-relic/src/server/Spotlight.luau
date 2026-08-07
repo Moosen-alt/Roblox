@@ -24,20 +24,20 @@ function Spotlight.Pillar(player: Player, color: Color3)
 	beam.Shape = Enum.PartType.Cylinder
 	beam.Material = Enum.Material.Neon
 	beam.Color = color
-	beam.Transparency = 0.35
+	beam.Transparency = 0.55
 	beam.Size = Vector3.new(70, 7, 7)
 	beam.CFrame = CFrame.new(root.Position + Vector3.new(0, 32, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	beam.Parent = Workspace
 
 	local light = Instance.new("PointLight")
 	light.Color = color
-	light.Range = 46
-	light.Brightness = 4
+	light.Range = 34
+	light.Brightness = 2
 	light.Parent = beam
 
 	local sparks = Instance.new("ParticleEmitter")
 	sparks.Color = ColorSequence.new(color)
-	sparks.LightEmission = 1
+	sparks.LightEmission = 0.6
 	sparks.Size = NumberSequence.new(1.2, 0)
 	sparks.Lifetime = NumberRange.new(0.8, 1.8)
 	sparks.Speed = NumberRange.new(10, 26)

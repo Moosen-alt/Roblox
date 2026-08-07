@@ -30,19 +30,39 @@ type Swimmer = {
 	Depth: number,
 }
 
--- A relic on display is its own model — an anchor, a helmet, a trident — so the
--- tank needs the NAME, which a plain FishShape.Options does not carry. Bound per
--- rebuild rather than passed around, so the two builders keep the same shape and
--- the caller can pick between them with one variable.
-local relicName = ""
+-- Both halves of the collection carry their own model now — 33 fish silhouettes
+-- and 11 relics — so the builders take the same Options and the name selects the
+-- shape inside each. (This used to bind a module-level `relicName` before every
+-- call, back when only relics needed a name.)
 local function relicModel(options: FishShape.Options): Model
 	return RelicShape.Build({
-		Name = relicName,
+		Name = options.Name or "",
 		Color = options.Color,
 		Scale = (options.Scale or 1) * 1.5,
 		Seed = options.Seed,
 		Sparkle = options.Sparkle,
 	})
+end
+
+-- The gravel bed is 0.4 studs of sand on the tank floor and the water volume
+-- starts a little under the glass, so the surface something actually RESTS on
+-- sits half a stud above the bottom of the tagged water part. Tied to the tank
+-- MapBuilder builds; if that changes, this does.
+local GRAVEL_ABOVE_FLOOR = 0.5
+
+-- Put a model down so its LOWEST POINT touches `floorY`.
+--
+-- The old code guessed a fixed drop from the tank centre and hoped every relic
+-- was the same height. They are not — a Diver's Helmet is squat and a Trident is
+-- tall — so anything taller than the guess sank through the gravel and the table
+-- underneath it. Measure the model instead of assuming it: GetBoundingBox is in
+-- world space and makes no assumption about where the pivot sits inside the
+-- model, which matters because these are built by hand and theirs vary.
+local function restOnFloor(model: Model, at: Vector3, floorY: number)
+	model:PivotTo(CFrame.new(at))
+	local box, size = model:GetBoundingBox()
+	local lift = floorY - (box.Position.Y - size.Y * 0.5)
+	model:PivotTo(model:GetPivot() + Vector3.new(0, lift, 0))
 end
 
 local tank: BasePart? = nil
@@ -92,11 +112,13 @@ local function rebuild(state: any)
 			local def = Crystals.GetBase(fish.Base)
 			local mutation = Crystals.GetMutation(fish.Mut)
 			local isRelic = Crystals.IsRelic(fish.Base)
-			relicName = fish.Base
 			-- Typed explicitly: Luau will not call a union of two identically
 			-- shaped function types, so the branch has to name what it returns.
 			local build: (FishShape.Options) -> Model = if isRelic then relicModel else FishShape.Build
 			local model = build({
+				-- The species/relic name IS the model now, so this is no longer
+				-- decorative: without it every fish falls back to one shape.
+				Name = fish.Base,
 				-- Aura tints the fish rather than replacing its colour, so a
 				-- Gilded trout still looks like a trout.
 				Color = if mutation and mutation.Color
@@ -118,8 +140,14 @@ local function rebuild(state: any)
 			-- of your collection you have put on show.
 			if isRelic then
 				local spread = (index - 0.5) / math.max(#slots, 1) - 0.5
-				model:PivotTo(
-					CFrame.new(water.Position + Vector3.new(spread * size.X * 0.7, -size.Y * 0.36, 0))
+				-- Staggered in Z as well as X: a row of relics dead-centre hides
+				-- the short ones behind the tall ones from the only angle the
+				-- player ever looks at the tank from.
+				local back = if index % 2 == 0 then size.Z * 0.18 else -size.Z * 0.16
+				restOnFloor(
+					model,
+					water.Position + Vector3.new(spread * size.X * 0.7, 0, back),
+					water.Position.Y - size.Y * 0.5 + GRAVEL_ABOVE_FLOOR
 				)
 				table.insert(display, model)
 			else

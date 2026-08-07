@@ -23,6 +23,11 @@ local AREA_COLOR = Color3.fromRGB(120, 200, 255)
 local ctx: any = nil
 local origins: { Vector3 } = {}
 
+-- Below this and you are out of the world. The sea floor is at -6.4 and the
+-- terrain block bottoms out around -16, so -60 is unambiguously "fell through"
+-- while still being far above Roblox's own destroy height.
+local VOID_Y = -60
+
 -- Where each area's dock is, filled in by MapBuilder at startup.
 function AreaService.SetOrigins(list: { Vector3 })
 	origins = list
@@ -108,6 +113,32 @@ end
 
 function AreaService.Init(serviceCtx: any)
 	ctx = serviceCtx
+
+	-- THE SAFETY NET. Invisible walls fence each area's patch of sea, but walls
+	-- can be clipped through and the water is swimmable — and a player who ends
+	-- up under the world would otherwise fall until Roblox destroyed them and
+	-- respawned them at the HOME dock, however far they had sailed.
+	--
+	-- So: catch them well above that, and put them back on the dock of the area
+	-- they are actually in. Cheap (one pass a second over the player list, the
+	-- same shape as the Leaderboards loop) and it fails safe — an unknown area
+	-- falls back to home rather than doing nothing.
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			for _, player in Players:GetPlayers() do
+				local character = player.Character
+				local root = character and character:FindFirstChild("HumanoidRootPart")
+				if root and (root :: BasePart).Position.Y < VOID_Y then
+					local data = ctx.Data.Get(player)
+					local area = if data then math.clamp(data.AreaCurrent or 1, 1, Balance.MaxLayer) else 1
+					if not teleport(player, area) then
+						teleport(player, 1)
+					end
+				end
+			end
+		end
+	end)
 
 	Remotes.Function("BuyArea").OnServerInvoke = function(player, index)
 		if typeof(index) ~= "number" then

@@ -15,12 +15,7 @@ import sys
 from pathlib import Path
 
 
-def check(game: Path) -> list[str]:
-    config = game / "src/shared/Config/Crystals.luau"
-    shapes = game / "src/shared/RelicShape.luau"
-    if not config.exists() or not shapes.exists():
-        return []  # this game has no relic pool; nothing to check
-
+def check_relics(config: Path, shapes: Path) -> list[str]:
     declared = re.findall(r'\{\s*Name\s*=\s*"([^"]+)",\s*Kind\s*=\s*"Relic"', config.read_text())
     built = set(re.findall(r'BUILDERS\[\s*"([^"]+)"\s*\]\s*=', shapes.read_text()))
 
@@ -34,6 +29,52 @@ def check(game: Path) -> list[str]:
         problems.append(f"  RelicShape builds {name!r}, which is not a relic in Crystals.luau (renamed?)")
     if not problems:
         print(f"  {len(declared)}/{len(declared)} relics have their own model")
+    return problems
+
+
+def check_fish(config: Path, shapes: Path) -> list[str]:
+    """Same failure, other half of the collection.
+
+    Fish are worse than relics here, because the fallback is a perfectly
+    good-looking fish. A missing relic renders as an obviously generic hoard; a
+    missing fish renders as a fish, and the only tell is that the Anchovy and
+    the Megalodon are the same animal in different colours. That is exactly the
+    bug this whole species table exists to avoid, and it would ship silently.
+    """
+    declared = re.findall(r'\{\s*Name\s*=\s*"([^"]+)",\s*Kind\s*=\s*"Fish"', config.read_text())
+    text = shapes.read_text()
+    # Profile keys are written either bare (Anchovy = {...}) or bracketed when
+    # they contain a space (["Sea Bass"] = {...}).
+    body = text[text.index("local PROFILES"):]
+    body = body[: body.index("\n}\n")]
+    built = set(re.findall(r'^\t\["([^"]+)"\]\s*=', body, re.M))
+    built |= set(re.findall(r"^\t(\w+)\s*=", body, re.M))
+
+    problems = []
+    for name in declared:
+        if name not in built:
+            problems.append(
+                f"  fish {name!r} has no profile in FishShape.luau "
+                f"(would silently render as the generic fish)"
+            )
+    for name in sorted(built - set(declared)):
+        problems.append(f"  FishShape profiles {name!r}, which is not a fish in Crystals.luau (renamed?)")
+    if not problems:
+        print(f"  {len(declared)}/{len(declared)} fish have their own silhouette")
+    return problems
+
+
+def check(game: Path) -> list[str]:
+    config = game / "src/shared/Config/Crystals.luau"
+    problems = []
+    relics = game / "src/shared/RelicShape.luau"
+    fish = game / "src/shared/FishShape.luau"
+    if not config.exists():
+        return []  # this game has no collectible pools; nothing to check
+    if relics.exists():
+        problems += check_relics(config, relics)
+    if fish.exists():
+        problems += check_fish(config, fish)
     return problems
 
 

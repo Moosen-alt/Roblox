@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Crystals = require(Shared.Config.Crystals)
 local FishShape = require(Shared.FishShape)
 local RelicShape = require(Shared.RelicShape)
 
@@ -25,11 +26,12 @@ export type Props = {
 	Spin: number?,
 	Seed: number?,
 	Shards: number?, -- unused; kept so existing call sites keep compiling
-	-- The NAME of the thing, when it is a relic. Not a boolean: every relic has
-	-- its own model, so "is this a relic" is not enough information to draw one.
-	-- A Sunken Crown rendered as a gem is the same mistake as a trout rendered as
-	-- a gem, one level along.
-	RelicName: string?,
+	-- The NAME of the thing being drawn. Not a boolean and not a colour: BOTH
+	-- halves of the collection have their own models now — 33 fish silhouettes
+	-- and 11 relics — so "which one is this" is the only thing that can pick a
+	-- shape. A Sunken Crown drawn as a gem and an Anchovy drawn as a generic fish
+	-- are the same mistake one level apart.
+	Name: string?,
 }
 
 function GemView.Create(props: Props): ViewportFrame
@@ -48,25 +50,43 @@ function GemView.Create(props: Props): ViewportFrame
 	viewport.LightColor = Color3.fromRGB(255, 252, 240)
 	viewport.LightDirection = Vector3.new(-0.35, -1, -0.55)
 
-	local model = if props.RelicName
+	local name = props.Name
+	local model = if name and Crystals.IsRelic(name)
 		then RelicShape.Build({
-			Name = props.RelicName,
+			Name = name,
 			Color = props.Color,
 			Scale = 1,
 			Seed = props.Seed or 11,
 		})
 		else FishShape.Build({
+			Name = name,
 			Color = props.Color,
 			Scale = 1,
 			Seed = props.Seed or 11,
 		})
 	model.Parent = viewport
+	-- Centre it immediately. The spin loop re-centres every frame, but it bails
+	-- out while the viewport is hidden, so without this a card that starts
+	-- invisible shows the model off-centre the moment it is revealed.
+	model:PivotTo(CFrame.new())
 
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 42
+	-- FRAME THE SPECIES, don't assume one size. Species are built at their real
+	-- relative proportions — an Anchovy is 1.7 studs and a Megalodon is 6 — which
+	-- is the point in the tank, but on a card at a fixed camera distance it would
+	-- mean a shark cropped to its middle and an anchovy lost as a dot. So pull the
+	-- camera back in proportion to the model actually built.
+	--
 	-- Slightly off the beam and a touch above: dead side-on reads as a sticker,
 	-- and dead front-on hides the whole fish behind its own nose.
-	camera.CFrame = CFrame.lookAt(Vector3.new(1.6, 1.4, 6.6), Vector3.new(0, 0, 0))
+	local _, extents = model:GetBoundingBox()
+	local reach = math.max(extents.X, extents.Y, extents.Z)
+	-- 2.05x reach reproduces the old framing for the old 3.4-stud fish, so
+	-- everything that already looked right still does.
+	local distance = math.max(reach * 2.05, 3.2)
+	local eye = Vector3.new(0.23, 0.2, 0.95).Unit * distance
+	camera.CFrame = CFrame.lookAt(eye, Vector3.new(0, 0, 0))
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
 

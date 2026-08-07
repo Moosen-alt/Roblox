@@ -191,9 +191,9 @@ local function setBite(spot: BasePart, player: Player?)
 		}):Play()
 	end
 	if light then
-		light.Color = Color3.fromRGB(255, 255, 255)
-		light.Brightness = 5
-		light.Range = 30
+		light.Color = Color3.fromRGB(255, 244, 214)
+		light.Brightness = 2
+		light.Range = 20
 	end
 	-- Audible cue so the timing window works by ear as well as by eye
 	playSound(spot, "rbxasset://sounds/electronicpingshort.wav", 1.4, 0.8)

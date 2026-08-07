@@ -10,6 +10,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
+local Crystals = require(Shared.Config.Crystals)
 local FishShape = require(Shared.FishShape)
 
 local MapBuilder = {}
@@ -35,38 +36,76 @@ type AreaTheme = {
 	Water: Color3,
 	Spots: { Color3 },
 	Palms: number,
+	-- What GROWS in the water here. Colour alone made all five areas the same
+	-- beach with a filter over it — the Kelp Forest had no kelp in it, which is
+	-- the kind of thing a player notices immediately and a spec sheet never does.
+	Growth: string, -- Reeds | Kelp | Coral | Vent | Bone
+	-- What stands on the SHORE.
+	Shore: string, -- Palm | Pine | Rock | Spire
+	-- Which marker floats out on the water. The lantern on top is identical
+	-- across all five (the fishing loop drives it), so only the hull changes.
+	Buoy: string, -- Ring | Float | Glass | Can | Orb
+	-- What the station decks and the dock are built out of.
+	DeckColor: Color3,
+	DeckMaterial: Enum.Material,
 }
 
 local AREA_THEMES: { AreaTheme } = {
-	{ -- 1 Sunny Shallows
+	{ -- 1 Sunny Shallows: a bright holiday beach. Palms, pale sand, clear water.
 		Sand = Color3.fromRGB(232, 214, 165),
 		Water = Color3.fromRGB(120, 210, 230),
 		Spots = { Color3.fromRGB(255, 200, 60), Color3.fromRGB(120, 220, 255), Color3.fromRGB(120, 255, 160) },
 		Palms = 8,
+		Growth = "Reeds",
+		Shore = "Palm",
+		Buoy = "Ring",
+		DeckColor = Color3.fromRGB(210, 185, 140),
+		DeckMaterial = Enum.Material.WoodPlanks,
 	},
-	{ -- 2 Kelp Forest
-		Sand = Color3.fromRGB(180, 190, 150),
-		Water = Color3.fromRGB(70, 160, 130),
+	{ -- 2 Kelp Forest: a cold northern cove. Kelp towers up THROUGH the surface
+		-- and mats out into a canopy you look across, pines on a rocky shore.
+		Sand = Color3.fromRGB(150, 160, 130),
+		Water = Color3.fromRGB(56, 132, 110),
 		Spots = { Color3.fromRGB(120, 255, 160), Color3.fromRGB(90, 200, 130), Color3.fromRGB(200, 255, 120) },
-		Palms = 5,
+		Palms = 0,
+		Growth = "Kelp",
+		Shore = "Pine",
+		Buoy = "Float",
+		DeckColor = Color3.fromRGB(112, 92, 72),
+		DeckMaterial = Enum.Material.Wood,
 	},
-	{ -- 3 Twilight Reef
-		Sand = Color3.fromRGB(205, 175, 175),
+	{ -- 3 Twilight Reef: warm and loud. Coral heads, fans, urchins.
+		Sand = Color3.fromRGB(228, 196, 186),
 		Water = Color3.fromRGB(90, 150, 220),
 		Spots = { Color3.fromRGB(255, 150, 220), Color3.fromRGB(90, 210, 220), Color3.fromRGB(255, 120, 80) },
 		Palms = 3,
+		Growth = "Coral",
+		Shore = "Rock",
+		Buoy = "Glass",
+		DeckColor = Color3.fromRGB(226, 168, 150),
+		DeckMaterial = Enum.Material.Sandstone,
 	},
-	{ -- 4 Midnight Trench
-		Sand = Color3.fromRGB(110, 105, 130),
+	{ -- 4 Midnight Trench: black basalt spires and hydrothermal vents.
+		Sand = Color3.fromRGB(96, 92, 116),
 		Water = Color3.fromRGB(40, 60, 120),
 		Spots = { Color3.fromRGB(120, 200, 255), Color3.fromRGB(180, 160, 255), Color3.fromRGB(255, 240, 120) },
 		Palms = 0,
+		Growth = "Vent",
+		Shore = "Spire",
+		Buoy = "Can",
+		DeckColor = Color3.fromRGB(78, 80, 96),
+		DeckMaterial = Enum.Material.DiamondPlate,
 	},
-	{ -- 5 The Abyss
-		Sand = Color3.fromRGB(70, 66, 88),
+	{ -- 5 The Abyss: no light that isn't alive. Bones on the floor.
+		Sand = Color3.fromRGB(58, 55, 74),
 		Water = Color3.fromRGB(20, 25, 60),
 		Spots = { Color3.fromRGB(190, 90, 255), Color3.fromRGB(255, 70, 120), Color3.fromRGB(150, 255, 245) },
 		Palms = 0,
+		Growth = "Bone",
+		Shore = "Spire",
+		Buoy = "Orb",
+		DeckColor = Color3.fromRGB(206, 200, 186),
+		DeckMaterial = Enum.Material.Slate,
 	},
 }
 
@@ -100,7 +139,7 @@ end
 -- rather than dimming any one thing in it.
 local function setLighting()
 	Lighting.ClockTime = 15.5
-	Lighting.Brightness = 1.7
+	Lighting.Brightness = 1.5
 	Lighting.ExposureCompensation = -0.4
 	Lighting.Ambient = Color3.fromRGB(122, 126, 140)
 	Lighting.OutdoorAmbient = Color3.fromRGB(116, 128, 150)
@@ -123,7 +162,7 @@ local function setLighting()
 	atmosphere.Density = 0.3
 	atmosphere.Color = Color3.fromRGB(190, 214, 244)
 	atmosphere.Decay = Color3.fromRGB(120, 150, 190)
-	atmosphere.Haze = 1.4 -- distance haze, which is what makes a far vista read as far
+	atmosphere.Haze = 1.1 -- distance haze, which is what makes a far vista read as far
 	atmosphere.Glare = 0
 	atmosphere.Parent = Lighting
 end
@@ -206,7 +245,7 @@ local function decorateCrack(position: Vector3, _color: Color3, parent: Instance
 	local glow = Instance.new("PointLight")
 	glow.Color = GOLD
 	glow.Range = 12
-	glow.Brightness = 1.3
+	glow.Brightness = 0.7
 	glow.Parent = gold
 	deco({
 		Name = "ChestLid",
@@ -437,17 +476,28 @@ local STATION_DECOR: { [string]: (Vector3, Color3, Instance) -> () } = {
 	Rebirth = decorateRebirth,
 }
 
-local function makeStation(position: Vector3, title: string, stationKey: string, color: Color3, parent: Instance): ProximityPrompt
+local function makeStation(
+	position: Vector3,
+	title: string,
+	stationKey: string,
+	color: Color3,
+	parent: Instance,
+	theme: AreaTheme?
+): ProximityPrompt
 	-- Round pad with a glowing rim. The old "Ring" was an 11x11 neon SLAB laid
 	-- over a square pad, which rendered as a giant glowing square on the cave
 	-- floor — it read as a crack in the rock, not as a station.
+	-- The deck is built out of whatever this area is made of: planks on the
+	-- holiday beach, dark timber in the kelp cove, sandstone on the reef, steel
+	-- plate in the trench, bone in the Abyss. A station that looks identical in
+	-- all five is the same "one area in five colours" problem one level in.
 	local pad = part({
 		Name = title .. "Pad",
 		Shape = Enum.PartType.Cylinder,
 		Size = Vector3.new(1, 10, 10),
 		CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(210, 185, 140),
-		Material = Enum.Material.WoodPlanks,
+		Color = if theme then theme.DeckColor else Color3.fromRGB(210, 185, 140),
+		Material = if theme then theme.DeckMaterial else Enum.Material.WoodPlanks,
 	}, parent)
 	local ring = part({
 		Name = "Rim",
@@ -467,8 +517,8 @@ local function makeStation(position: Vector3, title: string, stationKey: string,
 
 	local light = Instance.new("PointLight")
 	light.Color = color
-	light.Range = 24
-	light.Brightness = 1.2
+	light.Range = 16
+	light.Brightness = 0.6
 	light.Parent = pad
 
 	local billboard = Instance.new("BillboardGui")
@@ -608,41 +658,390 @@ local function makeDockClutter(at: Vector3, parent: Instance)
 	end
 end
 
-local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
-	-- Sea stacks out in the water, off to both sides so they frame the fishing
-	-- arc instead of standing in it.
-	for i = 1, 6 do
-		local side = if i % 2 == 0 then 1 else -1
-		makeSeaStack(
-			Vector3.new(ox + side * rng:NextNumber(58, 120), -3, oz - rng:NextNumber(30, 130)),
-			rng:NextNumber(14, 34),
-			theme.Water,
-			parent
-		)
+--------------------------------------------------------------------------------
+-- Per-area set dressing.
+--
+-- The five areas used to differ by tint and palm count, which is why the Kelp
+-- Forest had no kelp in it. Water at this scale is mostly empty, so what fills
+-- it IS the area — these are the things a player actually looks at while waiting
+-- for a bite, and the reason sailing somewhere new feels like somewhere new.
+--
+-- Everything here is CanCollide false and CanQuery false (via `deco`): a cast
+-- ray must never die on scenery, and a player must never get stuck in a coral.
+--------------------------------------------------------------------------------
+
+-- Giant kelp, built the way it actually grows: a stipe anchored on the sea floor
+-- running all the way UP, then matting out into a canopy of blades lying flat on
+-- the surface. The canopy is the whole point — real kelp forests read from above
+-- as a floating field you look across, not as poles sticking out of the sea.
+--
+-- (An earlier version put loose strands at random heights and they read as green
+-- boxes floating in mid-air. Rooted bottom, matted top, nothing in between.)
+local SEA_FLOOR = -6.4
+local SURFACE = -0.2
+
+local function makeKelpColumn(at: Vector3, color: Color3, parent: Instance)
+	local lean = rng:NextNumber(-0.09, 0.09)
+	local segments = 6
+	local span = SURFACE - 0.45 - SEA_FLOOR
+	for i = 1, segments do
+		local t = (i - 0.5) / segments
+		local height = span / segments
+		deco({
+			Name = "KelpStipe",
+			Size = Vector3.new(0.42, height + 0.15, 0.42),
+			CFrame = CFrame.new(
+				at.X + lean * t * 6,
+				SEA_FLOOR + (i - 0.5) * height,
+				at.Z + lean * t * 3
+			) * CFrame.Angles(0, rng:NextNumber(0, 3), lean),
+			Color = color:Lerp(Color3.fromRGB(48, 40, 24), 0.45 - t * 0.3),
+			Material = Enum.Material.Grass,
+		}, parent)
+		-- Pneumatocysts: the little gas floats that hold the blades up. Tiny, but
+		-- they are what stops the stipe reading as a green stick.
+		if i > 2 then
+			deco({
+				Name = "KelpFloat",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.new(0.5, 0.62, 0.5),
+				CFrame = CFrame.new(at.X + lean * t * 6 + 0.3, SEA_FLOOR + i * height, at.Z + lean * t * 3),
+				Color = color:Lerp(Color3.fromRGB(190, 200, 90), 0.4),
+				Material = Enum.Material.SmoothPlastic,
+			}, parent)
+		end
 	end
 
-	-- Growth on the sea floor, themed per area: palms up top already, kelp and
-	-- coral below the surface. Deep areas get glowing strands instead, which is
-	-- most of what makes the Trench and the Abyss feel like different water.
-	local strandColor, strandMaterial
-	if index <= 1 then
-		strandColor, strandMaterial = Color3.fromRGB(90, 190, 120), Enum.Material.Grass
-	elseif index == 2 then
-		strandColor, strandMaterial = Color3.fromRGB(60, 150, 90), Enum.Material.Grass
-	elseif index == 3 then
-		strandColor, strandMaterial = Color3.fromRGB(255, 130, 180), Enum.Material.Neon
-	else
-		strandColor, strandMaterial = theme.Spots[1], Enum.Material.Neon
+	-- The canopy: blades fanned out just under the surface.
+	local blades = rng:NextInteger(4, 6)
+	local top = Vector3.new(at.X + lean * 6, SURFACE - 0.28, at.Z + lean * 3)
+	for i = 1, blades do
+		local theta = (i / blades) * math.pi * 2 + rng:NextNumber(-0.3, 0.3)
+		local length = rng:NextNumber(5, 9)
+		deco({
+			Name = "KelpBlade",
+			Size = Vector3.new(length, 0.22, rng:NextNumber(0.9, 1.6)),
+			CFrame = CFrame.new(top + Vector3.new(math.cos(theta) * length * 0.5, 0, math.sin(theta) * length * 0.5))
+				* CFrame.Angles(0, -theta, rng:NextNumber(-0.06, 0.06)),
+			Color = color:Lerp(Color3.fromRGB(30, 60, 30), rng:NextNumber(0, 0.3)),
+			Material = Enum.Material.Grass,
+		}, parent)
 	end
-	-- Rooted on the sea floor and kept BELOW the surface. These were tall enough
-	-- to break the waterline, which put kelp fronds and coral standing in mid-air
-	-- at odd angles all over the bay — they read as loose green boxes floating on
-	-- the sea, not as anything growing in it. Water tops out at y = -0.2, so the
-	-- tallest strand has to finish under that.
-	for _ = 1, 26 do
-		local height = rng:NextNumber(3, 5.5)
-		local at = Vector3.new(ox + rng:NextNumber(-120, 120), -6.4, oz - rng:NextNumber(10, 140))
-		makeStrand(at, height, strandColor, strandMaterial, parent)
+end
+
+-- A coral head: a lump with branching arms and a brain or two. Reef colour comes
+-- from the area palette, so the reef is loud in the way a reef is.
+local function makeCoralHead(at: Vector3, palette: { Color3 }, parent: Instance)
+	local base = palette[rng:NextInteger(1, #palette)]
+	deco({
+		Name = "CoralBase",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(rng:NextNumber(3, 5), rng:NextNumber(1.6, 2.6), rng:NextNumber(3, 5)),
+		CFrame = CFrame.new(at) * CFrame.Angles(0, rng:NextNumber(0, 3), 0),
+		Color = base:Lerp(Color3.fromRGB(120, 90, 90), 0.35),
+		Material = Enum.Material.Rock,
+	}, parent)
+	-- Branches: a staghorn cluster leaning outward.
+	for i = 1, rng:NextInteger(3, 6) do
+		local theta = (i / 6) * math.pi * 2 + rng:NextNumber(-0.4, 0.4)
+		local height = rng:NextNumber(1.6, 3.4)
+		local tint = palette[rng:NextInteger(1, #palette)]
+		deco({
+			Name = "CoralBranch",
+			Size = Vector3.new(0.55, height, 0.55),
+			CFrame = CFrame.new(
+				at + Vector3.new(math.cos(theta) * 1.5, height * 0.45, math.sin(theta) * 1.5)
+			) * CFrame.Angles(math.sin(theta) * 0.3, 0, math.cos(theta) * -0.3),
+			Color = tint,
+			Material = Enum.Material.Sandstone,
+		}, parent)
+		deco({
+			Name = "CoralTip",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.8, 0.8, 0.8),
+			CFrame = CFrame.new(
+				at + Vector3.new(math.cos(theta) * 2.0, height * 0.95, math.sin(theta) * 2.0)
+			),
+			Color = tint:Lerp(Color3.new(1, 1, 1), 0.3),
+			Material = Enum.Material.Sandstone,
+		}, parent)
+	end
+	-- A brain coral beside it: round, ribbed, a different silhouette so a reef
+	-- does not read as one shape repeated.
+	if rng:NextNumber() < 0.6 then
+		local brainAt = at + Vector3.new(rng:NextNumber(-4, 4), 0.4, rng:NextNumber(-4, 4))
+		local brain = palette[rng:NextInteger(1, #palette)]
+		deco({
+			Name = "BrainCoral",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(2.6, 2.0, 2.6),
+			CFrame = CFrame.new(brainAt),
+			Color = brain,
+			Material = Enum.Material.Sandstone,
+		}, parent)
+		for i = 1, 4 do
+			deco({
+				Name = "BrainRib",
+				Size = Vector3.new(2.7, 0.22, 0.3),
+				CFrame = CFrame.new(brainAt + Vector3.new(0, 0.5 - i * 0.22, 0))
+					* CFrame.Angles(0, i * 0.7, 0),
+				Color = brain:Lerp(Color3.fromRGB(40, 30, 40), 0.4),
+				Material = Enum.Material.Sandstone,
+			}, parent)
+		end
+	end
+end
+
+-- A hydrothermal vent: a basalt chimney with heat shimmering out of the top.
+-- The trench needs a reason to look alive without looking lit.
+local function makeVent(at: Vector3, color: Color3, parent: Instance)
+	local height = rng:NextNumber(4, 8)
+	local segments = 4
+	for i = 1, segments do
+		local t = (i - 1) / segments
+		local width = (3.2 - t * 2.0) * rng:NextNumber(0.85, 1.15)
+		deco({
+			Name = "VentStack",
+			Size = Vector3.new(width, height / segments + 0.4, width),
+			CFrame = CFrame.new(at + Vector3.new(
+				rng:NextNumber(-0.4, 0.4),
+				(i - 0.5) * (height / segments),
+				rng:NextNumber(-0.4, 0.4)
+			)) * CFrame.Angles(0, rng:NextNumber(0, 3), 0),
+			Color = Color3.fromRGB(52, 48, 60),
+			Material = Enum.Material.Basalt,
+		}, parent)
+	end
+	local mouth = deco({
+		Name = "VentMouth",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(1.5, 0.7, 1.5),
+		CFrame = CFrame.new(at + Vector3.new(0, height, 0)),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Transparency = 0.35,
+	}, parent)
+	-- The plume. Particles rather than parts, because it has to move and it must
+	-- never be something a cast can land on.
+	local plume = Instance.new("ParticleEmitter")
+	plume.Color = ColorSequence.new(color)
+	plume.LightEmission = 0.25
+	plume.Size = NumberSequence.new(1.4, 3.4)
+	plume.Transparency = NumberSequence.new(0.55, 1)
+	plume.Lifetime = NumberRange.new(1.6, 3.2)
+	plume.Rate = 5
+	plume.Speed = NumberRange.new(2.5, 5)
+	plume.SpreadAngle = Vector2.new(12, 12)
+	plume.Parent = mouth
+end
+
+-- A basalt spire: taller, thinner and sharper than a sea stack, leaning. Trench
+-- and Abyss geology, so the deep areas do not just look like a dark beach.
+local function makeSpire(at: Vector3, height: number, tint: Color3, parent: Instance)
+	local segments = math.max(math.floor(height / 6), 3)
+	local lean = rng:NextNumber(-0.12, 0.12)
+	for i = 1, segments do
+		local t = (i - 1) / segments
+		local width = (5.5 - t * 4.4) * rng:NextNumber(0.8, 1.2)
+		deco({
+			Name = "Spire",
+			Size = Vector3.new(width, height / segments + 1.2, width * rng:NextNumber(0.8, 1.2)),
+			CFrame = CFrame.new(at + Vector3.new(
+				lean * i * 1.6,
+				(i - 0.5) * (height / segments),
+				lean * i * 0.8
+			)) * CFrame.Angles(lean * 0.4, rng:NextNumber(0, 3), lean),
+			Color = Color3.fromRGB(46, 44, 58):Lerp(tint, 0.22),
+			Material = Enum.Material.Basalt,
+		}, parent)
+	end
+end
+
+-- Something enormous died here. A spine and a cage of ribs half-buried on the
+-- floor of the Abyss, which does more for "this is the deep" than any tint.
+local function makeBones(at: Vector3, parent: Instance)
+	local BONE = Color3.fromRGB(214, 208, 190)
+	local length = rng:NextNumber(16, 26)
+	local heading = rng:NextNumber(0, 3)
+	local facing = CFrame.new(at) * CFrame.Angles(0, heading, 0)
+	deco({
+		Name = "Spine",
+		Size = Vector3.new(1.1, 1.1, length),
+		CFrame = facing,
+		Color = BONE,
+		Material = Enum.Material.Sandstone,
+	}, parent)
+	local ribs = 7
+	for i = 1, ribs do
+		local z = -length * 0.4 + (i - 1) * (length * 0.8 / (ribs - 1))
+		local span = (2.6 + math.sin(i / ribs * math.pi) * 3.4)
+		for _, side in { 1, -1 } do
+			deco({
+				Name = "Rib",
+				Size = Vector3.new(0.55, span, 0.55),
+				CFrame = facing
+					* CFrame.new(side * span * 0.42, span * 0.3, z)
+					* CFrame.Angles(0, 0, side * 0.85),
+				Color = BONE,
+				Material = Enum.Material.Sandstone,
+			}, parent)
+		end
+	end
+	-- The skull, at one end.
+	deco({
+		Name = "Skull",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(3.4, 2.8, 3.0),
+		CFrame = facing * CFrame.new(0, 1.0, length * 0.55),
+		Color = BONE,
+		Material = Enum.Material.Sandstone,
+	}, parent)
+end
+
+-- A conifer, for the cold rocky shore of the Kelp Forest. Palms there were the
+-- single most obviously wrong thing on the beach.
+local function makePine(position: Vector3, parent: Instance)
+	local height = rng:NextNumber(10, 17)
+	local trunk = deco({
+		Name = "PineTrunk",
+		Size = Vector3.new(1.3, height, 1.3),
+		Position = position + Vector3.new(0, height * 0.5, 0),
+		Color = Color3.fromRGB(92, 68, 50),
+		Material = Enum.Material.Wood,
+	}, parent)
+	trunk.CanCollide = true
+	local tiers = 5
+	for i = 1, tiers do
+		local t = (i - 1) / tiers
+		local width = (9 - t * 6.2) * rng:NextNumber(0.9, 1.1)
+		deco({
+			Name = "PineTier",
+			Size = Vector3.new(width, height * 0.2, width),
+			CFrame = CFrame.new(position + Vector3.new(0, height * (0.34 + t * 0.62), 0))
+				* CFrame.Angles(0, rng:NextNumber(0, 3), 0),
+			Color = Color3.fromRGB(38, 82, 56):Lerp(Color3.fromRGB(70, 130, 80), t * 0.5),
+			Material = Enum.Material.Grass,
+		}, parent)
+	end
+end
+
+-- A spot for something that GROWS, kept clear of the fishing arc.
+--
+-- The arc sits at radius 32-42 around (ox, oz - 52) and carries the twelve
+-- buoys. Scenery there does not block a cast — everything from `deco` has
+-- CanQuery off — but a kelp column is 6 studs of green standing exactly where a
+-- marker you are looking for floats, and "I can't find my buoy" is a worse
+-- problem than a slightly emptier arc. So: sample, and reroll anything that
+-- lands in the band. Bounded retries, because an unbounded loop in map
+-- generation is a hang, not a bug.
+local function growthSpot(ox: number, oz: number): Vector3
+	local center = Vector2.new(ox, oz - 52)
+	for _ = 1, 8 do
+		local at = Vector2.new(ox + rng:NextNumber(-125, 125), oz - rng:NextNumber(14, 145))
+		local distance = (at - center).Magnitude
+		if distance < 24 or distance > 50 then
+			return Vector3.new(at.X, 0, at.Y)
+		end
+	end
+	-- Fell through: put it well outside the arc rather than give up on it.
+	return Vector3.new(ox + rng:NextNumber(-125, 125), 0, oz - rng:NextNumber(96, 145))
+end
+
+local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
+	-- Rock out in the water, off to both sides so it frames the fishing arc
+	-- instead of standing in it. Shallow areas get rounded sea stacks; the deep
+	-- ones get leaning basalt spires, because "dark beach" is not a trench.
+	for i = 1, 6 do
+		local side = if i % 2 == 0 then 1 else -1
+		local at = Vector3.new(ox + side * rng:NextNumber(58, 120), -3, oz - rng:NextNumber(30, 130))
+		if theme.Shore == "Spire" then
+			makeSpire(at, rng:NextNumber(22, 46), theme.Water, parent)
+		else
+			makeSeaStack(at, rng:NextNumber(14, 34), theme.Water, parent)
+		end
+	end
+
+	-- WHAT GROWS HERE. This is the difference between five areas and one area in
+	-- five colours, and it is the first thing a player notices about a new dock.
+	--
+	-- Everything rooted on the sea floor (y = -6.4) — except the kelp, which is
+	-- supposed to reach the surface and mat out across it, because that is what a
+	-- kelp forest is and its absence was the specific complaint.
+	local growth = theme.Growth
+	if growth == "Kelp" then
+		-- Fewer than the old strand count and much bigger: a forest is made of
+		-- columns you look between, not of scattered weeds.
+		for _ = 1, 16 do
+			makeKelpColumn(growthSpot(ox, oz), Color3.fromRGB(74, 120, 52), parent)
+		end
+		-- Low understory between the columns.
+		for _ = 1, 14 do
+			makeStrand(
+				Vector3.new(ox + rng:NextNumber(-120, 120), SEA_FLOOR, oz - rng:NextNumber(10, 140)),
+				rng:NextNumber(2.5, 4.5),
+				Color3.fromRGB(58, 96, 44),
+				Enum.Material.Grass,
+				parent
+			)
+		end
+	elseif growth == "Coral" then
+		for _ = 1, 18 do
+			local at = growthSpot(ox, oz)
+			makeCoralHead(Vector3.new(at.X, SEA_FLOOR + 1, at.Z), theme.Spots, parent)
+		end
+		-- Sea fans: thin, tall, and a completely different silhouette from the
+		-- heads, which is what stops a reef reading as one shape repeated.
+		for _ = 1, 12 do
+			makeStrand(
+				Vector3.new(ox + rng:NextNumber(-120, 120), SEA_FLOOR, oz - rng:NextNumber(10, 140)),
+				rng:NextNumber(3, 5),
+				theme.Spots[rng:NextInteger(1, #theme.Spots)],
+				Enum.Material.Sandstone,
+				parent
+			)
+		end
+	elseif growth == "Vent" then
+		for _ = 1, 9 do
+			local at = growthSpot(ox, oz)
+			makeVent(Vector3.new(at.X, SEA_FLOOR, at.Z), theme.Spots[rng:NextInteger(1, #theme.Spots)], parent)
+		end
+		for _ = 1, 16 do
+			makeStrand(
+				Vector3.new(ox + rng:NextNumber(-120, 120), SEA_FLOOR, oz - rng:NextNumber(10, 140)),
+				rng:NextNumber(3, 5.5),
+				theme.Spots[1],
+				Enum.Material.Neon,
+				parent
+			)
+		end
+	elseif growth == "Bone" then
+		for _ = 1, 5 do
+			local at = growthSpot(ox, oz)
+			makeBones(Vector3.new(at.X, SEA_FLOOR + 0.8, at.Z), parent)
+		end
+		for _ = 1, 6 do
+			local at = growthSpot(ox, oz)
+			makeVent(Vector3.new(at.X, SEA_FLOOR, at.Z), theme.Spots[rng:NextInteger(1, #theme.Spots)], parent)
+		end
+		for _ = 1, 18 do
+			makeStrand(
+				Vector3.new(ox + rng:NextNumber(-120, 120), SEA_FLOOR, oz - rng:NextNumber(10, 140)),
+				rng:NextNumber(3, 5.5),
+				theme.Spots[rng:NextInteger(1, #theme.Spots)],
+				Enum.Material.Neon,
+				parent
+			)
+		end
+	else -- Reeds: the shallows. Ordinary green weed, kept under the waterline.
+		for _ = 1, 26 do
+			makeStrand(
+				Vector3.new(ox + rng:NextNumber(-120, 120), SEA_FLOOR, oz - rng:NextNumber(10, 140)),
+				rng:NextNumber(3, 5.5),
+				Color3.fromRGB(90, 190, 120),
+				Enum.Material.Grass,
+				parent
+			)
+		end
 	end
 
 	-- Beached rocks and driftwood on the sand
@@ -692,15 +1091,26 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 	makeDockClutter(Vector3.new(ox - 11, 1.6, oz - 12), parent)
 	makeDockClutter(Vector3.new(ox + 12, 1.6, oz - 30), parent)
 
-	-- A giant fish of the area's own colour, turning above the water. It is the
-	-- landmark you can see from the previous dock, and it advertises what lives
-	-- here far better than the price on the Dock Master's list does.
-	for _, at in { Vector3.new(ox - 52, 15, oz - 62), Vector3.new(ox + 52, 15, oz - 62) } do
+	-- Two giant fish turning above the water. They are the landmark you can see
+	-- from the previous dock, and they advertise what lives here far better than
+	-- the price on the Dock Master's list does.
+	--
+	-- They are REAL SPECIES from this area, in that species' own colours — the
+	-- two rarest ones. A generic fish in a theme colour is decoration; a
+	-- twenty-stud Megalodon turning over the Abyss is the argument for buying the
+	-- Abyss. Every species has its own silhouette now, so this costs one lookup.
+	local headline = Crystals.BasesInLayer(index, Crystals.FISH)
+	table.sort(headline, function(a, b)
+		return a.Value > b.Value
+	end)
+	for slot, at in { Vector3.new(ox - 52, 15, oz - 62), Vector3.new(ox + 52, 15, oz - 62) } do
+		local star = headline[slot]
 		local trophy = FishShape.Build({
-			Color = theme.Spots[rng:NextInteger(1, #theme.Spots)],
-			Scale = rng:NextNumber(3.4, 4.6),
+			Name = if star then star.Name else nil,
+			Color = if star then star.Color else theme.Spots[1],
+			Scale = rng:NextNumber(2.6, 3.2),
 			Seed = math.floor(at.X * 7 + at.Z),
-			Glow = 16,
+			Glow = 12,
 			Sparkle = true,
 			Neon = index >= 4,
 		})
@@ -729,7 +1139,13 @@ local RING_RADIUS = 2.7
 local RING_TUBE = 1.05
 local RING_SEGMENTS = 16
 
-local function buildBuoy(name: string, position: Vector3, color: Color3, parent: Instance): BasePart
+local function buildBuoy(
+	name: string,
+	position: Vector3,
+	color: Color3,
+	styleName: string?,
+	parent: Instance
+): BasePart
 	local model = Instance.new("Model")
 	model.Name = "Buoy"
 
@@ -747,56 +1163,253 @@ local function buildBuoy(name: string, position: Vector3, color: Color3, parent:
 	float.CanCollide = false
 	model.PrimaryPart = float
 
-	-- The ring float, built as a circle of cylinders. Roblox has no torus, and a
-	-- ring is the single thing that makes a buoy read as a buoy — sixteen
-	-- segments is past the point where anyone can see the seams from the dock.
-	--
-	-- A cylinder's axis is its X, so each segment is turned to put that axis
-	-- along the tangent of the circle at its own angle.
-	-- Painted in four alternating quadrants, life-ring style, rather than with a
-	-- separate white band laid over every segment. It is the bolder read at the
-	-- thirty studs you actually see these from, it is unmistakably a buoy, and it
-	-- costs half the parts — sixty buoys across five areas is not the place to
-	-- spend thirty-two parts each on a stripe nobody can resolve.
-	local segmentLength = 2 * RING_RADIUS * math.sin(math.pi / RING_SEGMENTS) * 1.25
-	local perQuadrant = RING_SEGMENTS / 4
-	for i = 1, RING_SEGMENTS do
-		local theta = (i - 1) / RING_SEGMENTS * math.pi * 2
-		local at = position + Vector3.new(math.cos(theta) * RING_RADIUS, 0, math.sin(theta) * RING_RADIUS)
-		local white = math.floor((i - 1) / perQuadrant) % 2 == 1
-		local tube = part({
-			Name = "Ring",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(segmentLength, RING_TUBE, RING_TUBE),
-			CFrame = CFrame.new(at) * CFrame.Angles(0, -theta - math.pi * 0.5, 0),
-			Color = if white then Color3.fromRGB(248, 248, 250) else color,
-			Material = Enum.Material.SmoothPlastic,
-		}, model)
-		tube.CanCollide = false
-		tube.CanQuery = false
+	-- The apex is where the lantern goes, and it is the SAME height for every
+	-- hull below. The fishing loop recolours and swells that lamp for cast and
+	-- bite, and MiningService hard-codes its size — so the marker's silhouette is
+	-- free to change per area, but the working light on top never does.
+	local apex = position + Vector3.new(0, 4.5, 0)
+
+	local function fixture(props: { [string]: any }): Part
+		local piece = part(props, model)
+		piece.CanCollide = false
+		piece.CanQuery = false
+		return piece
 	end
 
-	-- Tripod: three legs leaning in from the ring to meet under the lantern.
-	local apex = position + Vector3.new(0, 4.5, 0)
-	for i = 1, 3 do
-		local theta = (i - 1) / 3 * math.pi * 2 + math.pi * 0.5
-		local foot = position
-			+ Vector3.new(math.cos(theta) * (RING_RADIUS - 0.35), 0.3, math.sin(theta) * (RING_RADIUS - 0.35))
-		local span = (apex - foot).Magnitude
-		local leg = part({
-			Name = "Leg",
-			Size = Vector3.new(0.34, 0.34, span),
-			-- lookAt aims the part's -Z down its own length, so a part sized on Z
-			-- stretches exactly from the foot to the apex however far that is.
-			CFrame = CFrame.lookAt((foot + apex) * 0.5, apex),
-			-- Tinted toward the area's colour rather than left bare metal. The
-			-- silhouette should be a real buoy; the palette should still look like
-			-- a game a twelve-year-old wants to be in.
-			Color = Color3.fromRGB(96, 88, 78):Lerp(color, 0.3),
+	local METAL = Color3.fromRGB(96, 88, 78)
+
+	local style = styleName or "Ring"
+	if style == "Float" then
+		-- KELP FOREST: a working crab-pot buoy. A weathered wooden barrel riding
+		-- the surface with rope whipped round it and one plain timber mast. This
+		-- is what actually floats over a kelp bed, and it looks like someone's job
+		-- rather than someone's harbour.
+		fixture({
+			Name = "Barrel",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(3.0, 2.5, 2.5),
+			CFrame = CFrame.new(position + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(150, 112, 74):Lerp(color, 0.25),
+			Material = Enum.Material.Wood,
+		})
+		for i = 1, 2 do
+			fixture({
+				Name = "RopeBand",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.34, 2.66, 2.66),
+				CFrame = CFrame.new(position + Vector3.new(0, -0.55 + i * 1.5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+				Color = Color3.fromRGB(196, 176, 130),
+				Material = Enum.Material.Fabric,
+			})
+		end
+		fixture({
+			Name = "Mast",
+			Size = Vector3.new(0.42, 4.0, 0.42),
+			Position = position + Vector3.new(0, 2.6, 0),
+			Color = Color3.fromRGB(120, 92, 62),
+			Material = Enum.Material.Wood,
+		})
+		-- Kelp caught round the float, because everything out here is.
+		for i = 1, 3 do
+			local theta = (i / 3) * math.pi * 2
+			fixture({
+				Name = "TangledKelp",
+				Size = Vector3.new(rng:NextNumber(2.5, 4), 0.2, 0.9),
+				CFrame = CFrame.new(position + Vector3.new(math.cos(theta) * 2.2, -0.5, math.sin(theta) * 2.2))
+					* CFrame.Angles(0, -theta, 0.1),
+				Color = Color3.fromRGB(74, 120, 52),
+				Material = Enum.Material.Grass,
+			})
+		end
+	elseif style == "Glass" then
+		-- TWILIGHT REEF: a Japanese glass fishing float in a rope net, resting on
+		-- a coral knob. Warm, handmade, and see-through, which is the opposite of
+		-- the trench's steel and reads instantly as "reef".
+		fixture({
+			Name = "GlassFloat",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(3.6, 3.6, 3.6),
+			Position = position + Vector3.new(0, 0.5, 0),
+			Color = color:Lerp(Color3.fromRGB(180, 255, 235), 0.4),
+			Material = Enum.Material.Glass,
+			Transparency = 0.45,
+		})
+		-- The net: three rings and four verticals, which is enough to read as rope.
+		for i = 1, 3 do
+			fixture({
+				Name = "NetRing",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.16, 3.7 - math.abs(i - 2) * 0.7, 3.7 - math.abs(i - 2) * 0.7),
+				CFrame = CFrame.new(position + Vector3.new(0, -0.4 + i * 0.9, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+				Color = Color3.fromRGB(206, 186, 140),
+				Material = Enum.Material.Fabric,
+			})
+		end
+		for i = 1, 4 do
+			local theta = (i / 4) * math.pi
+			fixture({
+				Name = "NetLine",
+				Size = Vector3.new(0.16, 3.6, 0.16),
+				CFrame = CFrame.new(position + Vector3.new(math.cos(theta) * 1.75, 0.5, math.sin(theta) * 1.75))
+					* CFrame.Angles(0, -theta, 0),
+				Color = Color3.fromRGB(206, 186, 140),
+				Material = Enum.Material.Fabric,
+			})
+		end
+		-- Coral knob under it, tying the marker to the reef it sits on.
+		fixture({
+			Name = "CoralKnob",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(2.6, 1.4, 2.6),
+			Position = position + Vector3.new(0, -1.2, 0),
+			Color = color,
+			Material = Enum.Material.Sandstone,
+		})
+		fixture({
+			Name = "Mast",
+			Size = Vector3.new(0.36, 2.6, 0.36),
+			Position = position + Vector3.new(0, 3.4, 0),
+			Color = Color3.fromRGB(150, 120, 80),
+			Material = Enum.Material.Wood,
+		})
+	elseif style == "Can" then
+		-- MIDNIGHT TRENCH: an industrial steel can buoy. Riveted drum, rim, and a
+		-- caged lamp — heavy shipping hardware, moored somewhere nothing grows.
+		fixture({
+			Name = "Can",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(3.4, 3.2, 3.2),
+			CFrame = CFrame.new(position + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(88, 92, 104):Lerp(color, 0.25),
+			Material = Enum.Material.DiamondPlate,
+		})
+		fixture({
+			Name = "Rim",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.4, 3.7, 3.7),
+			CFrame = CFrame.new(position + Vector3.new(0, 1.8, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(210, 140, 40),
 			Material = Enum.Material.Metal,
-		}, model)
-		leg.CanCollide = false
-		leg.CanQuery = false
+		})
+		for i = 1, 8 do
+			local theta = (i / 8) * math.pi * 2
+			fixture({
+				Name = "Rivet",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.new(0.3, 0.3, 0.3),
+				Position = position + Vector3.new(math.cos(theta) * 1.62, 0.5, math.sin(theta) * 1.62),
+				Color = Color3.fromRGB(62, 64, 74),
+				Material = Enum.Material.Metal,
+			})
+		end
+		-- Cage: three uprights to the apex plus a ring, so the lamp reads as
+		-- protected hardware rather than a bulb on a stick.
+		for i = 1, 3 do
+			local theta = (i / 3) * math.pi * 2
+			fixture({
+				Name = "CageBar",
+				Size = Vector3.new(0.24, 3.4, 0.24),
+				Position = position + Vector3.new(math.cos(theta) * 0.85, 2.6, math.sin(theta) * 0.85),
+				Color = METAL,
+				Material = Enum.Material.Metal,
+			})
+		end
+		fixture({
+			Name = "CageRing",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.22, 2.0, 2.0),
+			CFrame = CFrame.new(position + Vector3.new(0, 3.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = METAL,
+			Material = Enum.Material.Metal,
+		})
+	elseif style == "Orb" then
+		-- THE ABYSS: nothing manufactured survives down here. A black stalk of
+		-- bone with a cluster of live lights round its foot and the lantern slung
+		-- out front on a curved arm — the marker itself is an anglerfish lure.
+		fixture({
+			Name = "Stalk",
+			Size = Vector3.new(0.6, 4.4, 0.6),
+			Position = position + Vector3.new(0, 1.6, 0),
+			Color = Color3.fromRGB(46, 44, 58),
+			Material = Enum.Material.Slate,
+		})
+		fixture({
+			Name = "Holdfast",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(3.0, 1.5, 3.0),
+			Position = position + Vector3.new(0, -0.3, 0),
+			Color = Color3.fromRGB(38, 36, 50),
+			Material = Enum.Material.Slate,
+		})
+		for i = 1, 6 do
+			local theta = (i / 6) * math.pi * 2
+			fixture({
+				Name = "Bulb",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.new(0.6, 0.6, 0.6),
+				Position = position
+					+ Vector3.new(math.cos(theta) * 1.35, 0.35 + math.sin(theta * 2) * 0.3, math.sin(theta) * 1.35),
+				Color = color,
+				Material = Enum.Material.Neon,
+				Transparency = 0.25,
+			})
+		end
+		-- The lure arm, curving up and forward to the lantern.
+		for i = 1, 4 do
+			local t = i / 4
+			fixture({
+				Name = "LureArm",
+				Size = Vector3.new(0.34, 0.34, 1.0),
+				CFrame = CFrame.new(position + Vector3.new(0, 3.5 + t * 1.0, -t * 0.9))
+					* CFrame.Angles(-0.5 + t * 0.3, 0, 0),
+				Color = Color3.fromRGB(52, 50, 64),
+				Material = Enum.Material.Slate,
+			})
+		end
+	else
+		-- SUNNY SHALLOWS: the classic harbour ring buoy on a tripod.
+		--
+		-- Roblox has no torus, and a ring is the single thing that makes a buoy
+		-- read as a buoy — sixteen segments is past the point where anyone can see
+		-- the seams from the dock. A cylinder's axis is its X, so each segment is
+		-- turned to put that axis along the tangent of the circle at its angle.
+		-- Painted in four alternating quadrants, life-ring style, rather than with
+		-- a separate white band over every segment: it is the bolder read at the
+		-- thirty studs you actually see these from and it costs half the parts.
+		local segmentLength = 2 * RING_RADIUS * math.sin(math.pi / RING_SEGMENTS) * 1.25
+		local perQuadrant = RING_SEGMENTS / 4
+		for i = 1, RING_SEGMENTS do
+			local theta = (i - 1) / RING_SEGMENTS * math.pi * 2
+			local at = position + Vector3.new(math.cos(theta) * RING_RADIUS, 0, math.sin(theta) * RING_RADIUS)
+			local white = math.floor((i - 1) / perQuadrant) % 2 == 1
+			fixture({
+				Name = "Ring",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(segmentLength, RING_TUBE, RING_TUBE),
+				CFrame = CFrame.new(at) * CFrame.Angles(0, -theta - math.pi * 0.5, 0),
+				Color = if white then Color3.fromRGB(248, 248, 250) else color,
+				Material = Enum.Material.SmoothPlastic,
+			})
+		end
+		-- Tripod: three legs leaning in from the ring to meet under the lantern.
+		for i = 1, 3 do
+			local theta = (i - 1) / 3 * math.pi * 2 + math.pi * 0.5
+			local foot = position
+				+ Vector3.new(math.cos(theta) * (RING_RADIUS - 0.35), 0.3, math.sin(theta) * (RING_RADIUS - 0.35))
+			local span = (apex - foot).Magnitude
+			fixture({
+				Name = "Leg",
+				Size = Vector3.new(0.34, 0.34, span),
+				-- lookAt aims the part's -Z down its own length, so a part sized on
+				-- Z stretches exactly from the foot to the apex however far that is.
+				CFrame = CFrame.lookAt((foot + apex) * 0.5, apex),
+				-- Tinted toward the area's colour rather than left bare metal. The
+				-- silhouette should be a real buoy; the palette should still look
+				-- like a game a twelve-year-old wants to be in.
+				Color = METAL:Lerp(color, 0.3),
+				Material = Enum.Material.Metal,
+			})
+		end
 	end
 
 	-- Lantern: a ribbed glass stack on a dark base with a cap, the way the light
@@ -861,7 +1474,7 @@ local function buildBuoy(name: string, position: Vector3, color: Color3, parent:
 	-- a navigation marker and something you actually want to go and click.
 	local sparkle = Instance.new("ParticleEmitter")
 	sparkle.Color = ColorSequence.new(color)
-	sparkle.LightEmission = 1
+	sparkle.LightEmission = 0.3
 	sparkle.Size = NumberSequence.new(0.35, 0)
 	sparkle.Transparency = NumberSequence.new(0.2, 1)
 	sparkle.Lifetime = NumberRange.new(0.6, 1.2)
@@ -910,7 +1523,7 @@ end
 -- Deliberately far out and deliberately coarse: it is scenery to look at, not a
 -- place to swim to. Nothing collides, nothing answers a raycast, and it sits
 -- well past the fishing arc so it can never be mistaken for somewhere to cast.
-local function buildVista(theme: AreaTheme, name: string, ox: number, oz: number, parent: Instance)
+local function buildVista(theme: AreaTheme, name: string, layer: number, ox: number, oz: number, parent: Instance)
 	local at = Vector3.new(ox + rng:NextNumber(-60, 60), 0, oz - 420)
 
 	-- An island: stacked rock in the target area's palette, big enough to read
@@ -938,12 +1551,12 @@ local function buildVista(theme: AreaTheme, name: string, ox: number, oz: number
 		Position = at + Vector3.new(0, 104, 0),
 		Color = theme.Spots[1],
 		Material = Enum.Material.Neon,
-		Transparency = 0.25,
+		Transparency = 0.45,
 	}, parent)
 	local light = Instance.new("PointLight")
 	light.Color = theme.Spots[1]
-	light.Range = 60
-	light.Brightness = 1.4
+	light.Range = 26
+	light.Brightness = 0.5
 	light.Shadows = false
 	light.Parent = beacon
 
@@ -966,14 +1579,21 @@ local function buildVista(theme: AreaTheme, name: string, ox: number, oz: number
 	label.TextStrokeTransparency = 0.4
 	label.Parent = sign
 
-	-- A couple of giant fish circling it, in the water you cannot fish yet.
+	-- A couple of giant fish circling it, in the water you cannot fish yet. Real
+	-- species again, so what you can make out on the horizon is genuinely what
+	-- swims there — the Abyss advertises itself with a Megalodon.
+	local headline = Crystals.BasesInLayer(layer, Crystals.FISH)
+	table.sort(headline, function(a, b)
+		return a.Value > b.Value
+	end)
 	for i = 1, 2 do
+		local star = headline[i]
 		local trophy = FishShape.Build({
-			Color = theme.Spots[math.min(i + 1, #theme.Spots)],
-			Scale = rng:NextNumber(7, 10),
+			Name = if star then star.Name else nil,
+			Color = if star then star.Color else theme.Spots[math.min(i + 1, #theme.Spots)],
+			Scale = rng:NextNumber(5, 7),
 			Seed = math.floor(at.X) + i * 31,
 			Neon = true,
-			Glow = 26,
 		})
 		trophy.Name = "VistaFish"
 		trophy:PivotTo(
@@ -995,7 +1615,7 @@ end
 --
 -- Returns the area's fishing spots, all tagged with an `Area` attribute so one
 -- MiningService can serve every area from a single flat node list.
-local function buildArea(index: number, origin: Vector3, parent: Instance): { BasePart }
+local function buildArea(index: number, origin: Vector3, parent: Instance): { Spots: { BasePart }, Dock: ProximityPrompt }
 	local theme = AREA_THEMES[index] or AREA_THEMES[1]
 	local name = Balance.LayerNames[index] or ("Area " .. index)
 	local ox, oz = origin.X, origin.Z
@@ -1040,6 +1660,32 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 	tint.CanCollide = false
 	tint.CanQuery = false
 
+	-- What stands on the shore. A palm on the Kelp Forest beach was the single
+	-- most obviously wrong thing in the map: that area is a cold northern cove.
+	if theme.Shore == "Pine" then
+		for _ = 1, 12 do
+			makePine(Vector3.new(ox + rng:NextNumber(-115, 115), 0, oz + rng:NextNumber(38, 104)), parent)
+		end
+	elseif theme.Shore == "Spire" then
+		-- Nothing grows. Rock comes up out of the beach instead.
+		for _ = 1, 9 do
+			makeSpire(
+				Vector3.new(ox + rng:NextNumber(-118, 118), -1, oz + rng:NextNumber(42, 104)),
+				rng:NextNumber(14, 30),
+				theme.Water,
+				parent
+			)
+		end
+	elseif theme.Shore == "Rock" then
+		for _ = 1, 8 do
+			makeSeaStack(
+				Vector3.new(ox + rng:NextNumber(-115, 115), -1, oz + rng:NextNumber(42, 102)),
+				rng:NextNumber(8, 18),
+				theme.Sand,
+				parent
+			)
+		end
+	end
 	for _ = 1, theme.Palms do
 		makePalm(Vector3.new(ox + rng:NextNumber(-110, 110), 0, oz + rng:NextNumber(40, 100)), parent)
 	end
@@ -1051,7 +1697,7 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 	-- somewhere rather than like the world running out.
 	local nextIndex = math.min(index + 1, Balance.MaxLayer)
 	local nextTheme = AREA_THEMES[nextIndex] or theme
-	buildVista(nextTheme, Balance.LayerNames[nextIndex] or "", ox, oz, parent)
+	buildVista(nextTheme, Balance.LayerNames[nextIndex] or "", nextIndex, ox, oz, parent)
 
 	-- An ARCH over the head of the dock, not a board across it. The first version
 	-- was a solid 18x5 part standing at walking height in the middle of the only
@@ -1106,7 +1752,7 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 		local position =
 			Vector3.new(ox + math.cos(angle) * radius, 0.9, oz - 52 + math.sin(angle) * radius)
 		local color = theme.Spots[rng:NextInteger(1, #theme.Spots)]
-		local spot = buildBuoy(("Spot%d_%d"):format(index, i), position, color, nodeFolder)
+		local spot = buildBuoy(("Spot%d_%d"):format(index, i), position, color, theme.Buoy, nodeFolder)
 		spot:SetAttribute("NodeIndex", i)
 		spot:SetAttribute("Area", index)
 		CollectionService:AddTag(spot, "FishingSpot")
@@ -1126,7 +1772,50 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 		table.insert(nodes, spot)
 	end
 
-	return nodes
+	-- A DOCK MASTER ON EVERY DOCK. Travel used to be a one-way trip: the only
+	-- Dock Master stood on the home beach, so once you sailed to the Kelp Forest
+	-- the only way back was the bottom bar. Sailing somewhere should not be a
+	-- thing you can strand yourself with, and the station is the place a player
+	-- already looks for it. The prompt carries a Station attribute and the client
+	-- opens the screen from that, so five of them cost nothing to wire.
+	local dock = makeStation(
+		Vector3.new(ox - 16, 0.5, oz - 8),
+		"Dock Master",
+		"Dock",
+		Color3.fromRGB(120, 200, 255),
+		parent,
+		theme
+	)
+
+	-- INVISIBLE WALLS around the area's own patch of sea. Terrain runs out at
+	-- 140 studs either side and the water is swimmable, so a player heading away
+	-- from the dock just kept going and fell out of the world. Roblox lets you do
+	-- that; an eight-year-old on a phone should not have to know it.
+	--
+	-- Set well outside the fishing arc (radius 42) and the vista (420 out is
+	-- scenery, deliberately unreachable), so nothing you can actually interact
+	-- with is behind a wall.
+	local BOUND_X, BOUND_NEAR, BOUND_FAR = 138, 126, 152
+	local walls: { { pos: Vector3, size: Vector3 } } = {
+		{ pos = Vector3.new(ox - BOUND_X, 24, oz - 12), size = Vector3.new(2, 80, 300) },
+		{ pos = Vector3.new(ox + BOUND_X, 24, oz - 12), size = Vector3.new(2, 80, 300) },
+		{ pos = Vector3.new(ox, 24, oz - BOUND_FAR), size = Vector3.new(2 * BOUND_X, 80, 2) },
+		{ pos = Vector3.new(ox, 24, oz + BOUND_NEAR), size = Vector3.new(2 * BOUND_X, 80, 2) },
+	}
+	for i, wall in walls do
+		local barrier = part({
+			Name = "Barrier" .. index .. "_" .. i,
+			Size = wall.size,
+			Position = wall.pos,
+			Transparency = 1,
+		}, parent)
+		barrier.CanCollide = true
+		-- A cast aimed past the edge of the world must not stop dead on the wall.
+		barrier.CanQuery = false
+		barrier.CanTouch = false
+	end
+
+	return { Spots = nodes, Dock = dock }
 end
 
 function MapBuilder.Build(): MapRefs
@@ -1139,21 +1828,22 @@ function MapBuilder.Build(): MapRefs
 	-- purpose and keeps the whole economy in one place.
 	local nodes: { BasePart } = {}
 	local origins: { Vector3 } = {}
+	local dockPrompts: { ProximityPrompt } = {}
 	for index = 1, Balance.MaxLayer do
 		local origin = Vector3.new((index - 1) * Balance.AreaSpacing, 0, 0)
 		origins[index] = Vector3.new(origin.X, 1.6, -40) -- the dock, where boats land
-		for _, spot in buildArea(index, origin, map) do
+		local area = buildArea(index, origin, map)
+		for _, spot in area.Spots do
 			table.insert(nodes, spot)
 		end
+		dockPrompts[index] = area.Dock
 	end
 
 	-- Stations on the home beach
-	local crackPrompt = makeStation(Vector3.new(-34, 0.5, 30), "Treasure Chests", "Crack", Color3.fromRGB(255, 170, 40), map)
-	local rackPrompt = makeStation(Vector3.new(0, 0.5, 40), "Aquarium", "Racks", Color3.fromRGB(120, 255, 200), map)
-	local shopPrompt = makeStation(Vector3.new(34, 0.5, 30), "Chest Shop", "Shop", Color3.fromRGB(120, 170, 255), map)
-	local rebirthPrompt = makeStation(Vector3.new(0, 0.5, 78), "Set Sail", "Rebirth", Color3.fromRGB(255, 120, 255), map)
-	-- The Dock Master: buy new water, and sail to any you already own.
-	local dockPrompt = makeStation(Vector3.new(-16, 0.5, -8), "Dock Master", "Dock", Color3.fromRGB(120, 200, 255), map)
+	local crackPrompt = makeStation(Vector3.new(-34, 0.5, 30), "Treasure Chests", "Crack", Color3.fromRGB(255, 170, 40), map, AREA_THEMES[1])
+	local rackPrompt = makeStation(Vector3.new(0, 0.5, 40), "Aquarium", "Racks", Color3.fromRGB(120, 255, 200), map, AREA_THEMES[1])
+	local shopPrompt = makeStation(Vector3.new(34, 0.5, 30), "Chest Shop", "Shop", Color3.fromRGB(120, 170, 255), map, AREA_THEMES[1])
+	local rebirthPrompt = makeStation(Vector3.new(0, 0.5, 78), "Set Sail", "Rebirth", Color3.fromRGB(255, 120, 255), map, AREA_THEMES[1])
 
 	-- Leaderboards
 	local boardRebirths = makeBoard(Vector3.new(-70, 7, 70), Vector3.new(0, 7, 20), "Top Voyagers", map)
@@ -1202,7 +1892,8 @@ function MapBuilder.Build(): MapRefs
 		RackPrompt = rackPrompt,
 		ShopPrompt = shopPrompt,
 		RebirthPrompt = rebirthPrompt,
-		DockPrompt = dockPrompt,
+		-- Every area has one; the home dock's is the one callers mean.
+		DockPrompt = dockPrompts[1],
 		BoardRebirths = boardRebirths,
 		BoardRarest = boardRarest,
 	}

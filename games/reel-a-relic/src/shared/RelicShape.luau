@@ -265,14 +265,14 @@ function RelicShape.Build(options: Options): Model
 			local light = Instance.new("PointLight")
 			light.Color = options.Color
 			light.Range = options.Glow
-			light.Brightness = 1.2
+			light.Brightness = 0.7
 			light.Shadows = false
 			light.Parent = anchor
 		end
 		if options.Sparkle then
 			local glints = Instance.new("ParticleEmitter")
 			glints.Color = ColorSequence.new(options.Color)
-			glints.LightEmission = 1
+			glints.LightEmission = 0.3
 			glints.Size = NumberSequence.new(0.3, 0)
 			glints.Transparency = NumberSequence.new(0.15, 1)
 			glints.Lifetime = NumberRange.new(0.6, 1.3)
@@ -295,7 +295,11 @@ function RelicShape.Build(options: Options): Model
 		end
 	end
 
-	model.WorldPivot = CFrame.new()
+	-- Pivot at the centroid, matching FishShape: relics are hand-built and none
+	-- of them is symmetrical about the origin, so an origin pivot makes them
+	-- orbit the frame when they spin and land off-target when placed.
+	local box = model:GetBoundingBox()
+	model.WorldPivot = CFrame.new(box.Position)
 	return model
 end
 

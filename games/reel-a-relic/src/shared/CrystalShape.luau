@@ -94,14 +94,14 @@ function CrystalShape.Build(options: Options): Model
 			local light = Instance.new("PointLight")
 			light.Color = options.Color
 			light.Range = options.Glow
-			light.Brightness = 1.4
+			light.Brightness = 0.8
 			light.Shadows = false
 			light.Parent = anchor
 		end
 		if options.Sparkle then
 			local glints = Instance.new("ParticleEmitter")
 			glints.Color = ColorSequence.new(options.Color)
-			glints.LightEmission = 1
+			glints.LightEmission = 0.3
 			glints.Size = NumberSequence.new(0.35 * scale, 0)
 			glints.Transparency = NumberSequence.new(0.1, 1)
 			glints.Lifetime = NumberRange.new(0.8, 1.6)
