@@ -57,6 +57,11 @@ Crystals.Bases = {
 	{ Name = "Sunfish", Tier = "Uncommon", Weight = 22, Value = 15, Color = Color3.fromRGB(255, 210, 90), MinLayer = 1, MaxLayer = 2, WeightMin = 0.8, WeightMax = 4 },
 	{ Name = "Spotted Bass", Tier = "Uncommon", Weight = 10, Value = 30, Color = Color3.fromRGB(120, 160, 90), MinLayer = 1, MaxLayer = 2, WeightMin = 2, WeightMax = 11 },
 	{ Name = "Rainbow Trout", Tier = "Rare", Weight = 7, Value = 75, Color = Color3.fromRGB(255, 140, 170), MinLayer = 1, MaxLayer = 2, WeightMin = 3, WeightMax = 16 },
+	-- Area 1's second Rare, and the reason it is here: every chest is a
+	-- guaranteed Rare+, so a starting area with only two Rare+ species made four
+	-- chests in five open on the same trout. A third splits the pull three ways
+	-- (54 / 32 / 14) without touching the odds anyone sees on the panel.
+	{ Name = "Glass Catfish", Tier = "Rare", Weight = 4.2, Value = 120, Color = Color3.fromRGB(200, 225, 235), MinLayer = 1, MaxLayer = 1, WeightMin = 1.5, WeightMax = 9 },
 	{ Name = "Golden Koi", Tier = "Epic", Weight = 1.8, Value = 400, Color = Color3.fromRGB(255, 190, 60), MinLayer = 1, MaxLayer = 1, WeightMin = 4, WeightMax = 22 },
 
 	-- Area 2: Kelp Forest

@@ -49,7 +49,7 @@ paid random items (chests bought with earnable coins — odds shown, policy-gate
 ## Store page
 
 - **Name:** `Reel a Relic! [Fishing Simulator]`
-- **Hook line:** `🎣 Catch 20 species across 5 oceans — and your aquarium earns WHILE YOU SLEEP! 🐠`
+- **Hook line:** `🎣 Catch 21 species across 5 oceans — and your aquarium earns WHILE YOU SLEEP! 🐠`
 - Description: adapt the root game's template (features: bite-timing fishing, a species index
   with per-fish weight records, five areas to unlock, offline aquarium earnings, Feeding Frenzy
   events, daily streaks, exact odds shown on every chest).
