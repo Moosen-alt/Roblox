@@ -701,9 +701,84 @@ local function buildGeneric(ctx: Ctx, profile: Profile): Part
 		Material = material,
 	})
 
+	-- SMOOTHING SEGMENTS. One ellipsoid plus a snout is a lozenge; a fish tapers
+	-- along its whole length, fattest just behind the head and pinching down to
+	-- the tail. Overlapping slices along that curve cost a handful of parts and
+	-- are most of the difference between "a shape" and "an animal".
+	local SEGMENTS = 7
+	for i = 1, SEGMENTS do
+		local t = (i - 0.5) / SEGMENTS -- 0 at the nose, 1 at the tail
+		-- Girth curve: blunt at the nose, widest around a third back, pinched to
+		-- a peduncle rather than to nothing (a tail needs something to hang off).
+		local girth = math.max(math.sin(math.pi * (0.16 + t * 0.84)) ^ 0.55, 0.2)
+		piece(ctx.Model, {
+			Name = "Segment",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(ctx.L * 0.2, ctx.H * girth, ctx.W * girth),
+			CFrame = CFrame.new(ctx.L * (0.46 - t * 0.94), -ctx.H * 0.02 * t, 0),
+			Color = color,
+			Material = material,
+		})
+	end
+
+	-- Gill cover. Every bony fish has one, and its hard vertical edge is what
+	-- separates the head from the body instead of leaving one continuous tube.
+	for _, side in { 1, -1 } do
+		piece(ctx.Model, {
+			Name = "Operculum",
+			Size = Vector3.new(ctx.L * 0.03, ctx.H * 0.56, ctx.W * 0.44),
+			CFrame = CFrame.new(ctx.L * 0.22, 0, side * ctx.W * 0.3) * CFrame.Angles(0, 0, 0.12),
+			Color = darkOf(color),
+			Material = material,
+		})
+	end
+
+	-- Mouth: a dark slot at the front. Without it the head ends in a blank curve
+	-- and the fish reads as a pebble with fins.
+	piece(ctx.Model, {
+		Name = "Mouth",
+		Size = Vector3.new(ctx.L * 0.09, ctx.H * 0.07, ctx.W * 0.5),
+		CFrame = CFrame.new(ctx.L * 0.58, -ctx.H * 0.14, 0) * CFrame.Angles(0, 0, 0.14),
+		Color = darkOf(color):Lerp(Color3.new(0, 0, 0), 0.4),
+		Material = material,
+	})
+
+	-- Lateral line, the stripe that runs head to tail on almost every fish.
+	for _, side in { 1, -1 } do
+		piece(ctx.Model, {
+			Name = "LateralLine",
+			Size = Vector3.new(ctx.L * 0.66, ctx.H * 0.05, ctx.W * 0.06),
+			CFrame = CFrame.new(-ctx.L * 0.02, ctx.H * 0.08, side * ctx.W * 0.44),
+			Color = darkOf(color),
+			Material = material,
+		})
+	end
+
 	buildTail(ctx, profile.Tail or "Fork")
 	buildDorsal(ctx, profile.Dorsal or "Standard")
 	buildPectoral(ctx, profile.Pectoral or "Standard")
+
+	-- Anal fin, under the body ahead of the tail, and the little pelvic pair
+	-- under the chest. Both were missing, and a fish with nothing on its
+	-- underside looks half-drawn from the side — which is the angle it is
+	-- always seen from.
+	piece(ctx.Model, {
+		Name = "AnalFin",
+		Size = Vector3.new(ctx.L * 0.26, ctx.H * 0.3, ctx.W * 0.12),
+		CFrame = CFrame.new(-ctx.L * 0.24, -ctx.H * 0.5, 0) * CFrame.Angles(0, 0, 0.4),
+		Color = ctx.Fin,
+		Material = material,
+	})
+	for _, side in { 1, -1 } do
+		piece(ctx.Model, {
+			Name = "PelvicFin",
+			Size = Vector3.new(ctx.L * 0.16, ctx.H * 0.22, ctx.W * 0.08),
+			CFrame = CFrame.new(ctx.L * 0.12, -ctx.H * 0.44, side * ctx.W * 0.2)
+				* CFrame.Angles(side * 0.35, 0, 0.5),
+			Color = ctx.Fin,
+			Material = material,
+		})
+	end
 
 	local eyeSize = ctx.H * 0.3 * (profile.Eye or 1)
 	eyes(ctx, ctx.L * 0.42, ctx.H * 0.16, eyeSize, ctx.W * 0.3)

@@ -712,18 +712,38 @@ local function makeKelpColumn(at: Vector3, color: Color3, parent: Instance)
 		end
 	end
 
-	-- The canopy: blades fanned out just under the surface.
-	local blades = rng:NextInteger(4, 6)
-	local top = Vector3.new(at.X + lean * 6, SURFACE - 0.28, at.Z + lean * 3)
+	-- THE CANOPY, floating ON the surface — not under it.
+	--
+	-- The first version kept every blade below the waterline, which was the right
+	-- fix for loose strands standing in mid-air and the wrong one for kelp: a
+	-- canopy you cannot see from the dock is not a forest, and from the pier the
+	-- Kelp Forest still looked like open water. Real giant kelp mats out across
+	-- the surface and you look ACROSS it, so the blades ride it: bottom just
+	-- under, top just proud of it.
+	local blades = rng:NextInteger(6, 9)
+	local top = Vector3.new(at.X + lean * 6, SURFACE + 0.05, at.Z + lean * 3)
 	for i = 1, blades do
 		local theta = (i / blades) * math.pi * 2 + rng:NextNumber(-0.3, 0.3)
-		local length = rng:NextNumber(5, 9)
+		local length = rng:NextNumber(6, 11)
 		deco({
 			Name = "KelpBlade",
-			Size = Vector3.new(length, 0.22, rng:NextNumber(0.9, 1.6)),
+			Size = Vector3.new(length, 0.3, rng:NextNumber(1.1, 2.0)),
 			CFrame = CFrame.new(top + Vector3.new(math.cos(theta) * length * 0.5, 0, math.sin(theta) * length * 0.5))
-				* CFrame.Angles(0, -theta, rng:NextNumber(-0.06, 0.06)),
+				* CFrame.Angles(0, -theta, rng:NextNumber(-0.05, 0.05)),
 			Color = color:Lerp(Color3.fromRGB(30, 60, 30), rng:NextNumber(0, 0.3)),
+			Material = Enum.Material.Grass,
+		}, parent)
+	end
+	-- A few fronds curling clear of the water, which is what actually catches the
+	-- eye across a bay and says "there is something growing out there".
+	for i = 1, 3 do
+		local theta = (i / 3) * math.pi * 2 + rng:NextNumber(-0.4, 0.4)
+		deco({
+			Name = "KelpFrond",
+			Size = Vector3.new(rng:NextNumber(3, 5.5), 0.28, 1.3),
+			CFrame = CFrame.new(top + Vector3.new(math.cos(theta) * 2.2, rng:NextNumber(0.5, 1.4), math.sin(theta) * 2.2))
+				* CFrame.Angles(0, -theta, rng:NextNumber(0.15, 0.45)),
+			Color = color:Lerp(Color3.fromRGB(120, 150, 60), 0.25),
 			Material = Enum.Material.Grass,
 		}, parent)
 	end
@@ -1764,7 +1784,7 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 	if growth == "Kelp" then
 		-- Fewer than the old strand count and much bigger: a forest is made of
 		-- columns you look between, not of scattered weeds.
-		for _ = 1, 16 do
+		for _ = 1, 30 do
 			makeKelpColumn(growthSpot(ox, oz), Color3.fromRGB(74, 120, 52), parent)
 		end
 		-- Low understory between the columns.
