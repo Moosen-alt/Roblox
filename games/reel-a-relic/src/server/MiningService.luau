@@ -97,26 +97,44 @@ local function catchEffects(spot: BasePart, text: string, color: Color3)
 	end)
 end
 
+-- The angler whose line is in this spot, if they are still here. The spot stores
+-- a UserId rather than a Player so a leaver can't keep a claim alive.
+local function ownerOf(state: SpotState): Player?
+	return if state.OwnerUserId then Players:GetPlayerByUserId(state.OwnerUserId) else nil
+end
+
 local function setIdle(spot: BasePart, state: SpotState)
+	local owner = ownerOf(state)
 	state.OwnerUserId = nil
 	state.BiteAt = nil
 	state.Resolved = true
 	spot.Color = state.BaseColor
 	spot.Transparency = 0.05
 	spot.Size = Vector3.new(3, 2, 3)
+	if owner then
+		ctx.RodVis.Reel(owner)
+	end
 end
 
-local function setCast(spot: BasePart)
+local function setCast(spot: BasePart, player: Player?)
 	spot.Transparency = 0.35
 	TweenService:Create(spot, TweenInfo.new(0.3), { Size = Vector3.new(2.4, 1.6, 2.4) }):Play()
+	if player then
+		-- Land the bobber just off the buoy rather than inside it, so both are
+		-- visible and the buoy stays the thing you click.
+		ctx.RodVis.Cast(player, spot.Position + Vector3.new(0, 0.4, 2))
+	end
 end
 
-local function setBite(spot: BasePart)
+local function setBite(spot: BasePart, player: Player?)
 	spot.Color = Color3.fromRGB(255, 255, 255)
 	spot.Transparency = 0
 	TweenService:Create(spot, TweenInfo.new(0.15), { Size = Vector3.new(4.2, 2.8, 4.2) }):Play()
 	-- Audible cue so the timing window works by ear as well as by eye
 	playSound(spot, "rbxasset://sounds/electronicpingshort.wav", 1.4, 0.8)
+	if player then
+		ctx.RodVis.Bite(player)
+	end
 end
 
 local function rodDamage(data: any): number
@@ -241,7 +259,7 @@ local function onSpotClicked(spot: BasePart, player: Player): boolean
 		state.OwnerUserId = player.UserId
 		state.Resolved = false
 		state.BiteAt = os.clock() + biteDelay(data)
-		setCast(spot)
+		setCast(spot, player)
 		return true
 	elseif state.OwnerUserId == player.UserId then
 		local now = os.clock()
@@ -330,7 +348,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 					setIdle(spot, state)
 				elseif now >= state.BiteAt and now <= state.BiteAt + BITE_WINDOW then
 					if spot.Color ~= Color3.fromRGB(255, 255, 255) then
-						setBite(spot)
+						setBite(spot, owner)
 					end
 				elseif now > state.BiteAt + BITE_WINDOW then
 					-- missed the window: it got away, auto-recast for the same angler
@@ -338,7 +356,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 						setIdle(spot, state)
 					else
 						spot.Color = state.BaseColor
-						setCast(spot)
+						setCast(spot, owner)
 						state.BiteAt = now + biteDelay(ctx.Data.Get(owner))
 					end
 				end

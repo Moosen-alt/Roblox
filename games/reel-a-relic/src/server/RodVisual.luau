@@ -4,8 +4,11 @@
 -- tier so every upgrade is visible in your hands. Pure cosmetics — casting
 -- input goes through the raycast tap path.
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
@@ -143,6 +146,230 @@ local function buildTool(tier: { [string]: any }): Tool
 	return tool
 end
 
+--------------------------------------------------------------------------------
+-- Casting
+--
+-- The cast is PURELY cosmetic: the rod swings, a bobber arcs out and lands on
+-- the water, and it dips when a fish takes it. The input is still one click,
+-- deliberately. A power meter or a hold-and-release swing would be a second
+-- skill test stacked on top of the bite-timing one, and for the audience this
+-- game is for that trades a lot of players for a little depth. What the animation
+-- buys is the FEELING of casting; the click is what makes it playable.
+--------------------------------------------------------------------------------
+
+local REST_GRIP = CFrame.Angles(math.rad(-35), 0, 0)
+local WIND_UP_GRIP = CFrame.Angles(math.rad(-105), 0, 0)
+local RELEASE_GRIP = CFrame.Angles(math.rad(22), 0, 0)
+
+-- One bobber per player at most, so a re-cast or a respawn can always find and
+-- clean up the last one.
+local castBobbers: { [Player]: BasePart } = {}
+-- Bumped on every cast; a swing whose token is stale has been superseded and
+-- must stop animating rather than fight the newer one for the same Grip.
+local castToken: { [Player]: number } = {}
+
+local function equippedTool(player: Player): Tool?
+	local character = player.Character
+	local tool = character and character:FindFirstChildOfClass("Tool")
+	if tool and tool:GetAttribute(TOOL_TAG) then
+		return tool
+	end
+	return nil
+end
+
+local function dangle(tool: Tool, visible: boolean)
+	for _, name in { "Bobber", "BobberBase" } do
+		local part = tool:FindFirstChild(name)
+		if part and part:IsA("BasePart") then
+			part.Transparency = if visible then 0 else 1
+		end
+	end
+	local tip = tool:FindFirstChild("Tip")
+	local line = tip and tip:FindFirstChildOfClass("Beam")
+	if line then
+		line.Enabled = visible
+	end
+end
+
+-- Hand-rolled interpolation rather than TweenService: Tool.Grip is not a
+-- reliably tweenable property, and a dozen task.wait steps for half a second of
+-- swing is cheaper than finding that out in production.
+local function swing(player: Player, tool: Tool, token: number)
+	local function glide(from: CFrame, to: CFrame, seconds: number)
+		local steps = math.max(math.floor(seconds * 30), 1)
+		for i = 1, steps do
+			if castToken[player] ~= token or tool.Parent == nil then
+				return false
+			end
+			tool.Grip = from:Lerp(to, i / steps)
+			task.wait(seconds / steps)
+		end
+		return true
+	end
+	-- Back over the shoulder, whip forward, settle. The whip is deliberately the
+	-- shortest of the three: that snap is the whole read.
+	if not glide(REST_GRIP, WIND_UP_GRIP, 0.18) then
+		return
+	end
+	if not glide(WIND_UP_GRIP, RELEASE_GRIP, 0.1) then
+		return
+	end
+	glide(RELEASE_GRIP, REST_GRIP, 0.3)
+end
+
+local function clearBobber(player: Player)
+	local existing = castBobbers[player]
+	if existing then
+		existing:Destroy()
+		castBobbers[player] = nil
+	end
+end
+
+-- Swing the rod and land a bobber on the water at `target`.
+function RodVisual.Cast(player: Player, target: Vector3)
+	local tool = equippedTool(player)
+	if not tool then
+		return
+	end
+	clearBobber(player)
+	local token = (castToken[player] or 0) + 1
+	castToken[player] = token
+
+	local tip = tool:FindFirstChild("Tip")
+	if not tip or not tip:IsA("BasePart") then
+		return
+	end
+	dangle(tool, false)
+	task.spawn(swing, player, tool, token)
+
+	local bobber = Instance.new("Part")
+	bobber.Name = "CastBobber"
+	bobber.Shape = Enum.PartType.Ball
+	bobber.Size = Vector3.new(1.1, 1.1, 1.1)
+	bobber.Color = Color3.fromRGB(230, 60, 60)
+	bobber.Material = Enum.Material.SmoothPlastic
+	bobber.Anchored = true
+	bobber.CanCollide = false
+	bobber.CanQuery = false -- a bobber must never swallow the click meant for the buoy
+	bobber.CanTouch = false
+	bobber.Position = tip.Position
+	bobber.Parent = Workspace
+
+	local stripe = Instance.new("Part")
+	stripe.Name = "BobberBase"
+	stripe.Shape = Enum.PartType.Ball
+	stripe.Size = Vector3.new(1, 0.5, 1)
+	stripe.Color = Color3.fromRGB(248, 248, 250)
+	stripe.Material = Enum.Material.SmoothPlastic
+	stripe.Anchored = true
+	stripe.CanCollide = false
+	stripe.CanQuery = false
+	stripe.CanTouch = false
+	stripe.Parent = bobber
+	local weld = Instance.new("Weld")
+	weld.Part0 = bobber
+	weld.Part1 = stripe
+	weld.C0 = CFrame.new(0, -0.32, 0)
+	weld.Parent = bobber
+
+	-- Line from the rod tip out to the bobber, sagging in the middle.
+	local atBobber = Instance.new("Attachment")
+	atBobber.Parent = bobber
+	local atTip = tip:FindFirstChildOfClass("Attachment")
+	if atTip then
+		local line = Instance.new("Beam")
+		line.Name = "CastLine"
+		line.Attachment0 = atTip
+		line.Attachment1 = atBobber
+		line.Width0 = 0.04
+		line.Width1 = 0.04
+		line.FaceCamera = true
+		line.LightInfluence = 1
+		line.Transparency = NumberSequence.new(0.15)
+		line.Color = ColorSequence.new(Color3.fromRGB(238, 240, 245))
+		line.CurveSize0 = -3
+		line.CurveSize1 = -3
+		line.Parent = bobber
+	end
+
+	castBobbers[player] = bobber
+
+	-- Arc it out: the bobber leaves late, a beat after the rod starts moving, so
+	-- the swing looks like it threw the thing rather than the other way round.
+	task.spawn(function()
+		task.wait(0.2)
+		local start = tip.Position
+		local flight = 0.42
+		local steps = 14
+		local peak = math.min((target - start).Magnitude * 0.22, 14)
+		for i = 1, steps do
+			if castToken[player] ~= token or bobber.Parent == nil then
+				return
+			end
+			local t = i / steps
+			-- Parabola: sin() peaks at the halfway point and returns to zero,
+			-- which is exactly the shape of a thrown thing.
+			bobber.Position = start:Lerp(target, t) + Vector3.new(0, math.sin(t * math.pi) * peak, 0)
+			task.wait(flight / steps)
+		end
+		if castToken[player] ~= token or bobber.Parent == nil then
+			return
+		end
+		bobber.Position = target + Vector3.new(0, 0.2, 0)
+		local splash = Instance.new("ParticleEmitter")
+		splash.Color = ColorSequence.new(Color3.fromRGB(200, 240, 255))
+		splash.Size = NumberSequence.new(0.5, 0)
+		splash.Transparency = NumberSequence.new(0.2, 1)
+		splash.Lifetime = NumberRange.new(0.3, 0.6)
+		splash.Speed = NumberRange.new(5, 11)
+		splash.SpreadAngle = Vector2.new(70, 70)
+		splash.Acceleration = Vector3.new(0, -30, 0)
+		splash.Rate = 0
+		splash.Parent = bobber
+		splash:Emit(14)
+		-- Riding the swell is a client job, like the buoys: free motion, and the
+		-- tag driver picks up the landed position as its base.
+		CollectionService:AddTag(bobber, "SpinCrystal")
+		bobber:SetAttribute("SpinSpeed", 0)
+		bobber:SetAttribute("BobHeight", 0.35)
+		bobber:SetAttribute("BobSpeed", 1.6)
+	end)
+end
+
+-- A fish has it: yank the bobber under and throw a splash.
+function RodVisual.Bite(player: Player)
+	local bobber = castBobbers[player]
+	if not bobber then
+		return
+	end
+	CollectionService:RemoveTag(bobber, "SpinCrystal") -- stop the idle bob fighting the dip
+	local splash = Instance.new("ParticleEmitter")
+	splash.Color = ColorSequence.new(Color3.fromRGB(220, 250, 255))
+	splash.Size = NumberSequence.new(0.7, 0)
+	splash.Transparency = NumberSequence.new(0.1, 1)
+	splash.Lifetime = NumberRange.new(0.35, 0.7)
+	splash.Speed = NumberRange.new(8, 16)
+	splash.SpreadAngle = Vector2.new(80, 80)
+	splash.Acceleration = Vector3.new(0, -35, 0)
+	splash.Rate = 0
+	splash.Parent = bobber
+	splash:Emit(22)
+	TweenService:Create(bobber, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = bobber.Position - Vector3.new(0, 1.3, 0),
+	}):Play()
+end
+
+-- Line's in: take the bobber back and give the rod its dangle again.
+function RodVisual.Reel(player: Player)
+	castToken[player] = (castToken[player] or 0) + 1
+	clearBobber(player)
+	local tool = equippedTool(player)
+	if tool then
+		tool.Grip = REST_GRIP
+		dangle(tool, true)
+	end
+end
+
 local function clearOldTools(player: Player)
 	local function sweep(container: Instance?)
 		if not container then
@@ -165,6 +392,8 @@ function RodVisual.Refresh(player: Player)
 	if not data or not character or not humanoid or humanoid.Health <= 0 then
 		return
 	end
+	-- A new rod means any cast in flight belongs to a tool that no longer exists.
+	RodVisual.Reel(player)
 	clearOldTools(player)
 	local tier = Balance.Pickaxe(data.Pickaxe)
 	local tool = buildTool(tier)
@@ -191,6 +420,10 @@ end
 
 function RodVisual.Init(serviceCtx: any)
 	ctx = serviceCtx
+	Players.PlayerRemoving:Connect(function(player)
+		clearBobber(player)
+		castToken[player] = nil
+	end)
 	Players.PlayerAdded:Connect(function(player)
 		player.CharacterAdded:Connect(function(character)
 			task.spawn(onCharacterAdded, player, character)

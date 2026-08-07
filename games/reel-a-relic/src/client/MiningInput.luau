@@ -10,6 +10,7 @@
 -- matters — without fishing any faster than a person can. The bite delay and the
 -- 1.2s window are untouched. It removes the clicking, not the waiting.
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -17,6 +18,7 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
 local State = require(script.Parent.State)
 
@@ -28,6 +30,43 @@ local HOLD_INTERVAL = 0.12 -- comfortably inside the 1.2s bite window
 local holding: Vector2? = nil
 local sinceCast = 0
 
+-- A tap can land on a buoy's own sphere or on the wide invisible hitbox around
+-- it. Either way the same spot gets fished — whichever pixel the player actually
+-- hit is not something they should have to be precise about.
+local function nodeOf(instance: Instance): BasePart?
+	if instance:GetAttribute("NodeIndex") ~= nil and instance:IsA("BasePart") then
+		return instance
+	end
+	local parent = instance.Parent
+	if parent and parent:IsA("BasePart") and parent:GetAttribute("NodeIndex") ~= nil then
+		return parent
+	end
+	return nil
+end
+
+-- Nearest buoy to the player, for when the tap landed on open water. Bounded by
+-- the same cast range the server enforces, so this can only ever pick a spot the
+-- player was already allowed to fish.
+local function nearestSpot(): BasePart?
+	local character = Players.LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return nil
+	end
+	local best: BasePart? = nil
+	local bestDistance = Balance.CastRange
+	for _, tagged in CollectionService:GetTagged("FishingSpot") do
+		if tagged:IsA("BasePart") then
+			local distance = (tagged.Position - root.Position).Magnitude
+			if distance < bestDistance then
+				best = tagged
+				bestDistance = distance
+			end
+		end
+	end
+	return best
+end
+
 local function spotAt(position: Vector2): BasePart?
 	local camera = Workspace.CurrentCamera
 	if not camera then
@@ -36,13 +75,20 @@ local function spotAt(position: Vector2): BasePart?
 	local ray = camera:ViewportPointToRay(position.X, position.Y)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
+	-- Terrain water is queryable by default, and the buoys float ON it — so
+	-- every tap that came in at a shallow angle died in the sea before it
+	-- reached the buoy. That is what made casting feel like it needed you to be
+	-- standing on top of the thing.
+	params.IgnoreWater = true
 	local character = Players.LocalPlayer.Character
 	params.FilterDescendantsInstances = character and { character } or {}
 	local hit = Workspace:Raycast(ray.Origin, ray.Direction * MAX_TAP_RANGE, params)
-	if hit and hit.Instance:GetAttribute("NodeIndex") ~= nil then
-		return hit.Instance
+	if hit then
+		return nodeOf(hit.Instance)
 	end
-	return nil
+	-- Hit nothing at all: with water ignored, that means open sea or sky. Reading
+	-- it as "cast at the water in front of me" is what a player means by it.
+	return nearestSpot()
 end
 
 local function tryFish(position: Vector2)

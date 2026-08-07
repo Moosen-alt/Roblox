@@ -785,8 +785,11 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 	for i = 1, Balance.NodeCount do
 		local angle = math.rad(180 + (i - 1) * (180 / (Balance.NodeCount - 1)))
 		local radius = 32 + (i % 2) * 10
+		-- Floating ON the water (top at y = -0.2), not half sunk in it. A buoy
+		-- with only its cap above the surface gives a tap almost nothing to land
+		-- on once terrain water is in the way.
 		local position =
-			Vector3.new(ox + math.cos(angle) * radius, -0.2, oz - 52 + math.sin(angle) * radius)
+			Vector3.new(ox + math.cos(angle) * radius, 0.9, oz - 52 + math.sin(angle) * radius)
 		local color = theme.Spots[rng:NextInteger(1, #theme.Spots)]
 		local spot = part({
 			Name = ("Spot%d_%d"):format(index, i),
@@ -800,6 +803,7 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 		spot:SetAttribute("NodeIndex", i)
 		spot:SetAttribute("Area", index)
 		spot.CanCollide = false
+		CollectionService:AddTag(spot, "FishingSpot")
 		local glow = Instance.new("PointLight")
 		glow.Color = color
 		glow.Range = 12
@@ -808,6 +812,23 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Ba
 		local click = Instance.new("ClickDetector")
 		click.MaxActivationDistance = Balance.CastRange
 		click.Parent = spot
+
+		-- One invisible box owns the tap, the same way the mining game's geodes
+		-- do. A three-stud ball bobbing thirty studs out is a very small target on
+		-- a phone; this makes it a fair one without making the buoy itself huge.
+		local hitbox = part({
+			Name = "Hitbox",
+			Size = Vector3.new(9, 9, 9),
+			Position = position,
+			Transparency = 1,
+		}, spot)
+		hitbox.CanCollide = false
+		hitbox.CanTouch = false
+		hitbox.CanQuery = true
+		-- Deliberately NO NodeIndex of its own: the client resolves a hit on the
+		-- hitbox to its parent buoy, and the server only knows about buoys. Giving
+		-- the box its own index would make the client report an instance the
+		-- server has never heard of, and every tap would silently do nothing.
 		-- Buoys ride the swell. The bob runs on each client, so sixty floating
 		-- markers across five areas cost the server nothing.
 		CollectionService:AddTag(spot, "SpinCrystal")
