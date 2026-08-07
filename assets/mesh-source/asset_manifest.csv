@@ -35,11 +35,11 @@ Reel a Relic,Fish,Megalodon,reel-a-relic/fish/Megalodon.obj,,1.0,0,0,0,Included 
 Reel a Relic,Relic,Rusty Anchor,reel-a-relic/relics/Rusty_Anchor.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Message in a Bottle,reel-a-relic/relics/Message_in_a_Bottle.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Conch Shell,reel-a-relic/relics/Conch_Shell.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Reel a Relic,Relic,Silver Doubloon,reel-a-relic/relics/Silver_Doubloon.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Relic,Silver Doubloon,reel-a-relic/relics/Silver_Doubloon.obj,skip,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Hurricane Lamp,reel-a-relic/relics/Hurricane_Lamp.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Reel a Relic,Relic,Spanish Emerald,reel-a-relic/relics/Spanish_Emerald.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Relic,Spanish Emerald,reel-a-relic/relics/Spanish_Emerald.obj,skip,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Galleon Bell,reel-a-relic/relics/Galleon_Bell.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Reel a Relic,Relic,Cannery Token,reel-a-relic/relics/Cannery_Token.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Relic,Cannery Token,reel-a-relic/relics/Cannery_Token.obj,skip,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Ship's Compass,reel-a-relic/relics/Ships_Compass.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Abalone Shell,reel-a-relic/relics/Abalone_Shell.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Diver's Helmet,reel-a-relic/relics/Divers_Helmet.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
@@ -47,18 +47,18 @@ Reel a Relic,Relic,Glass Float,reel-a-relic/relics/Glass_Float.obj,,1.0,0,0,0,In
 Reel a Relic,Relic,Captain's Spyglass,reel-a-relic/relics/Captains_Spyglass.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Shell Lei,reel-a-relic/relics/Shell_Lei.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Whale Tooth Pendant,reel-a-relic/relics/Whale_Tooth_Pendant.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Reel a Relic,Relic,Tiki Idol,reel-a-relic/relics/Tiki_Idol.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Relic,Tiki Idol,reel-a-relic/relics/Tiki_Idol.obj,skip,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Pirate Cutlass,reel-a-relic/relics/Pirate_Cutlass.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Coral Crown,reel-a-relic/relics/Coral_Crown.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Sonar Beacon,reel-a-relic/relics/Sonar_Beacon.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Submersible Porthole,reel-a-relic/relics/Submersible_Porthole.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Reel a Relic,Relic,Black Box,reel-a-relic/relics/Black_Box.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Relic,Black Box,reel-a-relic/relics/Black_Box.obj,skip,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Golden Astrolabe,reel-a-relic/relics/Golden_Astrolabe.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Mermaid's Mirror,reel-a-relic/relics/Mermaids_Mirror.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Oni Mask,reel-a-relic/relics/Oni_Mask.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Temple Bell,reel-a-relic/relics/Temple_Bell.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Sunken Crown,reel-a-relic/relics/Sunken_Crown.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Reel a Relic,Relic,Tide Jewel,reel-a-relic/relics/Tide_Jewel.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Relic,Tide Jewel,reel-a-relic/relics/Tide_Jewel.obj,skip,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Reel a Relic,Relic,Poseidon's Trident,reel-a-relic/relics/Poseidons_Trident.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Crystal,Quartz,crack-a-geode/crystals/Quartz.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Crystal,Amethyst,crack-a-geode/crystals/Amethyst.obj,,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled

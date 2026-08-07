@@ -159,6 +159,9 @@ def main() -> int:
     work = [
         r
         for r in rows
+        # Blank means "not uploaded yet". Anything else — a real id, or the
+        # literal "skip" for a model whose hand-built primitive is better — is
+        # already decided and left alone.
         if not (r["MeshId"] or "").strip()
         and (not args.only or args.only.lower() in r["ExactName"].lower())
     ]

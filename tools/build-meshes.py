@@ -64,7 +64,7 @@ def main() -> int:
         return 1
 
     pending: dict[tuple[str, str], list[str]] = {}
-    filled = skipped = 0
+    filled = pendingCount = deliberate = 0
     for row in csv.DictReader(MANIFEST.open(newline="", encoding="utf-8")):
         key = (row["Game"], row["Kind"])
         target = TARGETS.get(key)
@@ -72,8 +72,13 @@ def main() -> int:
             print(f"  ! unknown Game/Kind {key}, skipping {row['ExactName']}")
             continue
         raw = (row["MeshId"] or "").strip()
+        if raw.lower() == "skip":
+            # Deliberately not uploaded: the hand-built primitive is better.
+            # Generating no override is the whole point.
+            deliberate += 1
+            continue
         if not raw:
-            skipped += 1
+            pendingCount += 1
             continue
         try:
             if int(raw) <= 0:
@@ -84,7 +89,9 @@ def main() -> int:
         pending.setdefault(target, []).append(row_to_lua(row))
         filled += 1
 
-    print(f"{filled} uploaded, {skipped} still awaiting a MeshId")
+    # "Awaiting" and "skipped" must not be reported as the same thing: one is
+    # work left to do, the other is a decision already made.
+    print(f"{filled} uploaded, {pendingCount} awaiting a MeshId, {deliberate} deliberately skipped")
     if args.check:
         return 0
 

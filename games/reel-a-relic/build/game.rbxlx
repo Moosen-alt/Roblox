@@ -781,7 +781,9 @@ export type MeshDef = {
 }
 
 -- Keyed by the exact Name in Config/Crystals.luau.
-Meshes.Fish = {} :: { [string]: MeshDef }
+Meshes.Fish = {
+	["Anchovy"] = { Mesh = 121171092141963, Scale = 1 },
+} :: { [string]: MeshDef }
 Meshes.Relic = {} :: { [string]: MeshDef }
 
 -- Props are not collectibles — they are scenery and UI furniture, keyed by a
