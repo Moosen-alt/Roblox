@@ -100,7 +100,11 @@ def upload(session, key: str, fbx: Path, display_name: str, game: str) -> str:
         "assetType": "Model",
         "displayName": display_name,
         "description": f"Model for {game}.",
-        **creation_context(game),
+        # NESTED under creationContext, not spread at the top level. Spreading
+        # it produced a top-level "creator" key, which the API ignores and then
+        # rejects the request with "Creator is required" — a 400 that reads like
+        # a missing value rather than a misplaced one.
+        "creationContext": creation_context(game),
     }
     with fbx.open("rb") as handle:
         response = session.post(
