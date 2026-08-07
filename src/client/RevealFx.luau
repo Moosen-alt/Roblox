@@ -6,6 +6,8 @@
 
 local TweenService = game:GetService("TweenService")
 
+local GeodeView = require(script.Parent.GeodeView)
+
 local RevealFx = {}
 
 -- Theme knobs (the fishing re-theme overrides these)
@@ -14,6 +16,16 @@ RevealFx.ShellStroke = Color3.fromRGB(80, 65, 105)
 -- How the shell comes apart. A geode cracks down the middle into two
 -- hemispheres; a treasure chest hinges its lid up instead.
 RevealFx.SplitVertical = false
+
+-- Draw the geode as real 3D geometry instead of two clipped half-circles. A
+-- geode splitting is two solid objects tumbling away from a LIT CAVITY, and the
+-- cavity is the entire thing the player is waiting to see — depth into a hole is
+-- the one thing flat semicircles cannot show.
+--
+-- A flag rather than a rewrite: the 2D path below is tuned and carries real bug
+-- history in its comments (Roblox drops clipping on any rotated subtree), so it
+-- stays intact. Set this false to fall straight back to it.
+RevealFx.Use3DGeode = true
 
 local TICK_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 local THUD_SOUND = "rbxasset://sounds/snap.mp3"
@@ -175,6 +187,17 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 	local firstHalf = makeHalf(geode, true) -- left, or the lid when hinged
 	local secondHalf = makeHalf(geode, false)
 
+	-- The 3D geode takes over the shell. Glow, seam, cracks, shards and flash are
+	-- all shape-agnostic and carry on doing their job around it.
+	local shell: GeodeView.Geode? = nil
+	if RevealFx.Use3DGeode then
+		shell = GeodeView.Create(geode, UDim2.fromScale(0.5, 0.5), UDim2.fromScale(2.1, 2.1), options.Color)
+		firstHalf.Visible = false
+		secondHalf.Visible = false
+		-- The flat interior disc stood in for the cavity. The real one has depth.
+		interior.Visible = false
+	end
+
 	-- The seam the crack runs along before it splits
 	local seam = Instance.new("Frame")
 	seam.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -200,6 +223,12 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 			geode.Position = center
 				+ UDim2.fromOffset(rng:NextInteger(-amplitude, amplitude), rng:NextInteger(-amplitude, amplitude))
 			geode.Rotation = rng:NextNumber(-progress * 8, progress * 8)
+			if shell then
+				-- Shake, then the seam lights as the crack walks down it. The
+				-- pack's own timing: rattle first, glow before anything moves.
+				shell.Shake(progress * 0.28)
+				shell.Crack(math.max(progress - 0.45, 0) / 0.55)
+			end
 
 			-- The fracture walks down the seam in jagged segments, with rising
 			-- ticks — five milestones, so the pacing scales with suspense.
@@ -262,6 +291,11 @@ function RevealFx.Play(overlay: Frame, options: PlayOptions, onBurst: () -> ())
 		-- until it had faded to rotate it just made the spin invisible, which is
 		-- worse than not having it: the Back-eased fling, the flash and the shards
 		-- already sell the break.
+		if shell then
+			-- 0.52s of burst against the 0.55s the flat halves used, so the thud,
+			-- flash, shards and the reward card all still land on the same beat.
+			shell.Burst(0.52)
+		end
 		local splitInfo = TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		local firstTarget, secondTarget
 		if RevealFx.SplitVertical then

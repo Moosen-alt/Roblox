@@ -169,6 +169,26 @@ function StoreScreen.Init(gui: ScreenGui)
 		end
 	end)
 
+	-- Credits live behind the Store rather than on the main bar: nobody opens a
+	-- game to read them, but a CC-BY asset's licence only applies while its
+	-- creator is credited somewhere findable. One tap from a permanent button
+	-- is findable.
+	local creditsButton = UiKit.Create("TextButton", {
+		Text = "Credits",
+		Font = Enum.Font.Gotham,
+		TextScaled = true,
+		TextColor3 = UiKit.Colors.TextDim,
+		BackgroundColor3 = UiKit.Colors.Bg,
+		Size = UDim2.fromOffset(88, 26),
+		Position = UDim2.new(0, 0, 1, -26),
+		Parent = panel,
+	}) :: TextButton
+	UiKit.Corner(8).Parent = creditsButton
+	UiKit.Pad(4).Parent = creditsButton
+	creditsButton.Activated:Connect(function()
+		ScreenManager.Open("Credits")
+	end)
+
 	ScreenManager.Register("Store", panel, close, render)
 end
 
