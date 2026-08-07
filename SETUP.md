@@ -30,6 +30,33 @@ Your job is the ~2–3 hours of account clicking that only the game owner can do
 > then `rojo serve` + the Rojo Studio plugin to live-sync `src/` into Studio. Only needed when
 > changing code — the committed `build/game.rbxlx` is always openable directly.
 
+### Auto-publishing from this repo (optional, but do it once)
+
+CI rebuilds all three place files on every push and pushes them live over the Open Cloud API,
+so a code change reaches players without opening Studio. It needs one secret and two IDs per
+game, in repo **Settings → Secrets and variables → Actions**:
+
+| Name | Kind | Where to find it |
+| --- | --- | --- |
+| `ROBLOX_API_KEY` | **Secret** | Creator Hub → Open Cloud → API Keys |
+| `GEODE_UNIVERSE_ID` / `GEODE_PLACE_ID` | Secret or literal | see below |
+| `REEL_UNIVERSE_ID` / `REEL_PLACE_ID` | *already wired in* | — |
+| `OBBY_UNIVERSE_ID` / `OBBY_PLACE_ID` | Secret or literal | see below |
+
+Only the **API key** is genuinely secret. Universe and place IDs are public — the place ID is
+the number in the game's own URL (`roblox.com/games/<PLACE_ID>/...`), and the universe ID is in
+the Creator Hub dashboard URL — so Reel a Relic's are written straight into the workflow and it
+publishes with no secret set. A secret of the same name still wins if you add one.
+
+**The one that bites: Open Cloud keys are scoped per-experience, not per-account.** A key made
+for one game returns `401 API Key has insufficient scopes` for every other game, forever, until
+you add them. Fix it in one place — Creator Hub → Open Cloud → API Keys → edit the key →
+**Experience Operations** → add each experience → tick `universe-places:write`. Set the IP
+restriction to `0.0.0.0/0`, because GitHub runners have no stable address.
+
+A game whose key isn't authorised yet is **skipped with a warning, not a build failure** — CI
+stays green and prints which experience still needs adding to the key.
+
 ## Step 3 — Store page (~30 min, matters a lot)
 
 **Paste-ready name, description, and icon/thumbnail shot list: [`marketing/store-page.md`](marketing/store-page.md).**

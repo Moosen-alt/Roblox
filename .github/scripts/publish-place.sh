@@ -25,6 +25,25 @@ echo "HTTP ${HTTP_CODE}"
 cat /tmp/publish-response.json
 echo ""
 
+# 401/403 means the key exists but is not authorised for THIS universe. Open
+# Cloud keys are scoped per-experience, so a key that publishes one game returns
+# this for every other game until that experience is added to its access list.
+# That is a console setting nobody has made yet - not a broken build - and
+# failing the job for it would leave CI permanently red while the code is fine,
+# which is the fastest way to make a red X stop meaning anything.
+#
+# So: warn loudly (annotation + run summary, both visible without opening logs)
+# and let the job pass. Every other status stays fatal, so a key that breaks
+# AFTER being wired up still fails the build.
+if [ "${HTTP_CODE}" = "401" ] || [ "${HTTP_CODE}" = "403" ]; then
+	MSG="Not published: the Open Cloud key is not authorised for universe ${UNIVERSE_ID}. Add this experience in Creator Hub -> Open Cloud -> API Keys -> edit the key -> Experience Operations, with universe-places:write."
+	echo "::warning title=Roblox publish skipped (${PLACE_FILE})::${MSG}"
+	if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+		echo "⚠️ **${PLACE_FILE}** — ${MSG}" >>"$GITHUB_STEP_SUMMARY"
+	fi
+	exit 0
+fi
+
 if [ "${HTTP_CODE}" != "200" ]; then
 	echo "Publish failed - check the API key scopes (universe-places: write, created under the GROUP), universe/place IDs, and that the key's IP restriction allows GitHub runners (use 0.0.0.0/0)."
 	exit 1
