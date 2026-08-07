@@ -23,7 +23,7 @@ Reel a Relic! [Fishing Simulator]
 ## Short hook (first line of the description — shows in search previews)
 
 ```
-🎣 FIGHT every fish in! 33 real species + 11 sunken relics — and your aquarium earns coins WHILE YOU SLEEP! 🐠
+🎣 FIGHT every fish in! 33 real species + 28 sunken relics — and your aquarium earns coins WHILE YOU SLEEP! 🐠
 ```
 
 Three hooks, in the order they matter: **the fight** (the differentiator), **the number** (an
@@ -33,13 +33,13 @@ player reopen the app a week later).
 ## Full description (paste as-is)
 
 ```
-🎣 FIGHT every fish in! 33 real species + 11 sunken relics — and your aquarium earns coins WHILE YOU SLEEP! 🐠
+🎣 FIGHT every fish in! 33 real species + 28 sunken relics — and your aquarium earns coins WHILE YOU SLEEP! 🐠
 
 Cast at a buoy. Wait for the lamp to flash. Then HOLD to reel — keep the fighting fish inside
 your bracket until the meter fills. Reel clean and you land a boatful. Every cast lands
 something; how well you fight decides how much.
 
-🐠 264 to collect — 33 real fish + 11 sunken relics x 6 auras (Gilded, Frosted, Storm-Touched, Abyssal, MOONLIT!)
+🐠 366 to collect — 33 real fish + 28 sunken relics x 6 auras (Gilded, Frosted, Storm-Touched, Abyssal, MOONLIT!)
 ⚖️ Every fish has a WEIGHT in pounds — beat your personal best on all 33 species
 🌊 5 oceans to unlock with coins — Sunny Shallows, Kelp Forest, Twilight Reef, Midnight Trench, THE ABYSS
 🦈 Real species, stocked by habitat — Garibaldi in the kelp, Anglerfish in the trench, MEGALODON in the deep

@@ -120,20 +120,44 @@ Crystals.Bases = {
 	-- ones. They are worth several times a fish of the same tier, because you
 	-- had to land the chest AND carry it home to find out what it was.
 	--------------------------------------------------------------------------
-	{ Name = "Rusty Anchor", Kind = "Relic", Tier = "Common", Weight = 34, Value = 60, Color = Color3.fromRGB(146, 118, 96), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Message in a Bottle", Kind = "Relic", Tier = "Common", Weight = 22, Value = 95, Color = Color3.fromRGB(168, 216, 200), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Silver Doubloon", Kind = "Relic", Tier = "Uncommon", Weight = 17, Value = 260, Color = Color3.fromRGB(214, 218, 226), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Ship's Compass", Kind = "Relic", Tier = "Uncommon", Weight = 11, Value = 420, Color = Color3.fromRGB(206, 168, 88), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	-- Available from area 1 on purpose: the first-session pity roll guarantees a
-	-- Rare+ on the third chest ever opened, and with nothing Rare in the starting
-	-- water that promise had nothing to pay out with.
-	{ Name = "Diver's Helmet", Kind = "Relic", Tier = "Rare", Weight = 7, Value = 1100, Color = Color3.fromRGB(180, 150, 70), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Pirate Cutlass", Kind = "Relic", Tier = "Rare", Weight = 4.4, Value = 1900, Color = Color3.fromRGB(198, 200, 210), MinLayer = 2, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Captain's Spyglass", Kind = "Relic", Tier = "Epic", Weight = 2.4, Value = 6500, Color = Color3.fromRGB(228, 180, 96), MinLayer = 3, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Golden Astrolabe", Kind = "Relic", Tier = "Epic", Weight = 1.2, Value = 14000, Color = Color3.fromRGB(255, 206, 96), MinLayer = 3, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Mermaid's Mirror", Kind = "Relic", Tier = "Legendary", Weight = 0.6, Value = 60000, Color = Color3.fromRGB(150, 255, 245), MinLayer = 4, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Sunken Crown", Kind = "Relic", Tier = "Legendary", Weight = 0.3, Value = 120000, Color = Color3.fromRGB(255, 200, 60), MinLayer = 4, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Poseidon's Trident", Kind = "Relic", Tier = "Mythic", Weight = 0.1, Value = 1500000, Color = Color3.fromRGB(120, 255, 255), MinLayer = 5, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	-- Windowed by AREA, the way the fish are. Each stretch of water has its own
+	-- history to dredge up: Spanish plate-fleet gold in the Keys, hard-hat diving
+	-- and cannery scrap off California, island carving on the reef, lost research
+	-- hardware in the trench, and shrine relics in the Abyss. A chest that returns
+	-- the same eleven objects everywhere makes five areas feel like one.
+	--
+	-- Every area still carries a Rare or better of its own, because the
+	-- first-session pity roll guarantees Rare+ on the third chest ever opened and
+	-- a starting area with nothing Rare in it has nothing to pay that out with.
+	-- tests/invariants.luau asserts exactly this, at every layer.
+	{ Name = "Rusty Anchor", Kind = "Relic", Tier = "Common", Weight = 30, Value = 60, Color = Color3.fromRGB(146, 118, 96), MinLayer = 1, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Message in a Bottle", Kind = "Relic", Tier = "Common", Weight = 24, Value = 95, Color = Color3.fromRGB(168, 216, 200), MinLayer = 1, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Conch Shell", Kind = "Relic", Tier = "Common", Weight = 26, Value = 80, Color = Color3.fromRGB(248, 196, 190), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Silver Doubloon", Kind = "Relic", Tier = "Uncommon", Weight = 16, Value = 260, Color = Color3.fromRGB(214, 218, 226), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Hurricane Lamp", Kind = "Relic", Tier = "Uncommon", Weight = 13, Value = 340, Color = Color3.fromRGB(198, 152, 74), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Spanish Emerald", Kind = "Relic", Tier = "Rare", Weight = 6, Value = 1200, Color = Color3.fromRGB(60, 200, 120), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Galleon Bell", Kind = "Relic", Tier = "Epic", Weight = 2.2, Value = 5200, Color = Color3.fromRGB(206, 168, 88), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Cannery Token", Kind = "Relic", Tier = "Common", Weight = 26, Value = 150, Color = Color3.fromRGB(190, 160, 96), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Ship's Compass", Kind = "Relic", Tier = "Uncommon", Weight = 14, Value = 420, Color = Color3.fromRGB(206, 168, 88), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Abalone Shell", Kind = "Relic", Tier = "Uncommon", Weight = 12, Value = 520, Color = Color3.fromRGB(150, 226, 214), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Diver's Helmet", Kind = "Relic", Tier = "Rare", Weight = 6.5, Value = 1600, Color = Color3.fromRGB(180, 150, 70), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Glass Float", Kind = "Relic", Tier = "Rare", Weight = 5, Value = 2100, Color = Color3.fromRGB(120, 220, 190), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Captain's Spyglass", Kind = "Relic", Tier = "Epic", Weight = 2.4, Value = 6500, Color = Color3.fromRGB(228, 180, 96), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Shell Lei", Kind = "Relic", Tier = "Common", Weight = 26, Value = 260, Color = Color3.fromRGB(255, 180, 200), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Whale Tooth Pendant", Kind = "Relic", Tier = "Uncommon", Weight = 13, Value = 900, Color = Color3.fromRGB(238, 230, 208), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Tiki Idol", Kind = "Relic", Tier = "Rare", Weight = 6, Value = 3400, Color = Color3.fromRGB(126, 86, 54), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Pirate Cutlass", Kind = "Relic", Tier = "Rare", Weight = 4.4, Value = 3900, Color = Color3.fromRGB(198, 200, 210), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Coral Crown", Kind = "Relic", Tier = "Epic", Weight = 2.0, Value = 14000, Color = Color3.fromRGB(255, 150, 190), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Sonar Beacon", Kind = "Relic", Tier = "Common", Weight = 24, Value = 700, Color = Color3.fromRGB(150, 156, 168), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Submersible Porthole", Kind = "Relic", Tier = "Uncommon", Weight = 12, Value = 2400, Color = Color3.fromRGB(198, 152, 74), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Black Box", Kind = "Relic", Tier = "Rare", Weight = 5.5, Value = 9000, Color = Color3.fromRGB(232, 122, 30), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Golden Astrolabe", Kind = "Relic", Tier = "Epic", Weight = 2.2, Value = 26000, Color = Color3.fromRGB(255, 206, 96), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Mermaid's Mirror", Kind = "Relic", Tier = "Legendary", Weight = 0.6, Value = 60000, Color = Color3.fromRGB(150, 255, 245), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Oni Mask", Kind = "Relic", Tier = "Rare", Weight = 4.5, Value = 18000, Color = Color3.fromRGB(196, 54, 44), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Temple Bell", Kind = "Relic", Tier = "Epic", Weight = 1.6, Value = 52000, Color = Color3.fromRGB(96, 118, 96), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Sunken Crown", Kind = "Relic", Tier = "Legendary", Weight = 0.5, Value = 120000, Color = Color3.fromRGB(255, 200, 60), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Tide Jewel", Kind = "Relic", Tier = "Legendary", Weight = 0.28, Value = 240000, Color = Color3.fromRGB(120, 220, 255), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Poseidon's Trident", Kind = "Relic", Tier = "Mythic", Weight = 0.1, Value = 1500000, Color = Color3.fromRGB(120, 255, 255), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
 } :: { CrystalDef }
 
 -- "Normal" is implicit: whatever chance is left after these rolls fail.

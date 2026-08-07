@@ -24,12 +24,12 @@ fish live on the reef and Anglerfish live in the trench. Species × aura × **we
 with a per-species personal best that never stops being beatable.
 
 The rest are **treasure chests**, carried back to the Chest station and opened with the full
-reveal and the odds panel. A chest never contains a fish: it contains a **relic** — 11 pieces of
+reveal and the odds panel. A chest never contains a fish: it contains a **relic** — 28 pieces of
 sunken treasure from a Rusty Anchor up to Poseidon's Trident. That is what makes carrying one
 home worth the walk, and it is the only way to fill the other half of the Index.
 
 The two pools roll separately and publish separate odds, so the panel beside a chest is always
-the relic table. 264 Index entries in all.
+the relic table. 366 Index entries in all.
 
 Sell fish for coins or display them in the **Aquarium**, where they earn **while you're offline**.
 
@@ -77,7 +77,7 @@ paid random items (chests bought with earnable coins — odds shown, policy-gate
   gameplay gets suppressed. There is no fishing subgenre, so the `[Fishing Simulator]` keyword in
   the title is what carries the theme.
 - **Name:** `Reel a Relic! [Fishing Simulator]`
-- **Hook line:** `🎣 FIGHT every fish in! 33 real species + 11 sunken relics — and your aquarium earns coins WHILE YOU SLEEP! 🐠`
+- **Hook line:** `🎣 FIGHT every fish in! 33 real species + 28 sunken relics — and your aquarium earns coins WHILE YOU SLEEP! 🐠`
 
   Three hooks in one line, in the order they matter. **The fight** is the differentiator — a
   fishing game where you reel is a different product from one where you click. **The number** is
@@ -85,7 +85,7 @@ paid random items (chests bought with earnable coins — odds shown, policy-gate
   is the idle promise, which is what makes a lapsed player reopen the app a week later.
 
 - Description: adapt the root game's template. Lead with the reel-in fight, then: 33 real fish
-  and 11 sunken relics × 6 auras, per-fish **weight records** that never finish, five oceans to
+  and 28 sunken relics × 6 auras, per-fish **weight records** that never finish, five oceans to
   unlock with coins, offline aquarium earnings, Feeding Frenzy events, daily streaks, exact odds
   shown on every chest.
 

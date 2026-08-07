@@ -458,20 +458,44 @@ Crystals.Bases = {
 	-- ones. They are worth several times a fish of the same tier, because you
 	-- had to land the chest AND carry it home to find out what it was.
 	--------------------------------------------------------------------------
-	{ Name = "Rusty Anchor", Kind = "Relic", Tier = "Common", Weight = 34, Value = 60, Color = Color3.fromRGB(146, 118, 96), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Message in a Bottle", Kind = "Relic", Tier = "Common", Weight = 22, Value = 95, Color = Color3.fromRGB(168, 216, 200), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Silver Doubloon", Kind = "Relic", Tier = "Uncommon", Weight = 17, Value = 260, Color = Color3.fromRGB(214, 218, 226), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Ship's Compass", Kind = "Relic", Tier = "Uncommon", Weight = 11, Value = 420, Color = Color3.fromRGB(206, 168, 88), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	-- Available from area 1 on purpose: the first-session pity roll guarantees a
-	-- Rare+ on the third chest ever opened, and with nothing Rare in the starting
-	-- water that promise had nothing to pay out with.
-	{ Name = "Diver's Helmet", Kind = "Relic", Tier = "Rare", Weight = 7, Value = 1100, Color = Color3.fromRGB(180, 150, 70), MinLayer = 1, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Pirate Cutlass", Kind = "Relic", Tier = "Rare", Weight = 4.4, Value = 1900, Color = Color3.fromRGB(198, 200, 210), MinLayer = 2, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Captain's Spyglass", Kind = "Relic", Tier = "Epic", Weight = 2.4, Value = 6500, Color = Color3.fromRGB(228, 180, 96), MinLayer = 3, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Golden Astrolabe", Kind = "Relic", Tier = "Epic", Weight = 1.2, Value = 14000, Color = Color3.fromRGB(255, 206, 96), MinLayer = 3, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Mermaid's Mirror", Kind = "Relic", Tier = "Legendary", Weight = 0.6, Value = 60000, Color = Color3.fromRGB(150, 255, 245), MinLayer = 4, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Sunken Crown", Kind = "Relic", Tier = "Legendary", Weight = 0.3, Value = 120000, Color = Color3.fromRGB(255, 200, 60), MinLayer = 4, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
-	{ Name = "Poseidon's Trident", Kind = "Relic", Tier = "Mythic", Weight = 0.1, Value = 1500000, Color = Color3.fromRGB(120, 255, 255), MinLayer = 5, MaxLayer = 25, WeightMin = 0, WeightMax = 0 },
+	-- Windowed by AREA, the way the fish are. Each stretch of water has its own
+	-- history to dredge up: Spanish plate-fleet gold in the Keys, hard-hat diving
+	-- and cannery scrap off California, island carving on the reef, lost research
+	-- hardware in the trench, and shrine relics in the Abyss. A chest that returns
+	-- the same eleven objects everywhere makes five areas feel like one.
+	--
+	-- Every area still carries a Rare or better of its own, because the
+	-- first-session pity roll guarantees Rare+ on the third chest ever opened and
+	-- a starting area with nothing Rare in it has nothing to pay that out with.
+	-- tests/invariants.luau asserts exactly this, at every layer.
+	{ Name = "Rusty Anchor", Kind = "Relic", Tier = "Common", Weight = 30, Value = 60, Color = Color3.fromRGB(146, 118, 96), MinLayer = 1, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Message in a Bottle", Kind = "Relic", Tier = "Common", Weight = 24, Value = 95, Color = Color3.fromRGB(168, 216, 200), MinLayer = 1, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Conch Shell", Kind = "Relic", Tier = "Common", Weight = 26, Value = 80, Color = Color3.fromRGB(248, 196, 190), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Silver Doubloon", Kind = "Relic", Tier = "Uncommon", Weight = 16, Value = 260, Color = Color3.fromRGB(214, 218, 226), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Hurricane Lamp", Kind = "Relic", Tier = "Uncommon", Weight = 13, Value = 340, Color = Color3.fromRGB(198, 152, 74), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Spanish Emerald", Kind = "Relic", Tier = "Rare", Weight = 6, Value = 1200, Color = Color3.fromRGB(60, 200, 120), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Galleon Bell", Kind = "Relic", Tier = "Epic", Weight = 2.2, Value = 5200, Color = Color3.fromRGB(206, 168, 88), MinLayer = 1, MaxLayer = 2, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Cannery Token", Kind = "Relic", Tier = "Common", Weight = 26, Value = 150, Color = Color3.fromRGB(190, 160, 96), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Ship's Compass", Kind = "Relic", Tier = "Uncommon", Weight = 14, Value = 420, Color = Color3.fromRGB(206, 168, 88), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Abalone Shell", Kind = "Relic", Tier = "Uncommon", Weight = 12, Value = 520, Color = Color3.fromRGB(150, 226, 214), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Diver's Helmet", Kind = "Relic", Tier = "Rare", Weight = 6.5, Value = 1600, Color = Color3.fromRGB(180, 150, 70), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Glass Float", Kind = "Relic", Tier = "Rare", Weight = 5, Value = 2100, Color = Color3.fromRGB(120, 220, 190), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Captain's Spyglass", Kind = "Relic", Tier = "Epic", Weight = 2.4, Value = 6500, Color = Color3.fromRGB(228, 180, 96), MinLayer = 2, MaxLayer = 3, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Shell Lei", Kind = "Relic", Tier = "Common", Weight = 26, Value = 260, Color = Color3.fromRGB(255, 180, 200), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Whale Tooth Pendant", Kind = "Relic", Tier = "Uncommon", Weight = 13, Value = 900, Color = Color3.fromRGB(238, 230, 208), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Tiki Idol", Kind = "Relic", Tier = "Rare", Weight = 6, Value = 3400, Color = Color3.fromRGB(126, 86, 54), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Pirate Cutlass", Kind = "Relic", Tier = "Rare", Weight = 4.4, Value = 3900, Color = Color3.fromRGB(198, 200, 210), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Coral Crown", Kind = "Relic", Tier = "Epic", Weight = 2.0, Value = 14000, Color = Color3.fromRGB(255, 150, 190), MinLayer = 3, MaxLayer = 4, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Sonar Beacon", Kind = "Relic", Tier = "Common", Weight = 24, Value = 700, Color = Color3.fromRGB(150, 156, 168), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Submersible Porthole", Kind = "Relic", Tier = "Uncommon", Weight = 12, Value = 2400, Color = Color3.fromRGB(198, 152, 74), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Black Box", Kind = "Relic", Tier = "Rare", Weight = 5.5, Value = 9000, Color = Color3.fromRGB(232, 122, 30), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Golden Astrolabe", Kind = "Relic", Tier = "Epic", Weight = 2.2, Value = 26000, Color = Color3.fromRGB(255, 206, 96), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Mermaid's Mirror", Kind = "Relic", Tier = "Legendary", Weight = 0.6, Value = 60000, Color = Color3.fromRGB(150, 255, 245), MinLayer = 4, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Oni Mask", Kind = "Relic", Tier = "Rare", Weight = 4.5, Value = 18000, Color = Color3.fromRGB(196, 54, 44), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Temple Bell", Kind = "Relic", Tier = "Epic", Weight = 1.6, Value = 52000, Color = Color3.fromRGB(96, 118, 96), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Sunken Crown", Kind = "Relic", Tier = "Legendary", Weight = 0.5, Value = 120000, Color = Color3.fromRGB(255, 200, 60), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Tide Jewel", Kind = "Relic", Tier = "Legendary", Weight = 0.28, Value = 240000, Color = Color3.fromRGB(120, 220, 255), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
+	{ Name = "Poseidon's Trident", Kind = "Relic", Tier = "Mythic", Weight = 0.1, Value = 1500000, Color = Color3.fromRGB(120, 255, 255), MinLayer = 5, MaxLayer = 5, WeightMin = 0, WeightMax = 0 },
 } :: { CrystalDef }
 
 -- "Normal" is implicit: whatever chance is left after these rolls fail.
@@ -2905,6 +2929,316 @@ function RelicShape.Build(options: Options): Model
 	local box = model:GetBoundingBox()
 	model.WorldPivot = CFrame.new(box.Position)
 	return model
+end
+
+--------------------------------------------------------------------------------
+-- AREA TREASURE. Each stretch of water has its own history, so each one has its
+-- own things to dredge up: Spanish plate-fleet gold in the Keys, hard-hat diving
+-- and cannery scrap off California, island carvings on the reef, lost research
+-- hardware in the trench, and shrine relics in the Abyss. A chest that can only
+-- come up with the same eleven objects everywhere makes five areas feel like one.
+--------------------------------------------------------------------------------
+
+local IVORY = Color3.fromRGB(238, 230, 208)
+local STEEL = Color3.fromRGB(150, 156, 168)
+
+-- 1. FLORIDA KEYS: the Spanish treasure fleets went down here.
+BUILDERS["Conch Shell"] = function(model, color)
+	-- A spiral: shrinking whorls climbing and turning.
+	for i = 1, 9 do
+		local t = (i - 1) / 9
+		local radius = 0.85 * (1 - t * 0.8)
+		local angle = t * 6.2
+		piece(model, {
+			Name = "Whorl",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(1.5 - t * 1.15, 1.4 - t * 1.1, 1.5 - t * 1.15),
+			CFrame = CFrame.new(math.cos(angle) * radius, -0.9 + t * 2.4, math.sin(angle) * radius),
+			Color = color:Lerp(IVORY, t * 0.5),
+			Material = Enum.Material.Sandstone,
+		})
+	end
+	-- The flared pink lip, which is the whole silhouette of a conch.
+	for i = 1, 5 do
+		local a = -0.6 + i * 0.3
+		piece(model, {
+			Name = "Lip",
+			Size = Vector3.new(0.9, 1.5, 0.22),
+			CFrame = CFrame.new(math.cos(a) * 1.15, -0.55, math.sin(a) * 1.15) * CFrame.Angles(0, -a, 0.25),
+			Color = Color3.fromRGB(248, 196, 190),
+			Material = Enum.Material.Sandstone,
+		})
+	end
+	piece(model, { Name = "Spike", Size = Vector3.new(0.24, 0.7, 0.24), CFrame = CFrame.new(0.5, 1.5, 0) * CFrame.Angles(0, 0, -0.5), Color = IVORY, Material = Enum.Material.Sandstone })
+end
+
+BUILDERS["Hurricane Lamp"] = function(model, color)
+	piece(model, { Name = "Base", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.35, 1.7, 1.7), CFrame = CFrame.new(0, -1.35, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = BRASS, Material = Enum.Material.Metal })
+	piece(model, { Name = "Font", Shape = Enum.PartType.Ball, Size = Vector3.new(1.3, 1.0, 1.3), Position = Vector3.new(0, -0.8, 0), Color = BRASS, Material = Enum.Material.Metal })
+	piece(model, { Name = "Glass", Shape = Enum.PartType.Cylinder, Size = Vector3.new(1.9, 1.15, 1.15), CFrame = CFrame.new(0, 0.4, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = color, Material = Enum.Material.Neon, Transparency = 0.4 })
+	piece(model, { Name = "Flame", Shape = Enum.PartType.Ball, Size = Vector3.new(0.4, 0.7, 0.4), Position = Vector3.new(0, 0.3, 0), Color = Color3.fromRGB(255, 214, 130), Material = Enum.Material.Neon })
+	piece(model, { Name = "Cap", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 1.4, 1.4), CFrame = CFrame.new(0, 1.45, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = BRASS, Material = Enum.Material.Metal })
+	-- Guard bars down the sides of the chimney, and the carry hoop.
+	for _, side in { -1, 1 } do
+		piece(model, { Name = "Guard", Size = Vector3.new(0.12, 2.1, 0.12), Position = Vector3.new(side * 0.62, 0.4, 0), Color = BRASS, Material = Enum.Material.Metal })
+	end
+	ring(model, Vector3.new(0, 2.1, 0), 0.5, 0.12, 8, BRASS, Enum.Material.Metal)
+end
+
+BUILDERS["Spanish Emerald"] = function(model, color)
+	-- An emerald cut: a squat octagonal prism with a stepped crown.
+	for i = 1, 4 do
+		piece(model, {
+			Name = "Facet",
+			Size = Vector3.new(1.9, 1.5, 1.9),
+			CFrame = CFrame.new(0, 0, 0) * CFrame.Angles(0, i * math.pi / 4, 0),
+			Color = color,
+			Material = Enum.Material.Glass,
+			Transparency = 0.25,
+		})
+	end
+	for i = 1, 3 do
+		piece(model, {
+			Name = "Crown",
+			Size = Vector3.new(1.9 - i * 0.4, 0.28, 1.9 - i * 0.4),
+			CFrame = CFrame.new(0, 0.72 + i * 0.24, 0) * CFrame.Angles(0, i * 0.4, 0),
+			Color = color:Lerp(Color3.new(1, 1, 1), 0.2),
+			Material = Enum.Material.Glass,
+			Transparency = 0.2,
+		})
+	end
+	-- Gold claw setting: this came off something.
+	for i = 1, 4 do
+		local a = i * math.pi / 2 + math.pi / 4
+		piece(model, { Name = "Claw", Size = Vector3.new(0.22, 1.5, 0.22), CFrame = CFrame.new(math.cos(a) * 0.95, -0.3, math.sin(a) * 0.95) * CFrame.Angles(math.sin(a) * 0.2, 0, -math.cos(a) * 0.2), Color = GOLD, Material = Enum.Material.Metal })
+	end
+end
+
+BUILDERS["Galleon Bell"] = function(model, color)
+	for i = 1, 5 do
+		local t = (i - 1) / 5
+		piece(model, {
+			Name = "Bell",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.42, 0.9 + t * 1.5, 0.9 + t * 1.5),
+			CFrame = CFrame.new(0, 0.85 - i * 0.42, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = color:Lerp(BRASS, 0.3),
+			Material = Enum.Material.Metal,
+		})
+	end
+	piece(model, { Name = "Crown", Shape = Enum.PartType.Ball, Size = Vector3.new(0.8, 0.6, 0.8), Position = Vector3.new(0, 1.15, 0), Color = BRASS, Material = Enum.Material.Metal })
+	ring(model, Vector3.new(0, 1.6, 0), 0.36, 0.14, 8, BRASS, Enum.Material.Metal)
+	piece(model, { Name = "Clapper", Shape = Enum.PartType.Ball, Size = Vector3.new(0.4, 0.5, 0.4), Position = Vector3.new(0, -1.5, 0), Color = DARK, Material = Enum.Material.Metal })
+	piece(model, { Name = "Lip", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.22, 2.5, 2.5), CFrame = CFrame.new(0, -1.35, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = GOLD, Material = Enum.Material.Metal })
+end
+
+-- 2. CALIFORNIA: hard-hat diving, canneries, and what washes into a kelp bed.
+BUILDERS["Cannery Token"] = function(model, color)
+	piece(model, { Name = "Disc", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.26, 2.4, 2.4), CFrame = CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), 0), Color = color:Lerp(BRASS, 0.5), Material = Enum.Material.Metal })
+	ring(model, Vector3.new(0, 0, 0.14), 1.02, 0.16, 12, BRASS, Enum.Material.Metal)
+	-- Square punch through the middle, the way a works token is strung.
+	piece(model, { Name = "Punch", Size = Vector3.new(0.6, 0.6, 0.4), Position = Vector3.new(0, 0, 0), Color = DARK, Material = Enum.Material.Metal })
+	for i = 1, 6 do
+		local a = i * math.pi / 3
+		piece(model, { Name = "Stamp", Size = Vector3.new(0.16, 0.5, 0.12), CFrame = CFrame.new(math.cos(a) * 0.66, math.sin(a) * 0.66, 0.16) * CFrame.Angles(0, 0, a), Color = DARK, Material = Enum.Material.Metal })
+	end
+end
+
+BUILDERS["Abalone Shell"] = function(model, color)
+	piece(model, { Name = "Shell", Shape = Enum.PartType.Ball, Size = Vector3.new(2.7, 0.85, 2.2), Position = Vector3.new(0, 0, 0), Color = color, Material = Enum.Material.Foil })
+	piece(model, { Name = "Nacre", Shape = Enum.PartType.Ball, Size = Vector3.new(2.3, 0.6, 1.85), Position = Vector3.new(0, 0.16, 0), Color = Color3.fromRGB(150, 226, 214), Material = Enum.Material.Foil })
+	-- The row of respiratory holes along one edge: the abalone tell.
+	for i = 1, 5 do
+		piece(model, { Name = "Pore", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.5, 0.28, 0.28), CFrame = CFrame.new(-1.0 + i * 0.36, 0.3, -0.72) * CFrame.Angles(0, 0, math.rad(90)), Color = DARK })
+	end
+	for i = 1, 5 do
+		piece(model, { Name = "Ridge", Size = Vector3.new(2.4 - i * 0.3, 0.12, 0.16), CFrame = CFrame.new(0, 0.3, -0.45 + i * 0.2) * CFrame.Angles(-0.1, 0, 0), Color = color:Lerp(Color3.new(1, 1, 1), 0.25), Material = Enum.Material.Foil })
+	end
+end
+
+BUILDERS["Glass Float"] = function(model, color)
+	piece(model, { Name = "Glass", Shape = Enum.PartType.Ball, Size = Vector3.new(2.6, 2.6, 2.6), Position = Vector3.new(0, 0, 0), Color = color, Material = Enum.Material.Glass, Transparency = 0.4 })
+	-- Rope net: three rings and four verticals.
+	for i = 1, 3 do
+		ring(model, Vector3.new(0, -0.9 + i * 0.9, 0), 1.32 - math.abs(i - 2) * 0.32, 0.13, 10, Color3.fromRGB(206, 186, 140), Enum.Material.Fabric)
+	end
+	for i = 1, 4 do
+		local a = i * math.pi / 4
+		piece(model, { Name = "NetLine", Size = Vector3.new(0.13, 2.7, 0.13), CFrame = CFrame.new(math.cos(a) * 1.28, 0, math.sin(a) * 1.28), Color = Color3.fromRGB(206, 186, 140), Material = Enum.Material.Fabric })
+	end
+	piece(model, { Name = "Knot", Shape = Enum.PartType.Ball, Size = Vector3.new(0.4, 0.4, 0.4), Position = Vector3.new(0, 1.45, 0), Color = Color3.fromRGB(186, 166, 122), Material = Enum.Material.Fabric })
+end
+
+-- 3. THE REEF: island carving and shell work.
+BUILDERS["Shell Lei"] = function(model, color)
+	for i = 1, 14 do
+		local a = (i / 14) * math.pi * 2
+		local at = Vector3.new(math.cos(a) * 1.5, math.sin(a) * 0.35, math.sin(a) * 1.5)
+		piece(model, { Name = "Cord", Shape = Enum.PartType.Ball, Size = Vector3.new(0.18, 0.18, 0.18), Position = at, Color = Color3.fromRGB(120, 96, 64), Material = Enum.Material.Fabric })
+		-- Alternating shells and blossoms round the string.
+		if i % 2 == 0 then
+			piece(model, { Name = "Shell", Shape = Enum.PartType.Ball, Size = Vector3.new(0.62, 0.24, 0.62), CFrame = CFrame.new(at) * CFrame.Angles(0, -a, 0.4), Color = IVORY, Material = Enum.Material.Sandstone })
+		else
+			for petal = 1, 5 do
+				local pa = (petal / 5) * math.pi * 2
+				piece(model, { Name = "Petal", Shape = Enum.PartType.Ball, Size = Vector3.new(0.34, 0.12, 0.34), CFrame = CFrame.new(at + Vector3.new(math.cos(pa) * 0.2, 0, math.sin(pa) * 0.2)), Color = color, Material = Enum.Material.SmoothPlastic })
+			end
+		end
+	end
+end
+
+BUILDERS["Whale Tooth Pendant"] = function(model, color)
+	-- A curved tooth: shrinking blocks along an arc.
+	for i = 1, 8 do
+		local t = (i - 1) / 8
+		local a = t * 0.9
+		piece(model, {
+			Name = "Tooth",
+			Size = Vector3.new(0.62 - t * 0.45, 0.42, 0.62 - t * 0.45),
+			CFrame = CFrame.new(math.sin(a) * 1.5 - 0.4, 0.9 - t * 2.3, 0) * CFrame.Angles(0, 0, -a),
+			Color = color:Lerp(IVORY, 0.6),
+			Material = Enum.Material.Sandstone,
+		})
+	end
+	piece(model, { Name = "Collar", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 0.85, 0.85), CFrame = CFrame.new(-0.4, 1.1, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(96, 70, 48), Material = Enum.Material.Fabric })
+	-- Braided cord looping over the top.
+	for i = 1, 9 do
+		local a = math.pi * (i - 1) / 8
+		piece(model, { Name = "Cord", Shape = Enum.PartType.Ball, Size = Vector3.new(0.16, 0.16, 0.16), Position = Vector3.new(-0.4 + math.cos(a) * 1.1, 1.2 + math.sin(a) * 1.1, 0), Color = Color3.fromRGB(120, 88, 56), Material = Enum.Material.Fabric })
+	end
+end
+
+BUILDERS["Tiki Idol"] = function(model, color)
+	local wood = color:Lerp(Color3.fromRGB(96, 62, 40), 0.5)
+	for i = 1, 2 do
+		local y = -1.2 + (i - 1) * 1.7
+		piece(model, { Name = "Block", Size = Vector3.new(1.5, 1.65, 1.3), CFrame = CFrame.new(0, y, 0) * CFrame.Angles(0, 0.14 * i, 0), Color = if i == 1 then wood else wood:Lerp(Color3.new(1, 1, 1), 0.12), Material = Enum.Material.Wood })
+		piece(model, { Name = "Brow", Size = Vector3.new(1.6, 0.3, 0.3), Position = Vector3.new(0, y + 0.45, -0.68), Color = wood:Lerp(Color3.new(0, 0, 0), 0.45), Material = Enum.Material.Wood })
+		piece(model, { Name = "Mouth", Size = Vector3.new(1.05, 0.36, 0.22), Position = Vector3.new(0, y - 0.42, -0.66), Color = IVORY, Material = Enum.Material.SmoothPlastic })
+		for _, side in { -1, 1 } do
+			piece(model, { Name = "Eye", Size = Vector3.new(0.34, 0.34, 0.2), Position = Vector3.new(side * 0.36, y + 0.1, -0.7), Color = IVORY, Material = Enum.Material.SmoothPlastic })
+		end
+	end
+	piece(model, { Name = "Crown", Size = Vector3.new(1.85, 0.4, 1.6), Position = Vector3.new(0, 1.4, 0), Color = wood:Lerp(Color3.new(0, 0, 0), 0.25), Material = Enum.Material.Wood })
+	piece(model, { Name = "Plinth", Size = Vector3.new(1.9, 0.4, 1.6), Position = Vector3.new(0, -2.1, 0), Color = DARK, Material = Enum.Material.Slate })
+end
+
+BUILDERS["Coral Crown"] = function(model, color)
+	ring(model, Vector3.new(0, -0.7, 0), 1.25, 0.36, 12, GOLD, Enum.Material.Metal)
+	-- Points made of branching coral instead of metal spikes.
+	for i = 1, 6 do
+		local a = (i / 6) * math.pi * 2
+		local at = Vector3.new(math.cos(a) * 1.2, -0.3, math.sin(a) * 1.2)
+		for seg = 1, 3 do
+			local t = seg / 3
+			piece(model, {
+				Name = "Branch",
+				Size = Vector3.new(0.3 - t * 0.1, 0.7, 0.3 - t * 0.1),
+				CFrame = CFrame.new(at + Vector3.new(math.cos(a) * t * 0.35, seg * 0.6, math.sin(a) * t * 0.35)) * CFrame.Angles(math.sin(a) * 0.2, 0, -math.cos(a) * 0.2),
+				Color = color:Lerp(Color3.fromRGB(255, 150, 190), t * 0.4),
+				Material = Enum.Material.Sandstone,
+			})
+		end
+		piece(model, { Name = "Tip", Shape = Enum.PartType.Ball, Size = Vector3.new(0.42, 0.42, 0.42), Position = at + Vector3.new(math.cos(a) * 0.4, 2.0, math.sin(a) * 0.4), Color = Color3.fromRGB(255, 186, 210), Material = Enum.Material.Sandstone })
+	end
+end
+
+-- 4. THE TRENCH: nobody lives here, so what is down here got dropped.
+BUILDERS["Sonar Beacon"] = function(model, color)
+	piece(model, { Name = "Body", Shape = Enum.PartType.Cylinder, Size = Vector3.new(2.6, 1.2, 1.2), CFrame = CFrame.new(0, 0, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = STEEL, Material = Enum.Material.Metal })
+	piece(model, { Name = "Band", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, 1.36, 1.36), CFrame = CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(226, 176, 44), Material = Enum.Material.Metal })
+	piece(model, { Name = "Dome", Shape = Enum.PartType.Ball, Size = Vector3.new(1.2, 1.0, 1.2), Position = Vector3.new(0, 1.5, 0), Color = color, Material = Enum.Material.Neon, Transparency = 0.3 })
+	piece(model, { Name = "Nose", Shape = Enum.PartType.Ball, Size = Vector3.new(1.2, 0.9, 1.2), Position = Vector3.new(0, -1.45, 0), Color = STEEL, Material = Enum.Material.Metal })
+	-- Fins, so it reads as something that was dropped and sank upright.
+	for i = 1, 3 do
+		local a = (i / 3) * math.pi * 2
+		piece(model, { Name = "Fin", Size = Vector3.new(0.12, 1.1, 0.8), CFrame = CFrame.new(math.cos(a) * 0.75, -0.9, math.sin(a) * 0.75) * CFrame.Angles(0, -a, 0), Color = Color3.fromRGB(90, 96, 108), Material = Enum.Material.Metal })
+	end
+end
+
+BUILDERS["Submersible Porthole"] = function(model, color)
+	ring(model, Vector3.new(0, 0, 0), 1.5, 0.55, 16, BRASS, Enum.Material.Metal)
+	piece(model, { Name = "Glass", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 2.6, 2.6), CFrame = CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), 0), Color = color, Material = Enum.Material.Glass, Transparency = 0.45 })
+	for i = 1, 8 do
+		local a = (i / 8) * math.pi * 2
+		piece(model, { Name = "Bolt", Shape = Enum.PartType.Ball, Size = Vector3.new(0.3, 0.3, 0.3), Position = Vector3.new(math.cos(a) * 1.5, math.sin(a) * 1.5, 0.2), Color = Color3.fromRGB(160, 128, 66), Material = Enum.Material.Metal })
+	end
+	-- A scrap of the hull still attached.
+	piece(model, { Name = "Hull", Size = Vector3.new(3.4, 0.4, 0.5), CFrame = CFrame.new(0, -1.7, -0.2) * CFrame.Angles(0.3, 0, 0.1), Color = Color3.fromRGB(226, 176, 44), Material = Enum.Material.CorrodedMetal })
+end
+
+BUILDERS["Black Box"] = function(model, color)
+	piece(model, { Name = "Body", Size = Vector3.new(2.4, 1.5, 1.4), Position = Vector3.new(0, 0, 0), Color = Color3.fromRGB(232, 122, 30), Material = Enum.Material.Metal })
+	for i = 1, 3 do
+		piece(model, { Name = "Stripe", Size = Vector3.new(0.3, 1.55, 1.45), Position = Vector3.new(-0.8 + (i - 1) * 0.8, 0, 0), Color = DARK, Material = Enum.Material.Metal })
+	end
+	piece(model, { Name = "Handle", Size = Vector3.new(1.4, 0.18, 0.18), Position = Vector3.new(0, 0.95, 0), Color = STEEL, Material = Enum.Material.Metal })
+	for _, side in { -1, 1 } do
+		piece(model, { Name = "HandleLeg", Size = Vector3.new(0.18, 0.5, 0.18), Position = Vector3.new(side * 0.6, 0.72, 0), Color = STEEL, Material = Enum.Material.Metal })
+	end
+	piece(model, { Name = "Pinger", Shape = Enum.PartType.Cylinder, Size = Vector3.new(1.0, 0.45, 0.45), CFrame = CFrame.new(1.5, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(0, 0, math.rad(90)), Color = color, Material = Enum.Material.Neon, Transparency = 0.3 })
+end
+
+-- 5. THE ABYSS: Ryugu-jo, the dragon god's palace.
+BUILDERS["Oni Mask"] = function(model, color)
+	local face = color:Lerp(Color3.fromRGB(196, 54, 44), 0.6)
+	piece(model, { Name = "Face", Shape = Enum.PartType.Ball, Size = Vector3.new(2.3, 2.7, 1.5), Position = Vector3.new(0, 0, 0), Color = face, Material = Enum.Material.SmoothPlastic })
+	piece(model, { Name = "Jaw", Size = Vector3.new(1.9, 0.9, 1.1), CFrame = CFrame.new(0, -1.15, -0.1) * CFrame.Angles(0.2, 0, 0), Color = face, Material = Enum.Material.SmoothPlastic })
+	-- Horns, brows, tusks: the three things that make a mask an oni.
+	for _, side in { -1, 1 } do
+		for seg = 1, 3 do
+			local t = seg / 3
+			piece(model, { Name = "Horn", Size = Vector3.new(0.42 - t * 0.24, 0.6, 0.42 - t * 0.24), CFrame = CFrame.new(side * (0.75 + t * 0.2), 1.4 + seg * 0.42, 0.1) * CFrame.Angles(0, 0, side * -t * 0.5), Color = IVORY, Material = Enum.Material.Sandstone })
+		end
+		piece(model, { Name = "Brow", Size = Vector3.new(1.0, 0.34, 0.4), CFrame = CFrame.new(side * 0.55, 0.62, -0.62) * CFrame.Angles(0, 0, side * 0.4), Color = DARK, Material = Enum.Material.SmoothPlastic })
+		piece(model, { Name = "Eye", Shape = Enum.PartType.Ball, Size = Vector3.new(0.5, 0.4, 0.3), Position = Vector3.new(side * 0.52, 0.24, -0.66), Color = Color3.fromRGB(250, 226, 120), Material = Enum.Material.Neon })
+		piece(model, { Name = "Tusk", Size = Vector3.new(0.24, 0.6, 0.24), CFrame = CFrame.new(side * 0.55, -0.95, -0.6) * CFrame.Angles(0.2, 0, side * 0.2), Color = IVORY, Material = Enum.Material.Sandstone })
+	end
+	piece(model, { Name = "Mouth", Size = Vector3.new(1.5, 0.5, 0.3), Position = Vector3.new(0, -0.75, -0.66), Color = DARK, Material = Enum.Material.SmoothPlastic })
+end
+
+BUILDERS["Temple Bell"] = function(model, color)
+	local bronze = color:Lerp(Color3.fromRGB(96, 118, 96), 0.55)
+	-- A bonsho is a straight-sided barrel with a flat top, not a flared bell.
+	for i = 1, 5 do
+		piece(model, { Name = "Barrel", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.56, 2.3 + i * 0.06, 2.3 + i * 0.06), CFrame = CFrame.new(0, 1.0 - i * 0.55, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = bronze, Material = Enum.Material.Metal })
+	end
+	piece(model, { Name = "Top", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.35, 2.1, 2.1), CFrame = CFrame.new(0, 1.35, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = bronze:Lerp(Color3.new(0, 0, 0), 0.2), Material = Enum.Material.Metal })
+	-- Ryuzu: the twin-dragon loop it hangs from.
+	ring(model, Vector3.new(0, 1.85, 0), 0.45, 0.2, 8, bronze, Enum.Material.Metal)
+	-- Rows of bosses round the shoulder, which is the bonsho signature.
+	for i = 1, 10 do
+		local a = (i / 10) * math.pi * 2
+		for row = 1, 2 do
+			piece(model, { Name = "Boss", Shape = Enum.PartType.Ball, Size = Vector3.new(0.26, 0.26, 0.26), Position = Vector3.new(math.cos(a) * 1.2, 0.55 - row * 0.42, math.sin(a) * 1.2), Color = bronze:Lerp(Color3.new(1, 1, 1), 0.2), Material = Enum.Material.Metal })
+		end
+	end
+	-- The tsuki-za, the lotus pad the beam strikes.
+	piece(model, { Name = "StrikePad", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.2, 0.8, 0.8), CFrame = CFrame.new(0, -1.1, -1.25) * CFrame.Angles(0, math.rad(90), 0), Color = bronze:Lerp(Color3.new(0, 0, 0), 0.3), Material = Enum.Material.Metal })
+	piece(model, { Name = "Rim", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 2.75, 2.75), CFrame = CFrame.new(0, -1.85, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = bronze:Lerp(Color3.new(0, 0, 0), 0.25), Material = Enum.Material.Metal })
+end
+
+BUILDERS["Tide Jewel"] = function(model, color)
+	-- The kanju and manju of the Ryugu-jo story: the jewels that command the
+	-- tides. An orb held in a dragon's claw.
+	piece(model, { Name = "Orb", Shape = Enum.PartType.Ball, Size = Vector3.new(2.2, 2.2, 2.2), Position = Vector3.new(0, 0.4, 0), Color = color, Material = Enum.Material.Neon, Transparency = 0.25 })
+	piece(model, { Name = "Core", Shape = Enum.PartType.Ball, Size = Vector3.new(1.1, 1.1, 1.1), Position = Vector3.new(0, 0.4, 0), Color = Color3.fromRGB(255, 255, 255), Material = Enum.Material.Neon })
+	for i = 1, 4 do
+		local a = i * math.pi / 2 + math.pi / 4
+		for seg = 1, 3 do
+			local t = seg / 3
+			piece(model, {
+				Name = "Claw",
+				Size = Vector3.new(0.3 - t * 0.12, 0.85, 0.3 - t * 0.12),
+				CFrame = CFrame.new(math.cos(a) * (1.15 - t * 0.3), -0.9 + seg * 0.75, math.sin(a) * (1.15 - t * 0.3))
+					* CFrame.Angles(math.sin(a) * t * 0.55, 0, -math.cos(a) * t * 0.55),
+				Color = GOLD,
+				Material = Enum.Material.Metal,
+			})
+		end
+	end
+	piece(model, { Name = "Foot", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, 1.7, 1.7), CFrame = CFrame.new(0, -1.35, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = GOLD, Material = Enum.Material.Metal })
+	ring(model, Vector3.new(0, -1.0, 0), 0.85, 0.18, 10, GOLD, Enum.Material.Metal)
 end
 
 -- True when this relic has a hand-built model rather than the generic hoard.
