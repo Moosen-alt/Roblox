@@ -23,6 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "assets/mesh-source/asset_manifest.csv"
+SOURCE = ROOT / "assets/mesh-source"
 
 # Which manifest Game/Kind lands in which file and table.
 TARGETS = {
@@ -31,7 +32,81 @@ TARGETS = {
     ("Crack a Geode", "Crystal"): ("src/shared/Config/Meshes.luau", "Crystal"),
     ("Reel a Relic", "Prop"): ("games/reel-a-relic/src/shared/Config/Meshes.luau", "Prop"),
     ("Crack a Geode", "Prop"): ("src/shared/Config/Meshes.luau", "Prop"),
+    ("Reel a Relic", "World"): ("games/reel-a-relic/src/shared/Config/Meshes.luau", "World"),
+    ("Crack a Geode", "World"): ("src/shared/Config/Meshes.luau", "World"),
 }
+
+# Collectibles are drawn centred in a viewport at a fixed size, so their extents
+# do not matter. World decoration is placed ON terrain at a chosen height, and a
+# SpecialMesh keeps its Part 1x1x1 however large the mesh draws — so at runtime
+# there is no way to ask how tall a prop is. Measure it here instead.
+MEASURED_KINDS = {"World"}
+
+# The world pack ships its own material and colour per model. Copying 69 of
+# those by hand is exactly the kind of transcription nobody proofreads, so read
+# them from the pack's manifest and generate them too.
+PACK_MANIFEST = ROOT / "assets/mesh-source/world/pack-manifest.csv"
+
+# Roblox material names, for the few the pack writes differently. Anything not
+# listed is passed through and validated below — a bad name would otherwise
+# reach Luau as Enum.Material.Nonsense.
+MATERIAL_ALIASES = {
+    "Grass/Wood": "Grass",  # trees: fronds/needles are the mass, the trunk is a sliver
+    "Bone": "Sand",  # Roblox has no Bone; Sand is the closest pale, matte surface
+    "DiamondPlate": "DiamondPlate",
+}
+ROBLOX_MATERIALS = {
+    "Plastic", "SmoothPlastic", "Neon", "Wood", "WoodPlanks", "Marble", "Slate",
+    "Concrete", "Granite", "Brick", "Pebble", "Cobblestone", "Rock", "Sandstone",
+    "Basalt", "CrackedLava", "Limestone", "Asphalt", "Ground", "Mud", "Sand",
+    "Snow", "Ice", "Glacier", "Grass", "LeafyGrass", "Metal", "DiamondPlate",
+    "CorrodedMetal", "Foil", "Glass", "ForceField", "Fabric", "Salt",
+}
+
+
+def pack_styles() -> dict[tuple[str, str], tuple[str, str]]:
+    """(Game, Asset) -> (Roblox material, "r, g, b") from the world pack."""
+    if not PACK_MANIFEST.exists():
+        return {}
+    styles = {}
+    for row in csv.DictReader(PACK_MANIFEST.open(newline="", encoding="utf-8")):
+        raw = row["SuggestedMaterial"].strip()
+        material = MATERIAL_ALIASES.get(raw, raw)
+        if material not in ROBLOX_MATERIALS:
+            raise SystemExit(
+                f"{row['Asset']}: {raw!r} is not a Roblox material. "
+                f"Add it to MATERIAL_ALIASES in tools/build-meshes.py."
+            )
+        rgb = ", ".join(part.strip() for part in row["SuggestedColorRGB"].split(","))
+        styles[(row["Game"], row["Asset"])] = (material, rgb)
+    return styles
+
+
+STYLES = pack_styles()
+
+
+def measure(obj: Path) -> dict[str, tuple[float, float, float]] | None:
+    """Native extents, centre and lowest point of an OBJ, in mesh units."""
+    if not obj.exists():
+        return None
+    lo = [float("inf")] * 3
+    hi = [float("-inf")] * 3
+    with obj.open(encoding="utf-8", errors="ignore") as handle:
+        for line in handle:
+            if not line.startswith("v "):
+                continue
+            parts = line.split()
+            for axis in range(3):
+                value = float(parts[axis + 1])
+                lo[axis] = min(lo[axis], value)
+                hi[axis] = max(hi[axis], value)
+    if lo[0] == float("inf"):
+        return None
+    return {
+        "size": tuple(hi[a] - lo[a] for a in range(3)),
+        "middle": tuple((hi[a] + lo[a]) / 2 for a in range(3)),
+        "floor": lo[1],
+    }
 
 
 def row_to_lua(row: dict) -> str:
@@ -39,6 +114,23 @@ def row_to_lua(row: dict) -> str:
     scale = float(row["Scale"] or 1)
     rx, ry, rz = (float(row[f"Rotation{a}"] or 0) for a in "XYZ")
     extra = f", Rotation = Vector3.new({rx:g}, {ry:g}, {rz:g})" if any((rx, ry, rz)) else ""
+    if row["Kind"] in MEASURED_KINDS:
+        bounds = measure(SOURCE / row["LocalFile"])
+        if bounds is None:
+            raise SystemExit(
+                f"cannot measure {row['ExactName']}: no source OBJ at {row['LocalFile']}. "
+                f"World props are placed from their real extents, so this is not optional."
+            )
+        w, h, d = bounds["size"]
+        mx, my, mz = bounds["middle"]
+        extra += f", Size = Vector3.new({w:.4g}, {h:.4g}, {d:.4g})"
+        extra += f", Floor = {bounds['floor']:.4g}"
+        if any(abs(v) > 1e-4 for v in (mx, my, mz)):
+            extra += f", Middle = Vector3.new({mx:.4g}, {my:.4g}, {mz:.4g})"
+        style = STYLES.get((row["Game"], row["ExactName"]))
+        if style:
+            material, rgb = style
+            extra += f", Material = Enum.Material.{material}, Tint = Color3.fromRGB({rgb})"
     return f'\t["{row["ExactName"]}"] = {{ Mesh = {mesh}, Scale = {scale:g}{extra} }},'
 
 

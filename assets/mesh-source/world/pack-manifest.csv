@@ -1,0 +1,70 @@
+Game,Level,Asset,File,SuggestedMaterial,SuggestedColorRGB,StudioScale,Notes
+Crack a Geode,01_Crystal_Cavern,Hero Crystal Cluster,crack-a-geode/01_Crystal_Cavern/Hero_Crystal_Cluster.obj,Neon,"170,110,240",1.0,Large focal crystal formation
+Crack a Geode,01_Crystal_Cavern,Cave Boulder A,crack-a-geode/01_Crystal_Cavern/Cave_Boulder_A.obj,Slate,"70,64,92",1.0,
+Crack a Geode,01_Crystal_Cavern,Cave Boulder B,crack-a-geode/01_Crystal_Cavern/Cave_Boulder_B.obj,Rock,"82,76,104",1.0,
+Crack a Geode,01_Crystal_Cavern,Crystal Arch,crack-a-geode/01_Crystal_Cavern/Crystal_Arch.obj,Slate,"76,68,100",1.0,
+Crack a Geode,01_Crystal_Cavern,Stalagmite Cluster,crack-a-geode/01_Crystal_Cavern/Stalagmite_Cluster.obj,Rock,"72,68,90",1.0,
+Crack a Geode,01_Crystal_Cavern,Floating Crystal Ring,crack-a-geode/01_Crystal_Cavern/Floating_Crystal_Ring.obj,Neon,"150,100,255",1.0,Good landmark or portal decoration
+Crack a Geode,02_Amber_Depths,Amber Cluster,crack-a-geode/02_Amber_Depths/Amber_Cluster.obj,Neon,"255,170,55",1.0,
+Crack a Geode,02_Amber_Depths,Old Mine Support,crack-a-geode/02_Amber_Depths/Old_Mine_Support.obj,Wood,"112,84,58",1.0,
+Crack a Geode,02_Amber_Depths,Ruined Stone Arch,crack-a-geode/02_Amber_Depths/Ruined_Stone_Arch.obj,Sandstone,"130,96,64",1.0,
+Crack a Geode,02_Amber_Depths,Mine Boulder,crack-a-geode/02_Amber_Depths/Mine_Boulder.obj,Rock,"102,78,56",1.0,
+Crack a Geode,02_Amber_Depths,Broken Plank Bridge,crack-a-geode/02_Amber_Depths/Broken_Plank_Bridge.obj,WoodPlanks,"105,74,48",1.0,
+Crack a Geode,02_Amber_Depths,Amber Pillar,crack-a-geode/02_Amber_Depths/Amber_Pillar.obj,Sandstone,"160,110,54",1.0,
+Crack a Geode,03_Frost_Hollow,Ice Spire Cluster,crack-a-geode/03_Frost_Hollow/Ice_Spire_Cluster.obj,Ice,"170,225,255",1.0,
+Crack a Geode,03_Frost_Hollow,Frozen Arch,crack-a-geode/03_Frost_Hollow/Frozen_Arch.obj,Ice,"160,215,245",1.0,
+Crack a Geode,03_Frost_Hollow,Frost Boulder,crack-a-geode/03_Frost_Hollow/Frost_Boulder.obj,Glacier,"180,220,240",1.0,
+Crack a Geode,03_Frost_Hollow,Ice Crystal Cluster,crack-a-geode/03_Frost_Hollow/Ice_Crystal_Cluster.obj,Neon,"130,220,255",1.0,
+Crack a Geode,03_Frost_Hollow,Frozen Pillar,crack-a-geode/03_Frost_Hollow/Frozen_Pillar.obj,Ice,"190,235,255",1.0,
+Crack a Geode,03_Frost_Hollow,Icicle Ceiling Strip,crack-a-geode/03_Frost_Hollow/Icicle_Ceiling_Strip.obj,Ice,"185,230,255",1.0,Mount overhead
+Crack a Geode,04_Ember_Rift,Basalt Spire Cluster,crack-a-geode/04_Ember_Rift/Basalt_Spire_Cluster.obj,Basalt,"48,42,50",1.0,
+Crack a Geode,04_Ember_Rift,Lava Fissure Rock,crack-a-geode/04_Ember_Rift/Lava_Fissure_Rock.obj,Basalt,"55,48,52",1.0,Use orange Neon parts/decals over the raised fissures
+Crack a Geode,04_Ember_Rift,Hydrothermal Vent,crack-a-geode/04_Ember_Rift/Hydrothermal_Vent.obj,Basalt,"62,54,60",1.0,Add smoke and orange/red particles
+Crack a Geode,04_Ember_Rift,Broken Rift Bridge,crack-a-geode/04_Ember_Rift/Broken_Rift_Bridge.obj,Slate,"72,60,58",1.0,
+Crack a Geode,04_Ember_Rift,Ember Crystal Cluster,crack-a-geode/04_Ember_Rift/Ember_Crystal_Cluster.obj,Neon,"255,95,35",1.0,
+Crack a Geode,04_Ember_Rift,Basalt Gate,crack-a-geode/04_Ember_Rift/Basalt_Gate.obj,Basalt,"52,46,58",1.0,
+Crack a Geode,05_Starfall_Core,Meteor Chunk A,crack-a-geode/05_Starfall_Core/Meteor_Chunk_A.obj,Rock,"66,58,84",1.0,
+Crack a Geode,05_Starfall_Core,Meteor Chunk B,crack-a-geode/05_Starfall_Core/Meteor_Chunk_B.obj,Rock,"54,50,72",1.0,
+Crack a Geode,05_Starfall_Core,Star Monolith,crack-a-geode/05_Starfall_Core/Star_Monolith.obj,Slate,"55,48,88",1.0,
+Crack a Geode,05_Starfall_Core,Cosmic Ring,crack-a-geode/05_Starfall_Core/Cosmic_Ring.obj,Neon,"135,100,255",1.0,
+Crack a Geode,05_Starfall_Core,Star Pillar,crack-a-geode/05_Starfall_Core/Star_Pillar.obj,Neon,"105,210,255",1.0,
+Crack a Geode,05_Starfall_Core,Prismatic Core Cluster,crack-a-geode/05_Starfall_Core/Prismatic_Core_Cluster.obj,Neon,"200,120,255",1.0,
+Crack a Geode,06_25_Deep_Layer_Remix,Obsidian Boulder,crack-a-geode/06_25_Deep_Layer_Remix/Obsidian_Boulder.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Crack a Geode,06_25_Deep_Layer_Remix,Cinder Spires,crack-a-geode/06_25_Deep_Layer_Remix/Cinder_Spires.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Crack a Geode,06_25_Deep_Layer_Remix,Glacier Shards,crack-a-geode/06_25_Deep_Layer_Remix/Glacier_Shards.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Crack a Geode,06_25_Deep_Layer_Remix,Verdant Crystals,crack-a-geode/06_25_Deep_Layer_Remix/Verdant_Crystals.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Crack a Geode,06_25_Deep_Layer_Remix,Ashen Gate,crack-a-geode/06_25_Deep_Layer_Remix/Ashen_Gate.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Crack a Geode,06_25_Deep_Layer_Remix,Radiant Cluster,crack-a-geode/06_25_Deep_Layer_Remix/Radiant_Cluster.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Crack a Geode,06_25_Deep_Layer_Remix,Drowned Pillar,crack-a-geode/06_25_Deep_Layer_Remix/Drowned_Pillar.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Crack a Geode,06_25_Deep_Layer_Remix,Gilded Ruin,crack-a-geode/06_25_Deep_Layer_Remix/Gilded_Ruin.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Crack a Geode,06_25_Deep_Layer_Remix,Shattered Monolith,crack-a-geode/06_25_Deep_Layer_Remix/Shattered_Monolith.obj,Slate,"100,90,130",1.0,Reuse and recolor for generated layers 6-25
+Reel a Relic,01_Sunny_Shallows,Palm Tree,reel-a-relic/01_Sunny_Shallows/Palm_Tree.obj,Grass/Wood,"70,170,90",1.0,"Separate mesh, recolor trunk/leaves in Studio if desired"
+Reel a Relic,01_Sunny_Shallows,Beach Rock A,reel-a-relic/01_Sunny_Shallows/Beach_Rock_A.obj,Sandstone,"195,178,145",1.0,
+Reel a Relic,01_Sunny_Shallows,Reed Patch,reel-a-relic/01_Sunny_Shallows/Reed_Patch.obj,Grass,"90,185,100",1.0,
+Reel a Relic,01_Sunny_Shallows,Wood Dock Segment,reel-a-relic/01_Sunny_Shallows/Wood_Dock_Segment.obj,WoodPlanks,"185,145,95",1.0,
+Reel a Relic,01_Sunny_Shallows,Ring Buoy,reel-a-relic/01_Sunny_Shallows/Ring_Buoy.obj,SmoothPlastic,"255,180,55",1.0,
+Reel a Relic,01_Sunny_Shallows,Driftwood,reel-a-relic/01_Sunny_Shallows/Driftwood.obj,Wood,"120,86,55",1.0,
+Reel a Relic,02_Kelp_Forest,Tall Kelp Patch,reel-a-relic/02_Kelp_Forest/Tall_Kelp_Patch.obj,Grass,"60,150,90",1.0,
+Reel a Relic,02_Kelp_Forest,Pine Tree,reel-a-relic/02_Kelp_Forest/Pine_Tree.obj,Grass/Wood,"50,110,70",1.0,
+Reel a Relic,02_Kelp_Forest,Cold Shore Boulder,reel-a-relic/02_Kelp_Forest/Cold_Shore_Boulder.obj,Rock,"100,112,105",1.0,
+Reel a Relic,02_Kelp_Forest,Old Wood Dock,reel-a-relic/02_Kelp_Forest/Old_Wood_Dock.obj,Wood,"105,82,60",1.0,
+Reel a Relic,02_Kelp_Forest,Kelp Rock Cluster,reel-a-relic/02_Kelp_Forest/Kelp_Rock_Cluster.obj,Rock,"90,105,92",1.0,
+Reel a Relic,02_Kelp_Forest,Drift Log,reel-a-relic/02_Kelp_Forest/Drift_Log.obj,Wood,"95,72,54",1.0,
+Reel a Relic,03_Twilight_Reef,Coral Head,reel-a-relic/03_Twilight_Reef/Coral_Head.obj,SmoothPlastic,"255,125,150",1.0,
+Reel a Relic,03_Twilight_Reef,Coral Fan,reel-a-relic/03_Twilight_Reef/Coral_Fan.obj,SmoothPlastic,"255,145,220",1.0,
+Reel a Relic,03_Twilight_Reef,Sea Urchin,reel-a-relic/03_Twilight_Reef/Sea_Urchin.obj,SmoothPlastic,"120,70,170",1.0,
+Reel a Relic,03_Twilight_Reef,Reef Rock,reel-a-relic/03_Twilight_Reef/Reef_Rock.obj,Sandstone,"215,168,155",1.0,
+Reel a Relic,03_Twilight_Reef,Tiki Buoy,reel-a-relic/03_Twilight_Reef/Tiki_Buoy.obj,Wood,"155,95,60",1.0,
+Reel a Relic,03_Twilight_Reef,Sandstone Dock Segment,reel-a-relic/03_Twilight_Reef/Sandstone_Dock_Segment.obj,Sandstone,"220,170,145",1.0,
+Reel a Relic,04_Midnight_Trench,Trench Basalt Spires,reel-a-relic/04_Midnight_Trench/Trench_Basalt_Spires.obj,Basalt,"55,58,72",1.0,
+Reel a Relic,04_Midnight_Trench,Hydrothermal Vent Cluster,reel-a-relic/04_Midnight_Trench/Hydrothermal_Vent_Cluster.obj,Basalt,"70,65,76",1.0,Add smoke/bubble particles
+Reel a Relic,04_Midnight_Trench,Can Buoy,reel-a-relic/04_Midnight_Trench/Can_Buoy.obj,Metal,"95,105,120",1.0,
+Reel a Relic,04_Midnight_Trench,Metal Dock Segment,reel-a-relic/04_Midnight_Trench/Metal_Dock_Segment.obj,DiamondPlate,"80,82,96",1.0,
+Reel a Relic,04_Midnight_Trench,Trench Boulder,reel-a-relic/04_Midnight_Trench/Trench_Boulder.obj,Basalt,"50,52,68",1.0,
+Reel a Relic,04_Midnight_Trench,Broken Metal Bridge,reel-a-relic/04_Midnight_Trench/Broken_Metal_Bridge.obj,DiamondPlate,"82,84,98",1.0,
+Reel a Relic,05_The_Abyss,Whale Rib Bones,reel-a-relic/05_The_Abyss/Whale_Rib_Bones.obj,Bone,"205,200,185",1.0,
+Reel a Relic,05_The_Abyss,Sea Creature Skull,reel-a-relic/05_The_Abyss/Sea_Creature_Skull.obj,Bone,"205,200,185",1.0,
+Reel a Relic,05_The_Abyss,Lantern Buoy,reel-a-relic/05_The_Abyss/Lantern_Buoy.obj,Slate,"190,90,255",1.0,Put a PointLight in the top orb
+Reel a Relic,05_The_Abyss,Abyss Spires,reel-a-relic/05_The_Abyss/Abyss_Spires.obj,Slate,"48,45,62",1.0,
+Reel a Relic,05_The_Abyss,Biolum Mushroom Cluster,reel-a-relic/05_The_Abyss/Biolum_Mushroom_Cluster.obj,Neon,"140,100,255",1.0,
+Reel a Relic,05_The_Abyss,Abyss Crystal Cluster,reel-a-relic/05_The_Abyss/Abyss_Crystal_Cluster.obj,Neon,"150,255,235",1.0,

@@ -77,6 +77,22 @@ export type MeshDef = {
 	Scale: number?, -- multiplier on the species' normal size (default 1)
 	Offset: Vector3?, -- nudge if the model's origin is not its centre
 	Rotation: Vector3?, -- degrees, X then Y then Z. See ORIENTATION above.
+	-- MEASURED, not guessed. Filled in by tools/build-meshes.py, which reads the
+	-- source OBJ; never edit these by hand.
+	--
+	-- A SpecialMesh leaves its Part 1x1x1 no matter how big the mesh draws, so
+	-- `GetBoundingBox` reports the part and not the model you can see. Everything
+	-- that has to sit a world prop ON something — rather than through it, which
+	-- is how the aquarium relics went wrong — needs the real extents, and the
+	-- only place they exist is the source file.
+	Size: Vector3?, -- native extents in mesh units, before Scale
+	Floor: number?, -- native lowest Y; what has to land on the ground
+	Middle: Vector3?, -- native centre, for models authored off-origin
+	-- Also generated: the world pack ships a material and colour per model, and
+	-- transcribing sixty-nine of those by hand is how one ends up a shade off
+	-- with nobody noticing.
+	Material: Enum.Material?,
+	Tint: Color3?,
 }
 
 -- Keyed by the exact Name in Config/Crystals.luau.
@@ -148,8 +164,21 @@ Meshes.Prop = {
 	["ChestLid"] = { Mesh = 84305083533626, Scale = 1 },
 } :: { [string]: MeshDef }
 
+-- World decoration: kelp, coral, buoys, docks, landmarks. Not collectibles and
+-- not UI — scenery placed by MapBuilder to give each area a face of its own.
+--
+-- Absent or unuploaded means the area simply renders as it always has, on the
+-- procedural geometry alone. That is the whole reason decoration lives behind
+-- its own table: the map must never depend on an asset that might be in
+-- moderation.
+Meshes.World = {} :: { [string]: MeshDef }
+
 function Meshes.ForProp(name: string?): MeshDef?
 	return if name then Meshes.Prop[name] else nil
+end
+
+function Meshes.ForWorld(name: string?): MeshDef?
+	return if name then Meshes.World[name] else nil
 end
 
 function Meshes.ForFish(name: string?): MeshDef?

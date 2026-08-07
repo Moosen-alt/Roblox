@@ -12,6 +12,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Crystals = require(Shared.Config.Crystals)
 local FishShape = require(Shared.FishShape)
+local WorldBuild = require(Shared.WorldBuild)
 
 local MapBuilder = {}
 
@@ -48,6 +49,27 @@ type AreaTheme = {
 	-- What the station decks and the dock are built out of.
 	DeckColor: Color3,
 	DeckMaterial: Enum.Material,
+	-- Sculpted decoration laid OVER the procedural scenery above. Purely
+	-- additive: every area is finished without it, and stays finished if a mesh
+	-- is still in moderation. See PropPlan.
+	Props: { PropPlan },
+}
+
+-- One kind of sculpted prop, and where this area wants them.
+--
+-- Heights are in STUDS, not in mesh units, because the only scale a player can
+-- judge is themselves — they are about five studs tall. The mesh's own size is
+-- measured out of the source OBJ at build time and divided out, so a boulder
+-- authored ten units wide and a boulder authored two both land at the height
+-- asked for here.
+type PropPlan = {
+	Name: string, -- must match a key in Config/Meshes.luau's World table
+	Count: number,
+	Min: number, -- shortest, in studs
+	Max: number, -- tallest
+	Zone: string, -- Shore | Floor | Surface | Dock
+	Sink: number?, -- studs to bury, for things growing out of sand or rock
+	Glow: number?, -- PointLight range, for the ones that light the dark
 }
 
 local AREA_THEMES: { AreaTheme } = {
@@ -61,6 +83,16 @@ local AREA_THEMES: { AreaTheme } = {
 		Buoy = "Ring",
 		DeckColor = Color3.fromRGB(210, 185, 140),
 		DeckMaterial = Enum.Material.WoodPlanks,
+		Props = {
+			-- The holiday beach: palms behind the sand, driftwood on it, reeds in
+			-- the shallows. Nothing here breaks the surface except the palms.
+			{ Name = "Palm Tree", Count = 5, Min = 20, Max = 28, Zone = "Shore" },
+			{ Name = "Beach Rock A", Count = 7, Min = 3.5, Max = 7, Zone = "Shore", Sink = 0.4 },
+			{ Name = "Driftwood", Count = 6, Min = 2, Max = 3.5, Zone = "Shore" },
+			{ Name = "Reed Patch", Count = 14, Min = 2.5, Max = 4.5, Zone = "Floor" },
+			{ Name = "Wood Dock Segment", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
+			{ Name = "Ring Buoy", Count = 5, Min = 1.8, Max = 2.6, Zone = "Surface" },
+		},
 	},
 	{ -- 2 Kelp Forest: a cold northern cove. Kelp towers up THROUGH the surface
 		-- and mats out into a canopy you look across, pines on a rocky shore.
@@ -73,6 +105,17 @@ local AREA_THEMES: { AreaTheme } = {
 		Buoy = "Otter",
 		DeckColor = Color3.fromRGB(112, 92, 72),
 		DeckMaterial = Enum.Material.Wood,
+		Props = {
+			-- Kelp is sized to REACH the surface and mat across it: the water is
+			-- only about six studs deep, so nine studs of kelp is a canopy you
+			-- look across rather than weeds you look down at.
+			{ Name = "Pine Tree", Count = 10, Min = 22, Max = 32, Zone = "Shore" },
+			{ Name = "Cold Shore Boulder", Count = 8, Min = 4, Max = 8, Zone = "Shore", Sink = 0.6 },
+			{ Name = "Drift Log", Count = 5, Min = 2, Max = 3.5, Zone = "Shore" },
+			{ Name = "Tall Kelp Patch", Count = 16, Min = 7, Max = 9.5, Zone = "Floor" },
+			{ Name = "Kelp Rock Cluster", Count = 8, Min = 3, Max = 5, Zone = "Floor", Sink = 0.5 },
+			{ Name = "Old Wood Dock", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
+		},
 	},
 	{ -- 3 Twilight Reef: warm and loud. Coral heads, fans, urchins.
 		Sand = Color3.fromRGB(228, 196, 186),
@@ -84,6 +127,16 @@ local AREA_THEMES: { AreaTheme } = {
 		Buoy = "Tiki",
 		DeckColor = Color3.fromRGB(226, 168, 150),
 		DeckMaterial = Enum.Material.Sandstone,
+		Props = {
+			-- A reef is dense and low. Lots of small things close together beats a
+			-- few big ones, which is the opposite of how the trench is dressed.
+			{ Name = "Reef Rock", Count = 7, Min = 4, Max = 8, Zone = "Shore", Sink = 0.5 },
+			{ Name = "Coral Head", Count = 14, Min = 3, Max = 5, Zone = "Floor" },
+			{ Name = "Coral Fan", Count = 12, Min = 2.5, Max = 4.5, Zone = "Floor" },
+			{ Name = "Sea Urchin", Count = 10, Min = 1.2, Max = 2, Zone = "Floor" },
+			{ Name = "Tiki Buoy", Count = 5, Min = 2.2, Max = 3, Zone = "Surface" },
+			{ Name = "Sandstone Dock Segment", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
+		},
 	},
 	{ -- 4 Midnight Trench: black basalt spires and hydrothermal vents.
 		Sand = Color3.fromRGB(96, 92, 116),
@@ -95,6 +148,16 @@ local AREA_THEMES: { AreaTheme } = {
 		Buoy = "Can",
 		DeckColor = Color3.fromRGB(78, 80, 96),
 		DeckMaterial = Enum.Material.DiamondPlate,
+		Props = {
+			-- Spires tall enough to come up out of the water and be seen from the
+			-- dock. A trench should have a horizon of its own.
+			{ Name = "Trench Basalt Spires", Count = 8, Min = 12, Max = 22, Zone = "Floor", Sink = 1 },
+			{ Name = "Trench Boulder", Count = 8, Min = 3.5, Max = 6, Zone = "Floor", Sink = 0.6 },
+			{ Name = "Hydrothermal Vent Cluster", Count = 6, Min = 4, Max = 6, Zone = "Floor", Glow = 18 },
+			{ Name = "Broken Metal Bridge", Count = 3, Min = 6, Max = 9, Zone = "Shore" },
+			{ Name = "Can Buoy", Count = 5, Min = 2, Max = 2.8, Zone = "Surface" },
+			{ Name = "Metal Dock Segment", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
+		},
 	},
 	{ -- 5 The Abyss: no light that isn't alive. Bones on the floor.
 		Sand = Color3.fromRGB(58, 55, 74),
@@ -106,6 +169,17 @@ local AREA_THEMES: { AreaTheme } = {
 		Buoy = "Lantern",
 		DeckColor = Color3.fromRGB(206, 200, 186),
 		DeckMaterial = Enum.Material.Slate,
+		Props = {
+			-- Everything that glows down here is alive or mineral, never lit from
+			-- above — which is the one rule that makes the Abyss read as deep
+			-- rather than as night-time.
+			{ Name = "Abyss Spires", Count = 8, Min = 12, Max = 24, Zone = "Floor", Sink = 1 },
+			{ Name = "Whale Rib Bones", Count = 5, Min = 4.5, Max = 7, Zone = "Floor" },
+			{ Name = "Sea Creature Skull", Count = 4, Min = 2.5, Max = 4, Zone = "Floor" },
+			{ Name = "Biolum Mushroom Cluster", Count = 12, Min = 1.8, Max = 3.2, Zone = "Floor", Glow = 14 },
+			{ Name = "Abyss Crystal Cluster", Count = 9, Min = 3, Max = 5, Zone = "Floor", Glow = 16 },
+			{ Name = "Lantern Buoy", Count = 5, Min = 2.2, Max = 3, Zone = "Surface", Glow = 20 },
+		},
 	},
 }
 
@@ -1953,6 +2027,61 @@ local function growthSpot(ox: number, oz: number): Vector3
 	return Vector3.new(ox + rng:NextNumber(-125, 125), 0, oz - rng:NextNumber(96, 145))
 end
 
+-- SCULPTED DECORATION, laid over the procedural scenery rather than instead of
+-- it. Every prop here is optional by construction: WorldBuild returns nil for a
+-- mesh that has not been uploaded, so an area with none of them available looks
+-- exactly like it did before the pack existed. That is deliberate — the map must
+-- never depend on an asset sitting in a moderation queue.
+--
+-- Four zones, because "scatter it around" is how you end up with a palm growing
+-- out of the water and a boulder standing on the dock:
+--
+--   Shore    on the sand behind the beach, clear of the walkway
+--   Floor    on the sea bed, clear of the fishing arc so it never eats a cast
+--   Surface  floating, drifting slightly, well outside the arc
+--   Dock     along the edges of the pier, never on the planks themselves
+local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: Instance)
+	for _, plan in theme.Props do
+		for i = 1, plan.Count do
+			local height = rng:NextNumber(plan.Min, plan.Max)
+			local at: Vector3
+			local sink = plan.Sink
+
+			if plan.Zone == "Shore" then
+				at = Vector3.new(ox + rng:NextNumber(-115, 115), 0, oz + rng:NextNumber(40, 104))
+			elseif plan.Zone == "Dock" then
+				-- Beside the dock, not on it. The dock is 14 studs wide and is the
+				-- only route to the water; anything standing in it is in the way,
+				-- even when it cannot be collided with.
+				local side = if i % 2 == 0 then 1 else -1
+				at = Vector3.new(ox + side * rng:NextNumber(9, 13), 1.1, oz - rng:NextNumber(2, 46))
+			elseif plan.Zone == "Surface" then
+				local spot = growthSpot(ox, oz)
+				-- Floats sit ON the water, so the base goes just below the line.
+				at = Vector3.new(spot.X, SURFACE - height * 0.35, spot.Z)
+				sink = nil
+			else -- Floor
+				local spot = growthSpot(ox, oz)
+				at = Vector3.new(spot.X, SEA_FLOOR, spot.Z)
+			end
+
+			local model = WorldBuild.Build(plan.Name, {
+				Height = height,
+				Position = at,
+				-- Free rotation. These read the same from every side, so turning
+				-- each one is the cheapest way to stop eight copies of a boulder
+				-- from looking like eight copies of a boulder.
+				Yaw = rng:NextNumber(0, 360),
+				Sink = sink,
+				Glow = plan.Glow,
+			})
+			if model then
+				model.Parent = parent
+			end
+		end
+	end
+end
+
 local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
 	-- Rock out in the water, off to both sides so it frames the fishing arc
 	-- instead of standing in it. Shallow areas get rounded sea stacks; the deep
@@ -2854,6 +2983,7 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Sp
 		makePalm(Vector3.new(ox + rng:NextNumber(-110, 110), 0, oz + rng:NextNumber(40, 100)), parent)
 	end
 	scatterScenery(index, theme, ox, oz, parent)
+	scatterProps(theme, ox, oz, parent)
 	buildCulture(index, theme, ox, oz, parent)
 
 	-- Show this dock what comes next. The last area has nothing after it, so it

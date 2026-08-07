@@ -101,9 +101,64 @@ def check_meshes(config: Path, meshes: Path) -> list[str]:
     return problems
 
 
+# Where each game asks for world decoration by name. These are placement plans,
+# not collectibles, so the coverage question is different: does the prop exist in
+# the pack at all?
+DECOR_SOURCES = ["src/server/MapBuilder.luau", "src/client/CaveDecor.luau"]
+MANIFEST = Path(__file__).resolve().parent.parent / "assets/mesh-source/asset_manifest.csv"
+
+# Game directory -> the Game column in the manifest.
+GAME_NAMES = {".": "Crack a Geode", "games/reel-a-relic": "Reel a Relic"}
+
+
+def check_decor(game: Path) -> list[str]:
+    """A world prop named in a placement plan must exist in the pack.
+
+    Same silent failure as a missing collectible model, one step further out.
+    WorldBuild returns nil for a name it does not know — which is exactly what
+    it should do for a mesh awaiting upload — so a typo is indistinguishable
+    from "not uploaded yet" and simply renders nothing, forever. Nobody notices
+    one absent boulder among forty.
+    """
+    import csv
+
+    key = GAME_NAMES.get(game.as_posix())
+    if key is None or not MANIFEST.exists():
+        return []
+    known = {
+        row["ExactName"]
+        for row in csv.DictReader(MANIFEST.open(newline="", encoding="utf-8"))
+        if row["Game"] == key and row["Kind"] == "World"
+    }
+    if not known:
+        return []
+
+    problems, used = [], set()
+    for relative in DECOR_SOURCES:
+        source = game / relative
+        if not source.exists():
+            continue
+        # Only rows that are placement plans: `{ Name = "x", Count = n, ... }`.
+        for name in re.findall(r'\{\s*Name\s*=\s*"([^"]+)",\s*Count\s*=', source.read_text()):
+            used.add(name)
+            if name not in known:
+                problems.append(
+                    f"  {relative} places world prop {name!r}, which is not in the mesh pack "
+                    f"(it would silently render nothing)"
+                )
+    unused = sorted(known - used)
+    if unused:
+        # Not a failure. An uploaded prop nobody places is wasted, but shipping
+        # is never the moment to argue about it.
+        print(f"  ! {len(unused)} world prop(s) in the pack are never placed: {', '.join(unused)}")
+    if not problems:
+        print(f"  {len(used)} world props placed, all present in the pack")
+    return problems
+
+
 def check(game: Path) -> list[str]:
     config = game / "src/shared/Config/Crystals.luau"
-    problems = []
+    problems = check_decor(game)
     relics = game / "src/shared/RelicShape.luau"
     fish = game / "src/shared/FishShape.luau"
     if not config.exists():
