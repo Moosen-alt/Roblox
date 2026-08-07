@@ -19,7 +19,7 @@ local _ = Shared
 local ObjectiveBanner = {}
 
 local STEPS = {
-	{ key = "FirstGeode", text = "🎣 Cast at a glowing fishing spot!" },
+	{ key = "FirstGeode", text = "🎣 Click a buoy to cast, then HOLD to reel it in!" },
 	{ key = "FirstCrack", text = "💥 Open your chest at Treasure Chests!" },
 	{ key = "FirstRare", text = "💎 Land a Rare fish!" },
 	{ key = "FirstSocket", text = "🔮 Display a fish in your Aquarium!" },

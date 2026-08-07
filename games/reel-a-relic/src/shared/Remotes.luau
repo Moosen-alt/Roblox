@@ -13,6 +13,8 @@ local EVENTS = {
 	"RareFind", -- server -> all clients: someone pulled a Legendary+ (social proof)
 	"RebirthFx", -- server -> client: run the Set Sail ritual
 	"MineNode", -- client -> server: tapped a fishing spot (Tools swallow ClickDetector clicks)
+	"ReelStart", -- server -> client: a fish is on, run the reel-in minigame
+	"ReelResult", -- client -> server: how well the reel went (0..1 quality)
 }
 
 local FUNCTIONS = {

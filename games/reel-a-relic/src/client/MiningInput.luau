@@ -20,6 +20,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
+local ReelMinigame = require(script.Parent.ReelMinigame)
 local State = require(script.Parent.State)
 
 local MiningInput = {}
@@ -108,6 +109,13 @@ local function spotAt(position: Vector2): BasePart?
 end
 
 local function tryFish(position: Vector2)
+	-- While the reel-in bar is up, clicks belong to it. Without this, holding to
+	-- reel would also cast at whatever buoy the cursor happened to be over —
+	-- claiming a second spot, and on release abandoning the fish you were
+	-- actually fighting.
+	if ReelMinigame.Active() then
+		return
+	end
 	local spot = spotAt(position)
 	if spot then
 		Remotes.Event("MineNode"):FireServer(spot)

@@ -30,7 +30,7 @@ Monetization.Gamepasses = {
 	AutoCrack = { Id = 0, Price = 100, Title = "Auto-Open", Desc = "Chests open themselves the moment you reel them in." },
 	Coins2x = { Id = 0, Price = 250, Title = "2x Coins", Desc = "Permanently double every coin you earn." },
 	Luck2x = { Id = 0, Price = 350, Title = "2x Luck", Desc = "Double your odds of rare fish, forever." },
-	AutoCast = { Id = 0, Price = 450, Title = "Auto-Cast", Desc = "Hold the button on a buoy and your rod casts and strikes for you. No more clicking." },
+	AutoCast = { Id = 0, Price = 450, Title = "Auto-Cast", Desc = "Your rod casts itself, and reels for you when you're not. Grab the line any time to reel it better." },
 	TripleCrack = { Id = 0, Price = 450, Title = "Triple Open", Desc = "Open 3 chests at once." },
 	OvernightMiner = { Id = 0, Price = 500, Title = "Overnight Aquarium", Desc = "Offline progress: 8h cap -> 24h, +50% offline earnings." },
 	Vip = { Id = 0, Price = 1000, Title = "VIP Sea Captain", Desc = "Golden name, exclusive aura, +25% coins, +1 Daily Deal." },

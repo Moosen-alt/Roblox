@@ -88,29 +88,78 @@ Balance.Pickaxes = {
 -- How long a fish takes to find your bait, before the rod's factor is applied.
 -- Lives here rather than inside MiningService so the shop can quote a real
 -- number of seconds at the player instead of an abstract stat.
-Balance.BiteDelayMin = 1.5
-Balance.BiteDelayMax = 4.0
+-- Shorter than it was (1.5-4.0). The wait used to be the whole gap between
+-- catches and had to be long enough to feel like fishing; now the reel-in fills
+-- that role with something the player is actually doing, so a long stare at a
+-- buoy on top of it is just dead time twice.
+Balance.BiteDelayMin = 1.0
+Balance.BiteDelayMax = 2.8
 
--- TIMING IS A BONUS, NOT A GATE.
+-- THE REEL-IN.
 --
--- The original loop gave you a 1.2s window to strike and threw the whole catch
--- away if you missed it. That is a fighting-game convention, and it is wrong for
--- who plays this: an eight-year-old who misses by a tenth of a second loses
--- three seconds of waiting and is told nothing about why. Every successful
--- Roblox simulator this game sits next to shares one rule — an input always
--- produces something, and good timing produces MORE.
+-- A fish on the line opens a bar with the fish darting up and down it and a
+-- bracket you steer by holding the button — hold to rise, release to fall. Keep
+-- the fish in the bracket to fill the meter.
 --
--- So: once a fish is on, it stays on until you reel it in. Strike inside this
--- window and it is a PERFECT catch worth an extra fish. Strike later and you
--- still get the fish. You cannot lose one by being slow.
-Balance.PerfectWindow = 1.2
-Balance.PerfectBonusCatch = 1
+-- This is the genre standard for a reason. It turns the dead wait into the
+-- actual game, it is one input so it plays identically on a phone and a mouse,
+-- and it gives skill somewhere to live that is not a reaction test. A reaction
+-- window rewards being twelve; tracking a moving target rewards paying
+-- attention, which is a skill an eight-year-old can visibly get better at.
+--
+-- It keeps the rule the reaction window broke: you cannot LOSE a fish here. The
+-- meter drains when you are off the fish but the reel always completes — on the
+-- timeout if nothing else. How well you tracked decides the bonus, never whether
+-- you get anything.
+-- Tuned so a reel is a FIGHT, not a formality. Flawless tracking fills the meter
+-- in ~3.3s; staying on the fish 70% of the time takes ~6s; a scrappy 40% runs
+-- out the clock and lands the fish anyway on about half a meter. Fill much
+-- faster than this and the bar is over before the player has read it.
+Balance.ReelZoneSize = 0.24 -- bracket height, as a fraction of the bar
+Balance.ReelFillRate = 0.3 -- meter per second while the fish is in the bracket
+Balance.ReelDrainRate = 0.14 -- meter per second while it is not
+-- The bracket must be able to OUTRUN the fish, or tracking becomes luck. Under
+-- damping its top speed is acceleration / drag: 0.79 up, 0.57 down. Compare
+-- against ReelFishSpeed below, which tops out at 0.66 in the Abyss.
+Balance.ReelRise = 2.2 -- bracket acceleration while holding
+Balance.ReelGravity = 1.6 -- bracket acceleration while not
+Balance.ReelDrag = 2.8 -- damping, so the bracket settles instead of pinballing
+-- A player who cannot track well still lands every fish — but they should not
+-- spend fifteen seconds doing it, because that halves their catch rate against
+-- someone who can, and the gap between a good and a struggling eight-year-old
+-- should be a bonus, not a tax.
+Balance.ReelTimeout = 10 -- seconds, after which you land it regardless
+Balance.ReelMaxBonus = 2 -- extra fish at a flawless reel
+
+-- Deeper fish fight harder: they change direction more often and move faster.
+-- Difficulty comes from the AREA rather than the species because the species is
+-- not rolled until the fish is in the boat — and because "the Abyss is harder
+-- than the Shallows" is a promise the map already makes.
+-- Capped below the bracket's 0.79 top speed on purpose: an Abyss fish at 0.66
+-- can be caught by a player who commits to the chase, which is hard. One that
+-- outruns the bracket outright would just be unfair, and unfair reads as broken.
+Balance.ReelFishSpeedBase = 0.42 -- bar-fractions per second in area 1
+Balance.ReelFishSpeedPerArea = 0.06
+Balance.ReelFishTurnBase = 1.1 -- seconds between direction changes in area 1
+Balance.ReelFishTurnPerArea = -0.12
+
+-- Auto-Cast plays the reel for you, at a deliberately ordinary standard. It
+-- removes the work; it must not beat a player who is actually trying.
+Balance.ReelAutoQuality = 0.62
 
 -- Mashing the button before the bite spooks the fish and pushes it back a
 -- moment. That is the counterweight that keeps patience worth something now
 -- that missing costs nothing — and unlike losing the catch, it is a delay the
 -- player can see happen and understand.
 Balance.SpookDelay = 0.6
+
+function Balance.ReelFishSpeed(area: number): number
+	return Balance.ReelFishSpeedBase + Balance.ReelFishSpeedPerArea * (math.max(area, 1) - 1)
+end
+
+function Balance.ReelFishTurn(area: number): number
+	return math.max(Balance.ReelFishTurnBase + Balance.ReelFishTurnPerArea * (math.max(area, 1) - 1), 0.35)
+end
 
 Balance.BiteFloor = 0.45 -- fastest possible bite, as a fraction of the base wait
 Balance.BiteSharpness = 0.08 -- how quickly early rods approach that floor

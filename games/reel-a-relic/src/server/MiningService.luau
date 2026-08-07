@@ -3,10 +3,12 @@
 -- land it. One angler per buoy at a time; better rods bite sooner and bring up
 -- more per catch.
 --
--- Timing is a BONUS, never a gate. Once a fish is on it stays on until you reel
--- it in — strike inside PerfectWindow for an extra fish, strike late and you
--- still get the fish. You cannot lose a catch by being slow. Clicking too EARLY
--- is the one thing that costs you: it spooks the fish and pushes the bite back.
+-- A bite opens the REEL-IN minigame on the angler's client (see ReelMinigame):
+-- a fish darting up a bar, a bracket you steer by holding, a meter that fills
+-- while you keep them together. Skill is a BONUS, never a gate — the reel always
+-- lands the fish, and how well you tracked it decides how many come up. Clicking
+-- too EARLY, before the bite, is the one thing that costs you: it spooks the
+-- fish and pushes the bite back.
 --
 -- What you land is rolled here, and it is the whole shape of the game:
 --   * roughly seven times in eight, a FISH — straight into your hold, no
@@ -220,7 +222,8 @@ local function catchCount(data: any): number
 	return total
 end
 
-local function landCatch(spot: BasePart, state: SpotState, player: Player, perfect: boolean)
+-- `quality` is how much of the reel was spent with the fish in the bracket, 0..1.
+local function landCatch(spot: BasePart, state: SpotState, player: Player, quality: number)
 	local data = ctx.Data.Get(player)
 	if not data then
 		setIdle(spot, state)
@@ -236,13 +239,10 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player, perfe
 		return
 	end
 
-	-- A perfect strike is worth an extra fish. That is the entire reward for
-	-- timing now — it buys you MORE, it never decides whether you get anything.
-	local wanted = catchCount(data)
-	if perfect then
-		wanted += Balance.PerfectBonusCatch
-	end
-	local caught = math.min(wanted, space)
+	-- A good reel is worth extra fish. That is the entire reward for skill here —
+	-- it buys you MORE, it never decides whether you get anything.
+	local bonus = math.floor(quality * Balance.ReelMaxBonus + 0.5)
+	local caught = math.min(catchCount(data) + bonus, space)
 
 	local chests = 0
 	local fish: { any } = {}
@@ -263,9 +263,14 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player, perfe
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 1, "FirstGeode")
 
-	if perfect then
-		catchEffects(spot, "PERFECT!", Color3.fromRGB(255, 240, 120))
-	end
+	-- Name the reel, always. Even a scrappy one gets "CAUGHT!", because the
+	-- player did in fact catch it and being told so is the point.
+	local rating = if quality >= 0.85
+		then "PERFECT REEL!"
+		elseif quality >= 0.6 then "GREAT REEL!"
+		elseif quality >= 0.3 then "NICE REEL!"
+		else "CAUGHT!"
+	catchEffects(spot, rating, if quality >= 0.6 then Color3.fromRGB(255, 240, 120) else Color3.fromRGB(200, 230, 255))
 	if chests > 0 then
 		catchEffects(spot, chests > 1 and ("+" .. chests .. " Chests!") or "TREASURE CHEST!", Color3.fromRGB(255, 210, 90))
 		Remotes.Event("Notify"):FireClient(player, {
@@ -337,11 +342,11 @@ local function onSpotClicked(spot: BasePart, player: Player): boolean
 		-- Any click on your own line counts as being present, so the idle timeout
 		-- only fires on someone who has genuinely stopped fishing.
 		state.ActedAt = now
-		local hookedAt = state.HookedAt
-		if hookedAt then
-			-- Fish is on. It has been on since the flash and it is not going
-			-- anywhere — reel it in whenever. Doing it fast is worth a bonus.
-			landCatch(spot, state, player, now <= hookedAt + Balance.PerfectWindow)
+		if state.HookedAt then
+			-- Fish is on and the reel-in minigame owns it from here. Clicks are
+			-- the minigame's input now, so this must not resolve the catch behind
+			-- its back — with Auto-Cast holding the button, that would land every
+			-- fish the instant it bit and the bar would never be played.
 			return true
 		end
 		-- Clicking before the bite used to be silently ignored, which is
@@ -416,6 +421,34 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 		end
 	end)
 
+	-- The reel-in runs on the client, because a bar that stutters is worse than
+	-- no bar, and 60fps tracking cannot survive a round trip per frame.
+	--
+	-- What that means for trust, stated plainly: a modified client can report a
+	-- flawless reel it did not play. The server therefore checks everything that
+	-- MATTERS here — that this player really has a fish on this spot, that the
+	-- spot is in their area and in range (onSpotClicked already established it,
+	-- and setIdle revokes it the moment they stray) — and clamps the one thing it
+	-- cannot verify to the range it was allowed to be in. The prize for lying is
+	-- at most ReelMaxBonus extra common fish on a catch they had already earned,
+	-- which is not worth spending server frames to prevent.
+	Remotes.Event("ReelResult").OnServerEvent:Connect(function(player, payload)
+		if typeof(payload) ~= "table" then
+			return
+		end
+		local spot = payload.Node
+		if typeof(spot) ~= "Instance" then
+			return
+		end
+		local state = spots[spot :: any]
+		if not state or state.OwnerUserId ~= player.UserId or not state.HookedAt then
+			return -- no fish of theirs on this line; nothing to land
+		end
+		local quality = math.clamp(tonumber(payload.Quality) or 0, 0, 1)
+		state.ActedAt = os.clock()
+		landCatch(spot :: BasePart, state, player, quality)
+	end)
+
 	-- One loop drives bite flashes, missed-window recasts, and claim expiry.
 	local accumulator = 0
 	RunService.Heartbeat:Connect(function(dt)
@@ -434,9 +467,18 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 				local data = owner and ctx.Data.Get(owner)
 				local character = owner and owner.Character
 				local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-				local strayed = not root
-					or (root.Position - spot.Position).Magnitude > Balance.CastRange + CLAIM_SLACK
-					or (data ~= nil and state.Area ~= ctx.Data.Layer(data))
+				-- Once a fish is ON, the range check stops applying. The player is
+				-- looking at the reel bar, not at their feet, and releasing the
+				-- spot underneath them would throw away a fight they are actively
+				-- playing and never tell them why. Backing up while you fight
+				-- something is also just what fishing looks like. The idle timeout
+				-- still bounds it, and the reel itself times out sooner.
+				local strayed = state.HookedAt == nil
+					and (
+						not root
+						or (root.Position - spot.Position).Magnitude > Balance.CastRange + CLAIM_SLACK
+						or (data ~= nil and state.Area ~= ctx.Data.Layer(data))
+					)
 
 				if not owner or strayed then
 					setIdle(spot, state)
@@ -458,6 +500,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 					state.Biting = true
 					state.HookedAt = now
 					setBite(spot, owner)
+					Remotes.Event("ReelStart"):FireClient(owner, { Node = spot, Area = state.Area })
 				end
 			end
 		end

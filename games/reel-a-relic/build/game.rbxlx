@@ -104,29 +104,78 @@ Balance.Pickaxes = {
 -- How long a fish takes to find your bait, before the rod's factor is applied.
 -- Lives here rather than inside MiningService so the shop can quote a real
 -- number of seconds at the player instead of an abstract stat.
-Balance.BiteDelayMin = 1.5
-Balance.BiteDelayMax = 4.0
+-- Shorter than it was (1.5-4.0). The wait used to be the whole gap between
+-- catches and had to be long enough to feel like fishing; now the reel-in fills
+-- that role with something the player is actually doing, so a long stare at a
+-- buoy on top of it is just dead time twice.
+Balance.BiteDelayMin = 1.0
+Balance.BiteDelayMax = 2.8
 
--- TIMING IS A BONUS, NOT A GATE.
+-- THE REEL-IN.
 --
--- The original loop gave you a 1.2s window to strike and threw the whole catch
--- away if you missed it. That is a fighting-game convention, and it is wrong for
--- who plays this: an eight-year-old who misses by a tenth of a second loses
--- three seconds of waiting and is told nothing about why. Every successful
--- Roblox simulator this game sits next to shares one rule — an input always
--- produces something, and good timing produces MORE.
+-- A fish on the line opens a bar with the fish darting up and down it and a
+-- bracket you steer by holding the button — hold to rise, release to fall. Keep
+-- the fish in the bracket to fill the meter.
 --
--- So: once a fish is on, it stays on until you reel it in. Strike inside this
--- window and it is a PERFECT catch worth an extra fish. Strike later and you
--- still get the fish. You cannot lose one by being slow.
-Balance.PerfectWindow = 1.2
-Balance.PerfectBonusCatch = 1
+-- This is the genre standard for a reason. It turns the dead wait into the
+-- actual game, it is one input so it plays identically on a phone and a mouse,
+-- and it gives skill somewhere to live that is not a reaction test. A reaction
+-- window rewards being twelve; tracking a moving target rewards paying
+-- attention, which is a skill an eight-year-old can visibly get better at.
+--
+-- It keeps the rule the reaction window broke: you cannot LOSE a fish here. The
+-- meter drains when you are off the fish but the reel always completes — on the
+-- timeout if nothing else. How well you tracked decides the bonus, never whether
+-- you get anything.
+-- Tuned so a reel is a FIGHT, not a formality. Flawless tracking fills the meter
+-- in ~3.3s; staying on the fish 70% of the time takes ~6s; a scrappy 40% runs
+-- out the clock and lands the fish anyway on about half a meter. Fill much
+-- faster than this and the bar is over before the player has read it.
+Balance.ReelZoneSize = 0.24 -- bracket height, as a fraction of the bar
+Balance.ReelFillRate = 0.3 -- meter per second while the fish is in the bracket
+Balance.ReelDrainRate = 0.14 -- meter per second while it is not
+-- The bracket must be able to OUTRUN the fish, or tracking becomes luck. Under
+-- damping its top speed is acceleration / drag: 0.79 up, 0.57 down. Compare
+-- against ReelFishSpeed below, which tops out at 0.66 in the Abyss.
+Balance.ReelRise = 2.2 -- bracket acceleration while holding
+Balance.ReelGravity = 1.6 -- bracket acceleration while not
+Balance.ReelDrag = 2.8 -- damping, so the bracket settles instead of pinballing
+-- A player who cannot track well still lands every fish — but they should not
+-- spend fifteen seconds doing it, because that halves their catch rate against
+-- someone who can, and the gap between a good and a struggling eight-year-old
+-- should be a bonus, not a tax.
+Balance.ReelTimeout = 10 -- seconds, after which you land it regardless
+Balance.ReelMaxBonus = 2 -- extra fish at a flawless reel
+
+-- Deeper fish fight harder: they change direction more often and move faster.
+-- Difficulty comes from the AREA rather than the species because the species is
+-- not rolled until the fish is in the boat — and because "the Abyss is harder
+-- than the Shallows" is a promise the map already makes.
+-- Capped below the bracket's 0.79 top speed on purpose: an Abyss fish at 0.66
+-- can be caught by a player who commits to the chase, which is hard. One that
+-- outruns the bracket outright would just be unfair, and unfair reads as broken.
+Balance.ReelFishSpeedBase = 0.42 -- bar-fractions per second in area 1
+Balance.ReelFishSpeedPerArea = 0.06
+Balance.ReelFishTurnBase = 1.1 -- seconds between direction changes in area 1
+Balance.ReelFishTurnPerArea = -0.12
+
+-- Auto-Cast plays the reel for you, at a deliberately ordinary standard. It
+-- removes the work; it must not beat a player who is actually trying.
+Balance.ReelAutoQuality = 0.62
 
 -- Mashing the button before the bite spooks the fish and pushes it back a
 -- moment. That is the counterweight that keeps patience worth something now
 -- that missing costs nothing — and unlike losing the catch, it is a delay the
 -- player can see happen and understand.
 Balance.SpookDelay = 0.6
+
+function Balance.ReelFishSpeed(area: number): number
+	return Balance.ReelFishSpeedBase + Balance.ReelFishSpeedPerArea * (math.max(area, 1) - 1)
+end
+
+function Balance.ReelFishTurn(area: number): number
+	return math.max(Balance.ReelFishTurnBase + Balance.ReelFishTurnPerArea * (math.max(area, 1) - 1), 0.35)
+end
 
 Balance.BiteFloor = 0.45 -- fastest possible bite, as a fraction of the base wait
 Balance.BiteSharpness = 0.08 -- how quickly early rods approach that floor
@@ -485,7 +534,7 @@ Monetization.Gamepasses = {
 	AutoCrack = { Id = 0, Price = 100, Title = "Auto-Open", Desc = "Chests open themselves the moment you reel them in." },
 	Coins2x = { Id = 0, Price = 250, Title = "2x Coins", Desc = "Permanently double every coin you earn." },
 	Luck2x = { Id = 0, Price = 350, Title = "2x Luck", Desc = "Double your odds of rare fish, forever." },
-	AutoCast = { Id = 0, Price = 450, Title = "Auto-Cast", Desc = "Hold the button on a buoy and your rod casts and strikes for you. No more clicking." },
+	AutoCast = { Id = 0, Price = 450, Title = "Auto-Cast", Desc = "Your rod casts itself, and reels for you when you're not. Grab the line any time to reel it better." },
 	TripleCrack = { Id = 0, Price = 450, Title = "Triple Open", Desc = "Open 3 chests at once." },
 	OvernightMiner = { Id = 0, Price = 500, Title = "Overnight Aquarium", Desc = "Offline progress: 8h cap -> 24h, +50% offline earnings." },
 	Vip = { Id = 0, Price = 1000, Title = "VIP Sea Captain", Desc = "Golden name, exclusive aura, +25% coins, +1 Daily Deal." },
@@ -1098,6 +1147,8 @@ local EVENTS = {
 	"RareFind", -- server -> all clients: someone pulled a Legendary+ (social proof)
 	"RebirthFx", -- server -> client: run the Set Sail ritual
 	"MineNode", -- client -> server: tapped a fishing spot (Tools swallow ClickDetector clicks)
+	"ReelStart", -- server -> client: a fish is on, run the reel-in minigame
+	"ReelResult", -- client -> server: how well the reel went (0..1 quality)
 }
 
 local FUNCTIONS = {
@@ -3747,10 +3798,12 @@ return MapBuilder
 -- land it. One angler per buoy at a time; better rods bite sooner and bring up
 -- more per catch.
 --
--- Timing is a BONUS, never a gate. Once a fish is on it stays on until you reel
--- it in — strike inside PerfectWindow for an extra fish, strike late and you
--- still get the fish. You cannot lose a catch by being slow. Clicking too EARLY
--- is the one thing that costs you: it spooks the fish and pushes the bite back.
+-- A bite opens the REEL-IN minigame on the angler's client (see ReelMinigame):
+-- a fish darting up a bar, a bracket you steer by holding, a meter that fills
+-- while you keep them together. Skill is a BONUS, never a gate — the reel always
+-- lands the fish, and how well you tracked it decides how many come up. Clicking
+-- too EARLY, before the bite, is the one thing that costs you: it spooks the
+-- fish and pushes the bite back.
 --
 -- What you land is rolled here, and it is the whole shape of the game:
 --   * roughly seven times in eight, a FISH — straight into your hold, no
@@ -3964,7 +4017,8 @@ local function catchCount(data: any): number
 	return total
 end
 
-local function landCatch(spot: BasePart, state: SpotState, player: Player, perfect: boolean)
+-- `quality` is how much of the reel was spent with the fish in the bracket, 0..1.
+local function landCatch(spot: BasePart, state: SpotState, player: Player, quality: number)
 	local data = ctx.Data.Get(player)
 	if not data then
 		setIdle(spot, state)
@@ -3980,13 +4034,10 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player, perfe
 		return
 	end
 
-	-- A perfect strike is worth an extra fish. That is the entire reward for
-	-- timing now — it buys you MORE, it never decides whether you get anything.
-	local wanted = catchCount(data)
-	if perfect then
-		wanted += Balance.PerfectBonusCatch
-	end
-	local caught = math.min(wanted, space)
+	-- A good reel is worth extra fish. That is the entire reward for skill here —
+	-- it buys you MORE, it never decides whether you get anything.
+	local bonus = math.floor(quality * Balance.ReelMaxBonus + 0.5)
+	local caught = math.min(catchCount(data) + bonus, space)
 
 	local chests = 0
 	local fish: { any } = {}
@@ -4007,9 +4058,14 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player, perfe
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 1, "FirstGeode")
 
-	if perfect then
-		catchEffects(spot, "PERFECT!", Color3.fromRGB(255, 240, 120))
-	end
+	-- Name the reel, always. Even a scrappy one gets "CAUGHT!", because the
+	-- player did in fact catch it and being told so is the point.
+	local rating = if quality >= 0.85
+		then "PERFECT REEL!"
+		elseif quality >= 0.6 then "GREAT REEL!"
+		elseif quality >= 0.3 then "NICE REEL!"
+		else "CAUGHT!"
+	catchEffects(spot, rating, if quality >= 0.6 then Color3.fromRGB(255, 240, 120) else Color3.fromRGB(200, 230, 255))
 	if chests > 0 then
 		catchEffects(spot, chests > 1 and ("+" .. chests .. " Chests!") or "TREASURE CHEST!", Color3.fromRGB(255, 210, 90))
 		Remotes.Event("Notify"):FireClient(player, {
@@ -4081,11 +4137,11 @@ local function onSpotClicked(spot: BasePart, player: Player): boolean
 		-- Any click on your own line counts as being present, so the idle timeout
 		-- only fires on someone who has genuinely stopped fishing.
 		state.ActedAt = now
-		local hookedAt = state.HookedAt
-		if hookedAt then
-			-- Fish is on. It has been on since the flash and it is not going
-			-- anywhere — reel it in whenever. Doing it fast is worth a bonus.
-			landCatch(spot, state, player, now <= hookedAt + Balance.PerfectWindow)
+		if state.HookedAt then
+			-- Fish is on and the reel-in minigame owns it from here. Clicks are
+			-- the minigame's input now, so this must not resolve the catch behind
+			-- its back — with Auto-Cast holding the button, that would land every
+			-- fish the instant it bit and the bar would never be played.
 			return true
 		end
 		-- Clicking before the bite used to be silently ignored, which is
@@ -4160,6 +4216,34 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 		end
 	end)
 
+	-- The reel-in runs on the client, because a bar that stutters is worse than
+	-- no bar, and 60fps tracking cannot survive a round trip per frame.
+	--
+	-- What that means for trust, stated plainly: a modified client can report a
+	-- flawless reel it did not play. The server therefore checks everything that
+	-- MATTERS here — that this player really has a fish on this spot, that the
+	-- spot is in their area and in range (onSpotClicked already established it,
+	-- and setIdle revokes it the moment they stray) — and clamps the one thing it
+	-- cannot verify to the range it was allowed to be in. The prize for lying is
+	-- at most ReelMaxBonus extra common fish on a catch they had already earned,
+	-- which is not worth spending server frames to prevent.
+	Remotes.Event("ReelResult").OnServerEvent:Connect(function(player, payload)
+		if typeof(payload) ~= "table" then
+			return
+		end
+		local spot = payload.Node
+		if typeof(spot) ~= "Instance" then
+			return
+		end
+		local state = spots[spot :: any]
+		if not state or state.OwnerUserId ~= player.UserId or not state.HookedAt then
+			return -- no fish of theirs on this line; nothing to land
+		end
+		local quality = math.clamp(tonumber(payload.Quality) or 0, 0, 1)
+		state.ActedAt = os.clock()
+		landCatch(spot :: BasePart, state, player, quality)
+	end)
+
 	-- One loop drives bite flashes, missed-window recasts, and claim expiry.
 	local accumulator = 0
 	RunService.Heartbeat:Connect(function(dt)
@@ -4178,9 +4262,18 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 				local data = owner and ctx.Data.Get(owner)
 				local character = owner and owner.Character
 				local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-				local strayed = not root
-					or (root.Position - spot.Position).Magnitude > Balance.CastRange + CLAIM_SLACK
-					or (data ~= nil and state.Area ~= ctx.Data.Layer(data))
+				-- Once a fish is ON, the range check stops applying. The player is
+				-- looking at the reel bar, not at their feet, and releasing the
+				-- spot underneath them would throw away a fight they are actively
+				-- playing and never tell them why. Backing up while you fight
+				-- something is also just what fishing looks like. The idle timeout
+				-- still bounds it, and the reel itself times out sooner.
+				local strayed = state.HookedAt == nil
+					and (
+						not root
+						or (root.Position - spot.Position).Magnitude > Balance.CastRange + CLAIM_SLACK
+						or (data ~= nil and state.Area ~= ctx.Data.Layer(data))
+					)
 
 				if not owner or strayed then
 					setIdle(spot, state)
@@ -4202,6 +4295,7 @@ function MiningService.Init(serviceCtx: any, nodes: { BasePart })
 					state.Biting = true
 					state.HookedAt = now
 					setBite(spot, owner)
+					Remotes.Event("ReelStart"):FireClient(owner, { Node = spot, Area = state.Area })
 				end
 			end
 		end
@@ -7984,6 +8078,7 @@ local ScreenManager = require(script.ScreenManager)
 local FlexAura = require(script.FlexAura)
 local WorldFx = require(script.WorldFx)
 local AquariumView = require(script.AquariumView)
+local ReelMinigame = require(script.ReelMinigame)
 local MiningInput = require(script.MiningInput)
 local ObjectiveBanner = require(script.ObjectiveBanner)
 local RebirthFx = require(script.RebirthFx)
@@ -8012,6 +8107,7 @@ WorldFx.Init()
 AquariumView.Init()
 FlexAura.Init()
 MiningInput.Init()
+ReelMinigame.Init(gui)
 Toasts.Init(gui)
 RebirthFx.Init(gui)
 Hud.Init(gui)
@@ -8900,6 +8996,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Remotes = require(Shared.Remotes)
+local ReelMinigame = require(script.Parent.ReelMinigame)
 local State = require(script.Parent.State)
 
 local MiningInput = {}
@@ -8988,6 +9085,13 @@ local function spotAt(position: Vector2): BasePart?
 end
 
 local function tryFish(position: Vector2)
+	-- While the reel-in bar is up, clicks belong to it. Without this, holding to
+	-- reel would also cast at whatever buoy the cursor happened to be over —
+	-- claiming a second spot, and on release abandoning the fish you were
+	-- actually fighting.
+	if ReelMinigame.Active() then
+		return
+	end
 	local spot = spotAt(position)
 	if spot then
 		Remotes.Event("MineNode"):FireServer(spot)
@@ -9074,7 +9178,7 @@ local _ = Shared
 local ObjectiveBanner = {}
 
 local STEPS = {
-	{ key = "FirstGeode", text = "🎣 Cast at a glowing fishing spot!" },
+	{ key = "FirstGeode", text = "🎣 Click a buoy to cast, then HOLD to reel it in!" },
 	{ key = "FirstCrack", text = "💥 Open your chest at Treasure Chests!" },
 	{ key = "FirstRare", text = "💎 Land a Rare fish!" },
 	{ key = "FirstSocket", text = "🔮 Display a fish in your Aquarium!" },
@@ -9373,6 +9477,300 @@ return RebirthFx
           </Properties>
         </Item>
         <Item class="ModuleScript" referent="46">
+          <Properties>
+            <string name="Name">ReelMinigame</string>
+            <string name="Source"><![CDATA[--!strict
+-- The reel-in: the bar that appears when a fish is on.
+--
+-- A fish darts up and down a vertical bar. You steer a bracket by holding the
+-- button — hold to rise, release to fall — and the meter fills while the fish is
+-- inside it. Fill the meter and the fish is in the boat.
+--
+-- One input, so it plays identically with a finger and with a mouse. No aiming,
+-- no precision tapping, nothing that needs two hands.
+--
+-- You cannot lose here. The meter drains while you are off the fish, but it can
+-- never end the reel — the only two endings are "filled" and "ran out of time",
+-- and both land the fish. How well you tracked it decides the bonus. That is the
+-- same rule the rest of the game follows: an input always produces something,
+-- and skill produces more.
+--
+-- It runs entirely on the client because a bar that stutters is worse than no
+-- bar at all. The server hands over a difficulty, takes back a quality score,
+-- and clamps it — see MiningService for what that trusts and what it doesn't.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Remotes = require(Shared.Remotes)
+local State = require(script.Parent.State)
+local UiKit = require(script.Parent.UiKit)
+
+local ReelMinigame = {}
+
+local gui: ScreenGui? = nil
+local running = false
+
+-- Held anywhere on screen, not just on the bar. Asking a player to keep a finger
+-- inside a 40-pixel column while watching a fish move is a dexterity test the
+-- rest of this design spent a lot of effort removing.
+local holding = false
+
+local function onInputBegan(_input: InputObject, gameProcessed: boolean)
+	if gameProcessed then
+		return
+	end
+	holding = true
+end
+
+local function bar(parent: Instance): (Frame, Frame, Frame, Frame, TextLabel)
+	-- Right of centre, anchored to its own middle, and only 260 tall. A 340-tall
+	-- bar centred vertically runs into the bottom button row on a short phone,
+	-- and a control the player is holding cannot afford to share space with six
+	-- buttons that swallow the tap.
+	local panel = UiKit.Create("Frame", {
+		Name = "Reel",
+		Size = UDim2.fromOffset(96, 260),
+		Position = UDim2.new(1, -24, 0.5, -30),
+		AnchorPoint = Vector2.new(1, 0.5),
+		BackgroundColor3 = UiKit.Colors.Bg,
+		BackgroundTransparency = 0.15,
+		Parent = parent,
+	})
+	UiKit.Corner(16).Parent = panel
+	UiKit.Stroke(UiKit.Colors.Accent, 2).Parent = panel
+
+	local label = UiKit.Label({
+		Text = "REEL IT IN!",
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = UiKit.Colors.Accent,
+		Size = UDim2.new(1, 0, 0, 26),
+		Position = UDim2.fromOffset(0, 6),
+		Parent = panel,
+	}) :: TextLabel
+
+	-- The water column the fish swims in
+	local track = UiKit.Create("Frame", {
+		Name = "Track",
+		Size = UDim2.fromOffset(44, 190),
+		Position = UDim2.fromOffset(12, 38),
+		BackgroundColor3 = Color3.fromRGB(24, 48, 78),
+		Parent = panel,
+	})
+	UiKit.Corner(10).Parent = track
+	track.ClipsDescendants = true
+
+	-- The bracket you steer
+	local zone = UiKit.Create("Frame", {
+		Name = "Zone",
+		Size = UDim2.new(1, -6, Balance.ReelZoneSize, 0),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = UiKit.Colors.Good,
+		BackgroundTransparency = 0.45,
+		Parent = track,
+	})
+	UiKit.Corner(8).Parent = zone
+	UiKit.Stroke(UiKit.Colors.Good, 2).Parent = zone
+
+	local fish = UiKit.Create("Frame", {
+		Name = "Fish",
+		Size = UDim2.fromOffset(28, 28),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = Color3.fromRGB(255, 210, 90),
+		Parent = track,
+	})
+	UiKit.Corner(14).Parent = fish
+	UiKit.Label({
+		Text = "🐟",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = fish,
+	})
+
+	-- Progress meter, up the right-hand side
+	local meterBack = UiKit.Create("Frame", {
+		Name = "MeterBack",
+		Size = UDim2.fromOffset(20, 190),
+		Position = UDim2.fromOffset(64, 38),
+		BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+		Parent = panel,
+	})
+	UiKit.Corner(8).Parent = meterBack
+	local meter = UiKit.Create("Frame", {
+		Name = "Meter",
+		Size = UDim2.fromScale(1, 0),
+		Position = UDim2.fromScale(0, 1),
+		AnchorPoint = Vector2.new(0, 1),
+		BackgroundColor3 = UiKit.Colors.Good,
+		Parent = meterBack,
+	})
+	UiKit.Corner(8).Parent = meter
+
+	-- The control, stated on the control. A player who does not know that holding
+	-- raises the bracket has no way to discover it except by accident, and a
+	-- mechanic you have to guess at is a mechanic most players never find.
+	UiKit.Label({
+		Text = "HOLD to raise",
+		Font = Enum.Font.GothamBold,
+		TextColor3 = UiKit.Colors.TextDim,
+		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.new(0, 0, 1, -24),
+		Parent = panel,
+	})
+
+	return panel, zone, fish, meter, label
+end
+
+-- `area` sets how hard the fish fights. Returns the quality of the reel (0..1)
+-- and whether the PLAYER steered it rather than Auto-Cast.
+local function play(area: number, autoPlay: boolean): (number, boolean)
+	local screen = gui
+	if not screen then
+		return 0, false
+	end
+	local panel, zone, fish, meter, label = bar(screen)
+
+	local rng = Random.new()
+	local speed = Balance.ReelFishSpeed(area)
+	local turnEvery = Balance.ReelFishTurn(area)
+
+	local fishAt = 0.5
+	local fishTarget = rng:NextNumber(0.1, 0.9)
+	local sinceTurn = 0
+	local zoneAt = 0.5
+	local zoneVel = 0
+	local progress = 0
+	local elapsed = 0
+	local onFish = 0
+	-- Set the moment the player gives any input, which hands control back from
+	-- Auto-Cast and makes the result theirs rather than the pass's.
+	local touched = false
+
+	panel.Size = UDim2.fromOffset(0, 0)
+	TweenService:Create(panel, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(96, 260),
+	}):Play()
+
+	while progress < 1 and elapsed < Balance.ReelTimeout do
+		local dt = RunService.RenderStepped:Wait()
+		elapsed += dt
+
+		-- Fish: swims toward a target it re-picks every so often. Deeper water
+		-- picks new targets sooner and swims to them faster.
+		sinceTurn += dt
+		if sinceTurn >= turnEvery then
+			sinceTurn = 0
+			fishTarget = rng:NextNumber(0.08, 0.92)
+		end
+		local toTarget = fishTarget - fishAt
+		local step = math.min(math.abs(toTarget), speed * dt)
+		fishAt += (if toTarget >= 0 then step else -step)
+		fishAt = math.clamp(fishAt, 0, 1)
+
+		-- Bracket: hold to rise, release to fall, with drag so it settles.
+		--
+		-- Auto-Cast steers ONLY while the player isn't. Handing a paying player an
+		-- autopilot for the best mechanic in the game would sell them less game
+		-- than the free version — the pass exists to remove the repetitive part
+		-- (casting, and re-casting, and re-casting), not the fun part. Touch the
+		-- screen and you take the wheel back mid-reel, and your result counts as
+		-- your own.
+		if holding then
+			touched = true
+		end
+		local wantUp = if (autoPlay and not touched) then (fishAt > zoneAt) else holding
+		zoneVel += (if wantUp then Balance.ReelRise else -Balance.ReelGravity) * dt
+		zoneVel -= zoneVel * math.min(Balance.ReelDrag * dt, 1)
+		zoneAt += zoneVel * dt
+		if zoneAt <= 0 or zoneAt >= 1 then
+			zoneAt = math.clamp(zoneAt, 0, 1)
+			zoneVel = 0
+		end
+
+		local caught = math.abs(fishAt - zoneAt) <= Balance.ReelZoneSize * 0.5
+		if caught then
+			onFish += dt
+			progress = math.min(progress + Balance.ReelFillRate * dt, 1)
+		else
+			progress = math.max(progress - Balance.ReelDrainRate * dt, 0)
+		end
+
+		-- The UI works in "0 at the top" screen space; the sim works in
+		-- "0 at the bottom" water space, because up should mean up.
+		fish.Position = UDim2.fromScale(0.5, 1 - fishAt)
+		zone.Position = UDim2.fromScale(0.5, 1 - zoneAt)
+		zone.BackgroundColor3 = if caught then UiKit.Colors.Good else UiKit.Colors.BgLighter
+		meter.Size = UDim2.fromScale(1, progress)
+		meter.BackgroundColor3 = if progress > 0.8 then UiKit.Colors.Accent else UiKit.Colors.Good
+		label.Text = if caught then "REELING!" else "STAY ON IT!"
+		label.TextColor3 = if caught then UiKit.Colors.Good else UiKit.Colors.Accent
+	end
+
+	TweenService:Create(panel, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Size = UDim2.fromOffset(0, 0),
+	}):Play()
+	task.delay(0.2, function()
+		panel:Destroy()
+	end)
+
+	-- Quality is the share of the reel spent on the fish. Timing out with the
+	-- meter half full still lands the catch; it just is not worth a bonus.
+	return math.clamp(if elapsed > 0 then onFish / elapsed else 0, 0, 1), touched
+end
+
+function ReelMinigame.Init(screenGui: ScreenGui)
+	gui = screenGui
+
+	UserInputService.InputBegan:Connect(onInputBegan)
+	UserInputService.InputEnded:Connect(function()
+		holding = false
+	end)
+	UserInputService.WindowFocusReleased:Connect(function()
+		holding = false
+	end)
+
+	Remotes.Event("ReelStart").OnClientEvent:Connect(function(payload)
+		if typeof(payload) ~= "table" or running then
+			return
+		end
+		local node = payload.Node
+		if typeof(node) ~= "Instance" then
+			return
+		end
+		running = true
+		holding = false
+		local playerState = State.Get()
+		local auto = playerState ~= nil
+			and playerState.Passes ~= nil
+			and playerState.Passes.AutoCast == true
+		local quality, playedIt = play(tonumber(payload.Area) or 1, auto)
+		if auto and not playedIt then
+			-- Auto-Cast reeled it, not the player: capped at an ordinary standard
+			-- whatever the simulated bracket happened to manage. The pass buys
+			-- away the work, never the reward for doing it well. A player who
+			-- grabbed the wheel mid-reel keeps their own score.
+			quality = math.min(quality, Balance.ReelAutoQuality)
+		end
+		running = false
+		Remotes.Event("ReelResult"):FireServer({ Node = node, Quality = quality })
+	end)
+end
+
+function ReelMinigame.Active(): boolean
+	return running
+end
+
+return ReelMinigame
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -9891,7 +10289,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -9948,11 +10346,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="48">
+        <Item class="Folder" referent="49">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="49">
+          <Item class="ModuleScript" referent="50">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -10582,7 +10980,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="50">
+          <Item class="ModuleScript" referent="51">
             <Properties>
               <string name="Name">DockScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -10733,7 +11131,7 @@ return DockScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="52">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -10872,7 +11270,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -11164,7 +11562,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="53">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -11262,7 +11660,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="54">
+          <Item class="ModuleScript" referent="55">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -11534,7 +11932,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="56">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -11716,7 +12114,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -11763,7 +12161,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="57">
+        <Item class="ModuleScript" referent="58">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -12115,7 +12513,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="58">
+        <Item class="ModuleScript" referent="59">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -12275,7 +12673,7 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="59">
+        <Item class="ModuleScript" referent="60">
           <Properties>
             <string name="Name">WorldFx</string>
             <string name="Source"><![CDATA[--!strict
