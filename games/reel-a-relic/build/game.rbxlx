@@ -2872,17 +2872,21 @@ local function part(props: { [string]: any }, parent: Instance): Part
 	return p
 end
 
+-- Bright, sunny and readable — not blown out. Haze compounds with every neon
+-- surface and point light in view, and over open water there is nothing to break
+-- it up, so the sea was washing to flat white. Sunlight and haze both came down;
+-- the scene keeps its colour and the buoys keep their edges.
 local function setLighting()
 	Lighting.ClockTime = 15.5
-	Lighting.Brightness = 2.4
-	Lighting.Ambient = Color3.fromRGB(140, 140, 150)
-	Lighting.OutdoorAmbient = Color3.fromRGB(130, 140, 160)
+	Lighting.Brightness = 1.9
+	Lighting.Ambient = Color3.fromRGB(128, 130, 142)
+	Lighting.OutdoorAmbient = Color3.fromRGB(120, 132, 152)
 	Lighting.FogColor = Color3.fromRGB(190, 220, 245)
 	Lighting.FogEnd = 900
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.28
+	atmosphere.Density = 0.24
 	atmosphere.Color = Color3.fromRGB(199, 224, 255)
-	atmosphere.Haze = 1.2
+	atmosphere.Haze = 0.5
 	atmosphere.Parent = Lighting
 end
 
@@ -3433,8 +3437,8 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 				}, parent)
 				local light = Instance.new("PointLight")
 				light.Color = theme.Spots[1]
-				light.Range = 16
-				light.Brightness = 1.1
+				light.Range = 11
+				light.Brightness = 0.55
 				light.Shadows = false
 				light.Parent = lamp
 			end
@@ -3452,7 +3456,7 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 			Color = theme.Spots[rng:NextInteger(1, #theme.Spots)],
 			Scale = rng:NextNumber(3.4, 4.6),
 			Seed = math.floor(at.X * 7 + at.Z),
-			Glow = 30,
+			Glow = 16,
 			Sparkle = true,
 			Neon = index >= 4,
 		})
@@ -3599,10 +3603,13 @@ local function buildBuoy(name: string, position: Vector3, color: Color3, parent:
 	cap.CanCollide = false
 	cap.CanQuery = false
 
+	-- Modest, because there are twelve of these in a small arc and their light
+	-- adds. The lantern's own neon does the "I am lit" work; this only has to
+	-- put a little colour on the water around it.
 	local glow = Instance.new("PointLight")
 	glow.Color = color
-	glow.Range = 14
-	glow.Brightness = 1.2
+	glow.Range = 9
+	glow.Brightness = 0.5
 	glow.Shadows = false
 	glow.Parent = lamp
 
@@ -3619,20 +3626,12 @@ local function buildBuoy(name: string, position: Vector3, color: Color3, parent:
 	sparkle.SpreadAngle = Vector2.new(70, 70)
 	sparkle.Parent = lamp
 
-	-- A pool of the buoy's own light on the water. It reads as the lantern
-	-- catching the surface, and it makes a buoy findable from across the bay —
-	-- which matters when the whole game is walking up to one and clicking it.
-	local pool = part({
-		Name = "LightPool",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.12, 9, 9),
-		CFrame = CFrame.new(position - Vector3.new(0, 0.85, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = color,
-		Material = Enum.Material.Neon,
-		Transparency = 0.82,
-	}, model)
-	pool.CanCollide = false
-	pool.CanQuery = false
+	-- No light pool on the water. Twelve nine-stud neon discs per area, even at
+	-- 0.82 transparency, blew out into overlapping white sheets that swallowed
+	-- the sea AND the ring float sitting on top of them — the buoys read as
+	-- glowing puddles with legs. Neon does not dim the way a transparent surface
+	-- suggests it will; it is fullbright, so transparency only thins it, and a
+	-- dozen thin fullbright discs still add up to solid white.
 
 	-- One invisible box owns the tap, the same way the mining game's geodes do.
 	-- A buoy bobbing thirty studs out is a very small target on a phone; this
@@ -7160,7 +7159,6 @@ return RebirthService
 -- tier so every upgrade is visible in your hands. Pure cosmetics — casting
 -- input goes through the raycast tap path.
 
-local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -7313,6 +7311,20 @@ end
 -- buys is the FEELING of casting; the click is what makes it playable.
 --------------------------------------------------------------------------------
 
+-- Where the bobber's white underside sits relative to its red ball.
+local STRIPE_OFFSET = Vector3.new(0, -0.32, 0)
+
+-- Move the bobber and its underside together. Everything that moves a bobber
+-- goes through here, so the two halves can never come apart.
+local function glideBobber(bobber: BasePart, to: Vector3, seconds: number, style: Enum.EasingStyle, dir: Enum.EasingDirection)
+	local info = TweenInfo.new(seconds, style, dir)
+	TweenService:Create(bobber, info, { Position = to }):Play()
+	local stripe = bobber:FindFirstChild("BobberBase")
+	if stripe and stripe:IsA("BasePart") then
+		TweenService:Create(stripe, info, { Position = to + STRIPE_OFFSET }):Play()
+	end
+end
+
 local REST_GRIP = CFrame.Angles(math.rad(-35), 0, 0)
 local WIND_UP_GRIP = CFrame.Angles(math.rad(-105), 0, 0)
 local RELEASE_GRIP = CFrame.Angles(math.rad(22), 0, 0)
@@ -7419,6 +7431,10 @@ function RodVisual.Cast(player: Player, target: Vector3)
 	bobber.Position = tip.Position
 	bobber.Parent = Workspace
 
+	-- The white underside of a classic bobber. Anchored and moved alongside the
+	-- ball rather than welded to it: a weld needs one side unanchored, and an
+	-- unanchored part in open water picks up a network owner and jitters. Two
+	-- tweens per leg of the arc is a rounding error next to that.
 	local stripe = Instance.new("Part")
 	stripe.Name = "BobberBase"
 	stripe.Shape = Enum.PartType.Ball
@@ -7429,12 +7445,8 @@ function RodVisual.Cast(player: Player, target: Vector3)
 	stripe.CanCollide = false
 	stripe.CanQuery = false
 	stripe.CanTouch = false
+	stripe.Position = bobber.Position + STRIPE_OFFSET
 	stripe.Parent = bobber
-	local weld = Instance.new("Weld")
-	weld.Part0 = bobber
-	weld.Part1 = stripe
-	weld.C0 = CFrame.new(0, -0.32, 0)
-	weld.Parent = bobber
 
 	-- Line from the rod tip out to the bobber, sagging in the middle.
 	local atBobber = Instance.new("Attachment")
@@ -7473,16 +7485,12 @@ function RodVisual.Cast(player: Player, target: Vector3)
 		local start = tip.Position
 		local peak = math.min((target - start).Magnitude * 0.24, 16)
 		local apex = start:Lerp(target, 0.5) + Vector3.new(0, peak, 0)
-		TweenService:Create(bobber, TweenInfo.new(0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = apex,
-		}):Play()
+		glideBobber(bobber, apex, 0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		task.wait(0.17)
 		if castToken[player] ~= token or not bobber:IsDescendantOf(game) then
 			return
 		end
-		TweenService:Create(bobber, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = target + Vector3.new(0, 0.2, 0),
-		}):Play()
+		glideBobber(bobber, target + Vector3.new(0, 0.2, 0), 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 		task.wait(0.16)
 		if castToken[player] ~= token or not bobber:IsDescendantOf(game) then
 			return
@@ -7498,12 +7506,24 @@ function RodVisual.Cast(player: Player, target: Vector3)
 		splash.Rate = 0
 		splash.Parent = bobber
 		splash:Emit(14)
-		-- Riding the swell is a client job, like the buoys: free motion, and the
-		-- tag driver picks up the landed position as its base.
-		CollectionService:AddTag(bobber, "SpinCrystal")
-		bobber:SetAttribute("SpinSpeed", 0)
-		bobber:SetAttribute("BobHeight", 0.35)
-		bobber:SetAttribute("BobSpeed", 1.6)
+		-- Bob on the SERVER, with a looping tween.
+		--
+		-- This used to hand the bobber to the client's SpinCrystal driver, which
+		-- captures GetPivot() the instant the tag arrives and then pins the part
+		-- there forever. The tag was added the moment the landing tween finished
+		-- on the server — before that final position had replicated — so clients
+		-- captured the arc's APEX and held the bobber up in the sky, line trailing
+		-- off the rod into nothing, for the rest of the cast.
+		--
+		-- A looping tween replicates once and plays out locally, which is the same
+		-- cheapness the tag was for without a position race to lose.
+		local rest = bobber.Position
+		local bobInfo = TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		TweenService:Create(bobber, bobInfo, { Position = rest + Vector3.new(0, 0.35, 0) }):Play()
+		local stripe = bobber:FindFirstChild("BobberBase")
+		if stripe and stripe:IsA("BasePart") then
+			TweenService:Create(stripe, bobInfo, { Position = rest + STRIPE_OFFSET + Vector3.new(0, 0.35, 0) }):Play()
+		end
 	end)
 end
 
@@ -7513,7 +7533,6 @@ function RodVisual.Bite(player: Player)
 	if not bobber then
 		return
 	end
-	CollectionService:RemoveTag(bobber, "SpinCrystal") -- stop the idle bob fighting the dip
 	local splash = Instance.new("ParticleEmitter")
 	splash.Color = ColorSequence.new(Color3.fromRGB(220, 250, 255))
 	splash.Size = NumberSequence.new(0.7, 0)
@@ -7525,9 +7544,7 @@ function RodVisual.Bite(player: Player)
 	splash.Rate = 0
 	splash.Parent = bobber
 	splash:Emit(22)
-	TweenService:Create(bobber, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = bobber.Position - Vector3.new(0, 1.3, 0),
-	}):Play()
+	glideBobber(bobber, bobber.Position - Vector3.new(0, 1.3, 0), 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 end
 
 -- Clicked before the bite. A click that does nothing at all is indistinguishable
@@ -7552,14 +7569,10 @@ function RodVisual.Spook(player: Player)
 		ripple:Destroy()
 	end)
 	local from = bobber.Position
-	TweenService:Create(bobber, TweenInfo.new(0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = from + Vector3.new(0, 0.5, 0),
-	}):Play()
+	glideBobber(bobber, from + Vector3.new(0, 0.5, 0), 0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	task.delay(0.09, function()
 		if bobber.Parent then
-			TweenService:Create(bobber, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Position = from,
-			}):Play()
+			glideBobber(bobber, from, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		end
 	end)
 end

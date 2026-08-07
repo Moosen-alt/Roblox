@@ -87,17 +87,21 @@ local function part(props: { [string]: any }, parent: Instance): Part
 	return p
 end
 
+-- Bright, sunny and readable — not blown out. Haze compounds with every neon
+-- surface and point light in view, and over open water there is nothing to break
+-- it up, so the sea was washing to flat white. Sunlight and haze both came down;
+-- the scene keeps its colour and the buoys keep their edges.
 local function setLighting()
 	Lighting.ClockTime = 15.5
-	Lighting.Brightness = 2.4
-	Lighting.Ambient = Color3.fromRGB(140, 140, 150)
-	Lighting.OutdoorAmbient = Color3.fromRGB(130, 140, 160)
+	Lighting.Brightness = 1.9
+	Lighting.Ambient = Color3.fromRGB(128, 130, 142)
+	Lighting.OutdoorAmbient = Color3.fromRGB(120, 132, 152)
 	Lighting.FogColor = Color3.fromRGB(190, 220, 245)
 	Lighting.FogEnd = 900
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.28
+	atmosphere.Density = 0.24
 	atmosphere.Color = Color3.fromRGB(199, 224, 255)
-	atmosphere.Haze = 1.2
+	atmosphere.Haze = 0.5
 	atmosphere.Parent = Lighting
 end
 
@@ -648,8 +652,8 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 				}, parent)
 				local light = Instance.new("PointLight")
 				light.Color = theme.Spots[1]
-				light.Range = 16
-				light.Brightness = 1.1
+				light.Range = 11
+				light.Brightness = 0.55
 				light.Shadows = false
 				light.Parent = lamp
 			end
@@ -667,7 +671,7 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 			Color = theme.Spots[rng:NextInteger(1, #theme.Spots)],
 			Scale = rng:NextNumber(3.4, 4.6),
 			Seed = math.floor(at.X * 7 + at.Z),
-			Glow = 30,
+			Glow = 16,
 			Sparkle = true,
 			Neon = index >= 4,
 		})
@@ -814,10 +818,13 @@ local function buildBuoy(name: string, position: Vector3, color: Color3, parent:
 	cap.CanCollide = false
 	cap.CanQuery = false
 
+	-- Modest, because there are twelve of these in a small arc and their light
+	-- adds. The lantern's own neon does the "I am lit" work; this only has to
+	-- put a little colour on the water around it.
 	local glow = Instance.new("PointLight")
 	glow.Color = color
-	glow.Range = 14
-	glow.Brightness = 1.2
+	glow.Range = 9
+	glow.Brightness = 0.5
 	glow.Shadows = false
 	glow.Parent = lamp
 
@@ -834,20 +841,12 @@ local function buildBuoy(name: string, position: Vector3, color: Color3, parent:
 	sparkle.SpreadAngle = Vector2.new(70, 70)
 	sparkle.Parent = lamp
 
-	-- A pool of the buoy's own light on the water. It reads as the lantern
-	-- catching the surface, and it makes a buoy findable from across the bay —
-	-- which matters when the whole game is walking up to one and clicking it.
-	local pool = part({
-		Name = "LightPool",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.12, 9, 9),
-		CFrame = CFrame.new(position - Vector3.new(0, 0.85, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = color,
-		Material = Enum.Material.Neon,
-		Transparency = 0.82,
-	}, model)
-	pool.CanCollide = false
-	pool.CanQuery = false
+	-- No light pool on the water. Twelve nine-stud neon discs per area, even at
+	-- 0.82 transparency, blew out into overlapping white sheets that swallowed
+	-- the sea AND the ring float sitting on top of them — the buoys read as
+	-- glowing puddles with legs. Neon does not dim the way a transparent surface
+	-- suggests it will; it is fullbright, so transparency only thins it, and a
+	-- dozen thin fullbright discs still add up to solid white.
 
 	-- One invisible box owns the tap, the same way the mining game's geodes do.
 	-- A buoy bobbing thirty studs out is a very small target on a phone; this

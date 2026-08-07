@@ -4,7 +4,6 @@
 -- tier so every upgrade is visible in your hands. Pure cosmetics — casting
 -- input goes through the raycast tap path.
 
-local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -157,6 +156,20 @@ end
 -- buys is the FEELING of casting; the click is what makes it playable.
 --------------------------------------------------------------------------------
 
+-- Where the bobber's white underside sits relative to its red ball.
+local STRIPE_OFFSET = Vector3.new(0, -0.32, 0)
+
+-- Move the bobber and its underside together. Everything that moves a bobber
+-- goes through here, so the two halves can never come apart.
+local function glideBobber(bobber: BasePart, to: Vector3, seconds: number, style: Enum.EasingStyle, dir: Enum.EasingDirection)
+	local info = TweenInfo.new(seconds, style, dir)
+	TweenService:Create(bobber, info, { Position = to }):Play()
+	local stripe = bobber:FindFirstChild("BobberBase")
+	if stripe and stripe:IsA("BasePart") then
+		TweenService:Create(stripe, info, { Position = to + STRIPE_OFFSET }):Play()
+	end
+end
+
 local REST_GRIP = CFrame.Angles(math.rad(-35), 0, 0)
 local WIND_UP_GRIP = CFrame.Angles(math.rad(-105), 0, 0)
 local RELEASE_GRIP = CFrame.Angles(math.rad(22), 0, 0)
@@ -263,6 +276,10 @@ function RodVisual.Cast(player: Player, target: Vector3)
 	bobber.Position = tip.Position
 	bobber.Parent = Workspace
 
+	-- The white underside of a classic bobber. Anchored and moved alongside the
+	-- ball rather than welded to it: a weld needs one side unanchored, and an
+	-- unanchored part in open water picks up a network owner and jitters. Two
+	-- tweens per leg of the arc is a rounding error next to that.
 	local stripe = Instance.new("Part")
 	stripe.Name = "BobberBase"
 	stripe.Shape = Enum.PartType.Ball
@@ -273,12 +290,8 @@ function RodVisual.Cast(player: Player, target: Vector3)
 	stripe.CanCollide = false
 	stripe.CanQuery = false
 	stripe.CanTouch = false
+	stripe.Position = bobber.Position + STRIPE_OFFSET
 	stripe.Parent = bobber
-	local weld = Instance.new("Weld")
-	weld.Part0 = bobber
-	weld.Part1 = stripe
-	weld.C0 = CFrame.new(0, -0.32, 0)
-	weld.Parent = bobber
 
 	-- Line from the rod tip out to the bobber, sagging in the middle.
 	local atBobber = Instance.new("Attachment")
@@ -317,16 +330,12 @@ function RodVisual.Cast(player: Player, target: Vector3)
 		local start = tip.Position
 		local peak = math.min((target - start).Magnitude * 0.24, 16)
 		local apex = start:Lerp(target, 0.5) + Vector3.new(0, peak, 0)
-		TweenService:Create(bobber, TweenInfo.new(0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = apex,
-		}):Play()
+		glideBobber(bobber, apex, 0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		task.wait(0.17)
 		if castToken[player] ~= token or not bobber:IsDescendantOf(game) then
 			return
 		end
-		TweenService:Create(bobber, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = target + Vector3.new(0, 0.2, 0),
-		}):Play()
+		glideBobber(bobber, target + Vector3.new(0, 0.2, 0), 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 		task.wait(0.16)
 		if castToken[player] ~= token or not bobber:IsDescendantOf(game) then
 			return
@@ -342,12 +351,24 @@ function RodVisual.Cast(player: Player, target: Vector3)
 		splash.Rate = 0
 		splash.Parent = bobber
 		splash:Emit(14)
-		-- Riding the swell is a client job, like the buoys: free motion, and the
-		-- tag driver picks up the landed position as its base.
-		CollectionService:AddTag(bobber, "SpinCrystal")
-		bobber:SetAttribute("SpinSpeed", 0)
-		bobber:SetAttribute("BobHeight", 0.35)
-		bobber:SetAttribute("BobSpeed", 1.6)
+		-- Bob on the SERVER, with a looping tween.
+		--
+		-- This used to hand the bobber to the client's SpinCrystal driver, which
+		-- captures GetPivot() the instant the tag arrives and then pins the part
+		-- there forever. The tag was added the moment the landing tween finished
+		-- on the server — before that final position had replicated — so clients
+		-- captured the arc's APEX and held the bobber up in the sky, line trailing
+		-- off the rod into nothing, for the rest of the cast.
+		--
+		-- A looping tween replicates once and plays out locally, which is the same
+		-- cheapness the tag was for without a position race to lose.
+		local rest = bobber.Position
+		local bobInfo = TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		TweenService:Create(bobber, bobInfo, { Position = rest + Vector3.new(0, 0.35, 0) }):Play()
+		local stripe = bobber:FindFirstChild("BobberBase")
+		if stripe and stripe:IsA("BasePart") then
+			TweenService:Create(stripe, bobInfo, { Position = rest + STRIPE_OFFSET + Vector3.new(0, 0.35, 0) }):Play()
+		end
 	end)
 end
 
@@ -357,7 +378,6 @@ function RodVisual.Bite(player: Player)
 	if not bobber then
 		return
 	end
-	CollectionService:RemoveTag(bobber, "SpinCrystal") -- stop the idle bob fighting the dip
 	local splash = Instance.new("ParticleEmitter")
 	splash.Color = ColorSequence.new(Color3.fromRGB(220, 250, 255))
 	splash.Size = NumberSequence.new(0.7, 0)
@@ -369,9 +389,7 @@ function RodVisual.Bite(player: Player)
 	splash.Rate = 0
 	splash.Parent = bobber
 	splash:Emit(22)
-	TweenService:Create(bobber, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = bobber.Position - Vector3.new(0, 1.3, 0),
-	}):Play()
+	glideBobber(bobber, bobber.Position - Vector3.new(0, 1.3, 0), 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 end
 
 -- Clicked before the bite. A click that does nothing at all is indistinguishable
@@ -396,14 +414,10 @@ function RodVisual.Spook(player: Player)
 		ripple:Destroy()
 	end)
 	local from = bobber.Position
-	TweenService:Create(bobber, TweenInfo.new(0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = from + Vector3.new(0, 0.5, 0),
-	}):Play()
+	glideBobber(bobber, from + Vector3.new(0, 0.5, 0), 0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	task.delay(0.09, function()
 		if bobber.Parent then
-			TweenService:Create(bobber, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Position = from,
-			}):Play()
+			glideBobber(bobber, from, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		end
 	end)
 end
