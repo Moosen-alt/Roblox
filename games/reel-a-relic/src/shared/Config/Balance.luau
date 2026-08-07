@@ -291,6 +291,43 @@ Balance.Events = {
 	{ Name = "Moon Tide", LuckMult = 1, MutationMult = 5, Color = Color3.fromRGB(160, 200, 255) },
 }
 
+-- DAILY QUESTS: three things to do today, rerolled at the same daily boundary
+-- the streak uses.
+--
+-- This is the strongest honest retention lever a simulator has. Everything else
+-- here rewards you for playing; a checklist gives you a REASON to open the app,
+-- a defined stopping point, and the small satisfaction of finishing something.
+-- All three are things a player was going to do anyway - it names them and pays
+-- for them, which is the difference between a task list and a chore.
+--
+-- Deliberately NOT here: anything that expires mid-session, anything that
+-- punishes a miss, anything that can only be finished by paying. A quest a kid
+-- cannot finish without Robux is an advert wearing a checklist's clothes.
+Balance.QuestCount = 3
+-- Reward scales with the water you have unlocked, so a day-30 player's quests
+-- are worth doing without a day-1 player's being unfinishable.
+Balance.QuestRewardBase = 900
+Balance.QuestRewardPerLayer = 2.6 -- reward = base * this ^ (layer - 1)
+
+export type QuestDef = {
+	Id: string,
+	Kind: string, -- Catch | Chest | Perfect | Rare
+	Text: string, -- "%d" is the target
+	Target: number,
+	Reward: number, -- multiplier on the scaled base
+}
+
+Balance.QuestPool = {
+	{ Id = "catch_small", Kind = "Catch", Text = "Catch %d fish", Target = 25, Reward = 1 },
+	{ Id = "catch_big", Kind = "Catch", Text = "Catch %d fish", Target = 60, Reward = 2 },
+	{ Id = "chest_small", Kind = "Chest", Text = "Open %d treasure chests", Target = 3, Reward = 1.1 },
+	{ Id = "chest_big", Kind = "Chest", Text = "Open %d treasure chests", Target = 8, Reward = 2.2 },
+	{ Id = "perfect_small", Kind = "Perfect", Text = "Land %d PERFECT reels", Target = 5, Reward = 1.2 },
+	{ Id = "perfect_big", Kind = "Perfect", Text = "Land %d PERFECT reels", Target = 15, Reward = 2.4 },
+	{ Id = "rare_small", Kind = "Rare", Text = "Find %d Rare or better", Target = 3, Reward = 1.4 },
+	{ Id = "rare_big", Kind = "Rare", Text = "Find %d Rare or better", Target = 8, Reward = 2.8 },
+} :: { QuestDef }
+
 -- Daily streaks: a VISIBLE 7-day reward cycle (repeats forever, 1 grace day).
 -- Day 7 anchor: big coins + a guaranteed Golden Chest roll (free-action
 -- randomness, no paid-random surface).

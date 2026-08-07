@@ -155,6 +155,7 @@ function Hud.Init(gui: ScreenGui)
 		{ Label = "Open", Screen = "Crack", Color = Color3.fromRGB(255, 170, 40) },
 		{ Label = "Aquarium", Screen = "Racks", Color = Color3.fromRGB(120, 255, 200) },
 		{ Label = "Shop", Screen = "Shop", Color = Color3.fromRGB(120, 170, 255) },
+		{ Label = "Quests", Screen = "Quests", Color = Color3.fromRGB(255, 214, 90) },
 		{ Label = "Index", Screen = "Index", Color = Color3.fromRGB(190, 90, 255) },
 		{ Label = "Areas", Screen = "Dock", Color = Color3.fromRGB(120, 200, 255) },
 		{ Label = "Set Sail", Screen = "Rebirth", Color = Color3.fromRGB(255, 120, 255) },

@@ -264,6 +264,12 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player, quali
 		data.Geodes += chests
 	end
 	data.Stats.GeodesMined += caught
+	-- Daily objectives. Reported in bulk, because a good reel lands several fish
+	-- at once and counting that as one catch would make the quest feel broken.
+	ctx.Quests.Report(player, "Catch", #fish)
+	if quality >= 0.85 then
+		ctx.Quests.Report(player, "Perfect", 1)
+	end
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 1, "FirstGeode")
 

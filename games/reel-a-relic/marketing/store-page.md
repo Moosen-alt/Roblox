@@ -47,6 +47,7 @@ something; how well you fight decides how much.
 🛏️ TRUE offline earnings — put fish on display in your Aquarium and collect the coins when you return
 ⛵ Set Sail to reset your run for a permanent +25% coins — and you KEEP every ocean you bought
 🌠 Random server events — Feeding Frenzy (10x luck!) and Moon Tide (5x auras!)
+✅ 3 daily quests every day — finish them for big coin payouts
 🕐 The shop restocks every 5 minutes and a new Daily Deal drops every day
 🔥 Daily streak rewards with big milestones at day 7, 14, and 30
 🏆 Global leaderboards — Top Voyagers and Rarest Finds
@@ -132,3 +133,87 @@ See [`../SETUP.md`](../SETUP.md) for the five formats, adapted from the root gam
 [`marketing/tiktok-scripts.md`](../../marketing/tiktok-scripts.md). The near-miss reel is the
 strongest — tension and payoff in eight seconds is the entire short-form format, and this game
 generates it for free every time someone nearly loses a Megalodon.
+
+
+---
+
+# Retention & monetization design
+
+Written for the operator, not the store page. The store page gets people in; this
+is what decides whether they come back, and coming back is what Roblox's
+algorithm actually rewards. **D1 retention is the number that buys you free
+traffic** — a game with strong D1 gets recommended, a game without it does not,
+and no amount of thumbnail work outruns that.
+
+## Who is actually playing
+
+Roblox simulator players skew **8–15, mostly on phones, in short bursts** — a
+ten-minute session between other things, several times a day, not one long sit.
+Nearly everything below follows from that:
+
+- **One-thumb inputs.** The reel-in is a single hold. That was a design
+  constraint, not a simplification.
+- **A session must pay off in ten minutes.** Hence area 1 costs nothing, the
+  first chest comes fast, and no quest needs an hour.
+- **They find games through short video and through friends.** So the
+  screenshot-worthy moments — the reveal card, a personal best, a Megalodon on
+  the line — are the marketing, and they have to happen on their own.
+- **They cannot spend freely.** Robux usually comes from a gift card or a
+  parent. That makes the *first* purchase the hard one and every later one much
+  easier, which is why the Starter Pack matters more than its price suggests.
+
+## The ladder
+
+| Horizon | What brings them back | Built? |
+| --- | --- | --- |
+| First 60 seconds | Spawn on the dock, a buoy within a few steps, a fish inside ten seconds | ✅ |
+| First session | A chest, a reveal with real odds, the Index showing 3/366 | ✅ |
+| Day 1 | Offline aquarium earnings waiting; the streak at Day 2 | ✅ |
+| Day 2–7 | **Daily quests**, streak milestones at 7, a second area in sight | ✅ |
+| Week 2–4 | Per-species weight records, area 3–4 unlocks, Set Sail | ✅ |
+| Month 2+ | 366-entry Index, endless rod/boat tiers, leaderboards | ✅ |
+
+**The gap that just got filled is daily quests.** Streaks reward the login and
+events reward being online at the right moment — neither gives a returning
+player something to *aim at*. Three finishable objectives do, and a checklist is
+the strongest honest retention lever a simulator has.
+
+**The gap that remains is codes.** Roblox players actively search
+`"<game name> codes"` — it is free discovery, a reason to follow the socials, and
+a lever to spike concurrent players on update day. Worth building next.
+
+## If you only create three products, create these
+
+Fourteen products is a lot of Creator Hub work and they are not equally
+valuable. In order:
+
+1. **Starter Pack (200 R$)** — by far the highest-converting item in any
+   simulator. It is somebody's *first ever* purchase, and the first one is the
+   only hard one.
+2. **Auto-Cast (450 R$)** — the headline convenience pass and the top seller in
+   this genre. It removes the repetitive part, never the fun part.
+3. **2x Coins (250 R$)** — the permanent multiplier everyone eventually buys.
+
+Everything else can wait. **Auto Swing (450 R$) is the equivalent for Crack a
+Geode and is the one item that game is still missing.**
+
+## Lines this design does not cross
+
+Worth stating plainly, because most of them are also *good business* with an
+audience this age — and because Roblox enforces several of them.
+
+- **No pay-to-win on content.** Areas cost coins, never Robux. Everything
+  purchasable buys convenience or a multiplier, never access.
+- **No loss framing.** The reel-in cannot fail. A miss produces fewer fish,
+  never zero. "You lost it" is the single fastest way to make a nine-year-old
+  close a game.
+- **No fake scarcity or countdown pressure** on purchases. The shop restock is a
+  real clock, the Daily Deal is a real day, and neither is a manipulated timer.
+- **No quest that needs Robux to finish.** A checklist a kid cannot complete
+  without paying is an advert wearing a checklist's clothes.
+- **Odds are always shown before a chest is opened**, which is both the policy
+  requirement and the right thing.
+
+The honest version is also the durable one: Roblox suppresses metadata that
+mismatches gameplay, and refund complaints and bad reviews cost more than the
+purchases they extract.

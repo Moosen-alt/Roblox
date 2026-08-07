@@ -30,6 +30,7 @@ local FUNCTIONS = {
 	"ToggleAutoCrack", -- () -> nowEnabled (pass owners can watch the full reveal again)
 	"BuyArea", -- (areaIndex) -> ok, err  (coins; permanent, survives Set Sail)
 	"TravelArea", -- (areaIndex) -> ok, err  (sail to water you already own)
+	"ClaimQuest", -- (questIndex) -> ok, err  (daily objective reward)
 }
 
 local Remotes = {}

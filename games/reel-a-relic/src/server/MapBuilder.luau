@@ -1588,11 +1588,201 @@ local function makeCabana(at: Vector3, wall: Color3, parent: Instance)
 	}, parent)
 end
 
+-- HERO LANDMARKS. One unmistakable silhouette per area, placed where you see it
+-- from the dock the moment you arrive.
+--
+-- Props establish a mood; a landmark establishes a PLACE. Nobody looks at a
+-- pastel hut and thinks "Florida" — they think "hut". But the Key West marker
+-- and the Catalina Casino are single shapes that name their coast outright, and
+-- a player who recognises one has been sold the area before the Dock Master ever
+-- quotes them a price.
+
+-- The Southernmost Point marker: a fat concrete drum in painted bands. It is
+-- the most photographed object in Key West and it is, fittingly, a buoy.
+local function makeSouthernmostMarker(at: Vector3, parent: Instance)
+	local bands: { { Color: Color3, Height: number } } = {
+		{ Color = Color3.fromRGB(28, 26, 30), Height = 2.2 },
+		{ Color = Color3.fromRGB(226, 224, 216), Height = 1.1 },
+		{ Color = Color3.fromRGB(196, 44, 40), Height = 2.6 },
+		{ Color = Color3.fromRGB(226, 224, 216), Height = 1.1 },
+		{ Color = Color3.fromRGB(236, 190, 46), Height = 2.4 },
+		{ Color = Color3.fromRGB(28, 26, 30), Height = 1.6 },
+	}
+	local y = 0
+	for _, band in bands do
+		local color, height = band.Color, band.Height
+		deco({
+			Name = "MarkerBand",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(height, 7.4, 7.4),
+			CFrame = CFrame.new(at + Vector3.new(0, y + height * 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = color,
+			Material = Enum.Material.Concrete,
+		}, parent).CanCollide = true
+		y += height
+	end
+	deco({
+		Name = "MarkerCap",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(7.4, 2.6, 7.4),
+		Position = at + Vector3.new(0, y, 0),
+		Color = Color3.fromRGB(28, 26, 30),
+		Material = Enum.Material.Concrete,
+	}, parent)
+	deco({
+		Name = "MarkerPlinth",
+		Size = Vector3.new(9.5, 0.8, 9.5),
+		Position = at + Vector3.new(0, 0.4, 0),
+		Color = Color3.fromRGB(198, 194, 186),
+		Material = Enum.Material.Concrete,
+	}, parent).CanCollide = true
+end
+
+-- The Catalina Casino: a round white ballroom under a red tile cone, standing on
+-- its own point over the water. THE silhouette of that island.
+local function makeCasino(at: Vector3, parent: Instance)
+	local WALL = Color3.fromRGB(238, 232, 216)
+	local TILE = Color3.fromRGB(168, 80, 56)
+	local radius = 15
+	local segments = 16
+	local height = 20
+	local chord = 2 * radius * math.sin(math.pi / segments) * 1.35
+	-- Drum wall, built as a ring of panels (Roblox has no cylinder shell).
+	for i = 1, segments do
+		local theta = (i - 1) / segments * math.pi * 2
+		deco({
+			Name = "CasinoWall",
+			Size = Vector3.new(chord, height, 1.4),
+			CFrame = CFrame.new(at + Vector3.new(math.cos(theta) * radius, height * 0.5, math.sin(theta) * radius))
+				* CFrame.Angles(0, -theta, 0),
+			Color = WALL,
+			Material = Enum.Material.Concrete,
+		}, parent).CanCollide = true
+		-- Arched windows round the gallery.
+		deco({
+			Name = "CasinoArch",
+			Size = Vector3.new(chord * 0.5, 5.5, 0.5),
+			CFrame = CFrame.new(at + Vector3.new(math.cos(theta) * (radius + 0.6), height * 0.62, math.sin(theta) * (radius + 0.6)))
+				* CFrame.Angles(0, -theta, 0),
+			Color = Color3.fromRGB(96, 118, 130),
+			Material = Enum.Material.Glass,
+			Transparency = 0.25,
+		}, parent)
+	end
+	-- The cone roof: stacked shrinking tiers of red tile.
+	local tiers = 7
+	for i = 1, tiers do
+		local t = (i - 1) / tiers
+		deco({
+			Name = "CasinoRoof",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(1.9, (radius * 2 + 3) * (1 - t * 0.9), (radius * 2 + 3) * (1 - t * 0.9)),
+			CFrame = CFrame.new(at + Vector3.new(0, height + 0.9 + i * 1.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = TILE:Lerp(Color3.fromRGB(206, 120, 90), t * 0.35),
+			Material = Enum.Material.Slate,
+		}, parent)
+	end
+	deco({
+		Name = "CasinoFinial",
+		Size = Vector3.new(1.2, 4, 1.2),
+		Position = at + Vector3.new(0, height + 14, 0),
+		Color = Color3.fromRGB(196, 176, 120),
+		Material = Enum.Material.Metal,
+	}, parent)
+	-- The breakwater it stands on.
+	deco({
+		Name = "CasinoPoint",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(3.5, radius * 2.6, radius * 2.6),
+		CFrame = CFrame.new(at + Vector3.new(0, -1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(150, 146, 136),
+		Material = Enum.Material.Rock,
+	}, parent).CanCollide = true
+end
+
+-- A moai. Easter Island is Polynesia's most recognisable export, and one giant
+-- stone head staring out to sea tells a player where they are instantly.
+local function makeMoai(at: Vector3, parent: Instance)
+	local STONE = Color3.fromRGB(128, 122, 108)
+	local heading = rng:NextNumber(-0.4, 0.4)
+	local facing = CFrame.new(at) * CFrame.Angles(0, heading, 0)
+	deco({
+		Name = "MoaiBody",
+		Size = Vector3.new(7, 12, 5),
+		CFrame = facing * CFrame.new(0, 6, 0),
+		Color = STONE,
+		Material = Enum.Material.Rock,
+	}, parent).CanCollide = true
+	-- The head: longer than it is wide, with the heavy jaw that defines a moai.
+	deco({
+		Name = "MoaiHead",
+		Size = Vector3.new(7.4, 11, 6),
+		CFrame = facing * CFrame.new(0, 17, 0.4),
+		Color = STONE:Lerp(Color3.new(1, 1, 1), 0.06),
+		Material = Enum.Material.Rock,
+	}, parent)
+	deco({
+		Name = "MoaiBrow",
+		Size = Vector3.new(7.6, 1.6, 1.4),
+		CFrame = facing * CFrame.new(0, 19.4, -2.6),
+		Color = STONE:Lerp(Color3.new(0, 0, 0), 0.3),
+		Material = Enum.Material.Rock,
+	}, parent)
+	for _, side in { -1, 1 } do
+		deco({
+			Name = "MoaiEye",
+			Size = Vector3.new(2.2, 1.5, 0.9),
+			CFrame = facing * CFrame.new(side * 1.8, 18.2, -2.9),
+			Color = Color3.fromRGB(60, 56, 54),
+			Material = Enum.Material.Slate,
+		}, parent)
+		deco({
+			Name = "MoaiEar",
+			Size = Vector3.new(1.1, 5.5, 2.2),
+			CFrame = facing * CFrame.new(side * 3.9, 16.5, 0.6),
+			Color = STONE,
+			Material = Enum.Material.Rock,
+		}, parent)
+	end
+	deco({
+		Name = "MoaiNose",
+		Size = Vector3.new(2.0, 4.4, 2.0),
+		CFrame = facing * CFrame.new(0, 17.2, -2.9),
+		Color = STONE:Lerp(Color3.new(1, 1, 1), 0.1),
+		Material = Enum.Material.Rock,
+	}, parent)
+	deco({
+		Name = "MoaiLip",
+		Size = Vector3.new(3.4, 1.0, 1.2),
+		CFrame = facing * CFrame.new(0, 14.2, -2.8),
+		Color = STONE:Lerp(Color3.new(0, 0, 0), 0.22),
+		Material = Enum.Material.Rock,
+	}, parent)
+	-- Pukao: the red topknot.
+	deco({
+		Name = "MoaiPukao",
+		Size = Vector3.new(5.4, 3.2, 5.0),
+		CFrame = facing * CFrame.new(0, 23.4, 0.6),
+		Color = Color3.fromRGB(150, 72, 54),
+		Material = Enum.Material.Rock,
+	}, parent)
+	deco({
+		Name = "MoaiPlinth",
+		Size = Vector3.new(11, 1.6, 8),
+		CFrame = facing * CFrame.new(0, 0.6, 0),
+		Color = Color3.fromRGB(104, 100, 92),
+		Material = Enum.Material.Slate,
+	}, parent).CanCollide = true
+end
+
 -- Place the area's culture pack. Shore props go on the beach (+Z of the dock
 -- head); anything in the water goes wide of the fishing arc so it frames the
 -- spots rather than standing in them.
 local function buildCulture(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
 	if index == 1 then
+		-- The hero landmark first: you should know what coast you are on before
+		-- you have looked at anything else.
+		makeSouthernmostMarker(Vector3.new(ox + 96, 0, oz + 44), parent)
 		-- FLORIDA KEYS MARINA: pastel cabanas along the sand.
 		local pastels = {
 			Color3.fromRGB(126, 206, 214),
@@ -1639,6 +1829,7 @@ local function buildCulture(index: number, theme: AreaTheme, ox: number, oz: num
 		-- SOUTHERN CALIFORNIA KELP COAST. Every species here is a Californian
 		-- animal, so this is Monterey/Catalina: a working pier, cannery sheds,
 		-- and otters asleep in the canopy.
+		makeCasino(Vector3.new(ox - 104, 0, oz - 30), parent)
 		makePier(Vector3.new(ox - 72, 0, oz - 6), 74, parent)
 		makePier(Vector3.new(ox + 72, 0, oz - 6), 58, parent)
 		local walls = { Color3.fromRGB(196, 190, 176), Color3.fromRGB(150, 158, 150), Color3.fromRGB(178, 166, 148) }
@@ -1661,6 +1852,8 @@ local function buildCulture(index: number, theme: AreaTheme, ox: number, oz: num
 		end
 	elseif index == 3 then
 		-- POLYNESIAN REEF: tiki totems on the sand, huts out over the water.
+		makeMoai(Vector3.new(ox + 92, 0, oz + 40), parent)
+		makeMoai(Vector3.new(ox - 100, 0, oz + 52), parent)
 		for i = 1, 5 do
 			makeTiki(
 				Vector3.new(ox - 80 + (i - 1) * 40, 0, oz + rng:NextNumber(46, 62)),

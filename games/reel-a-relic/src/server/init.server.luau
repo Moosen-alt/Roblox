@@ -18,6 +18,7 @@ local MapBuilder = require(script.MapBuilder)
 local MiningService = require(script.MiningService)
 local MonetizationService = require(script.MonetizationService)
 local PolicyGuard = require(script.PolicyGuard)
+local QuestService = require(script.QuestService)
 local RackService = require(script.RackService)
 local RebirthService = require(script.RebirthService)
 local RodVisual = require(script.RodVisual)
@@ -42,6 +43,7 @@ local ctx: any = {
 	Upgrades = UpgradeService,
 	Monetization = MonetizationService,
 	Policy = PolicyGuard,
+	Quests = QuestService,
 	RodVis = RodVisual,
 	Analytics = AnalyticsService,
 	Flex = FlexAura,
@@ -79,6 +81,7 @@ RebirthService.Init(ctx)
 UpgradeService.Init(ctx)
 ShopService.Init(ctx)
 StreakService.Init(ctx)
+QuestService.Init(ctx)
 MiningService.Init(ctx, map.Nodes)
 AreaService.SetOrigins(map.Origins)
 AreaService.Init(ctx)

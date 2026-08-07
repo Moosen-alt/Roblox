@@ -41,6 +41,13 @@ different set of fish, not a longer list. **Set Sail (rebirth) never takes an ar
 resets the run and grants the permanent +25% coin multiplier, and that separation is what makes
 saving three million coins for the Abyss feel safe rather than risky.
 
+**Three daily quests** every day — catch N fish, open N chests, land N perfect reels, find N
+Rare+ — with coin payouts that scale to the deepest water you have unlocked. They reset on the
+same daily boundary as the streak, nothing expires mid-session, and nothing needs Robux to
+finish. This is the strongest honest retention lever a simulator has: streaks reward the login
+and events reward being online at the right moment, but only a checklist gives a returning
+player something to aim at.
+
 Also: Feeding Frenzy / Moon Tide server events, clock-synced Chest Shop, daily streaks.
 
 ## Products to create (paste IDs into `src/shared/Config/Monetization.luau`)
@@ -127,5 +134,9 @@ paid random items (chests bought with earnable coins — odds shown, policy-gate
 - [ ] Another player can't steal your claimed buoy mid-cast
 - [ ] Comp yourself `AutoCast` via `Monetization.CompUserIds`: it casts and reels hands-free —
       then touch the screen mid-reel and confirm **you take control back**
+- [ ] Quests panel lists three objectives with progress bars; catching fish moves the bar
+- [ ] Finish one → a toast fires immediately, the CLAIM button lights up, coins land on claim
+- [ ] Rejoin mid-day: the SAME three quests come back with progress intact (they are seeded
+      per player per day, so quests cannot be rerolled by rejoining)
 - [ ] Buy the last authored rod, then buy again: a generated tier appears with a real name,
       better numbers and a higher price — the button never dead-ends

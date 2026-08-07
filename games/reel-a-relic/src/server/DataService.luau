@@ -41,6 +41,9 @@ local TEMPLATE = {
 	OwnedPasses = {} :: { [string]: boolean },
 	StarterPackOwned = false,
 	Stats = { GeodesMined = 0, GeodesCracked = 0, RarestValue = 0, RarestName = "" },
+	-- Daily objectives. Day is the same day number the streak uses, so both roll
+	-- over together and a player never has two different "days" running.
+	Quests = { Day = 0, Ids = {} :: { string }, Progress = {} :: { number }, Claimed = {} :: { boolean } },
 	Funnel = {} :: { [string]: boolean },
 	PityCracks = 0,
 	RareGiven = false,
@@ -243,6 +246,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		Boost2xUntil = data.Boosts.Coins2xUntil,
 		Stats = data.Stats,
 		Funnel = data.Funnel,
+		Quests = if ctx and ctx.Quests then ctx.Quests.Describe(data) else {},
 	}
 end
 

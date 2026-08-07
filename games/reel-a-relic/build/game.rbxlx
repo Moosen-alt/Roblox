@@ -307,6 +307,43 @@ Balance.Events = {
 	{ Name = "Moon Tide", LuckMult = 1, MutationMult = 5, Color = Color3.fromRGB(160, 200, 255) },
 }
 
+-- DAILY QUESTS: three things to do today, rerolled at the same daily boundary
+-- the streak uses.
+--
+-- This is the strongest honest retention lever a simulator has. Everything else
+-- here rewards you for playing; a checklist gives you a REASON to open the app,
+-- a defined stopping point, and the small satisfaction of finishing something.
+-- All three are things a player was going to do anyway - it names them and pays
+-- for them, which is the difference between a task list and a chore.
+--
+-- Deliberately NOT here: anything that expires mid-session, anything that
+-- punishes a miss, anything that can only be finished by paying. A quest a kid
+-- cannot finish without Robux is an advert wearing a checklist's clothes.
+Balance.QuestCount = 3
+-- Reward scales with the water you have unlocked, so a day-30 player's quests
+-- are worth doing without a day-1 player's being unfinishable.
+Balance.QuestRewardBase = 900
+Balance.QuestRewardPerLayer = 2.6 -- reward = base * this ^ (layer - 1)
+
+export type QuestDef = {
+	Id: string,
+	Kind: string, -- Catch | Chest | Perfect | Rare
+	Text: string, -- "%d" is the target
+	Target: number,
+	Reward: number, -- multiplier on the scaled base
+}
+
+Balance.QuestPool = {
+	{ Id = "catch_small", Kind = "Catch", Text = "Catch %d fish", Target = 25, Reward = 1 },
+	{ Id = "catch_big", Kind = "Catch", Text = "Catch %d fish", Target = 60, Reward = 2 },
+	{ Id = "chest_small", Kind = "Chest", Text = "Open %d treasure chests", Target = 3, Reward = 1.1 },
+	{ Id = "chest_big", Kind = "Chest", Text = "Open %d treasure chests", Target = 8, Reward = 2.2 },
+	{ Id = "perfect_small", Kind = "Perfect", Text = "Land %d PERFECT reels", Target = 5, Reward = 1.2 },
+	{ Id = "perfect_big", Kind = "Perfect", Text = "Land %d PERFECT reels", Target = 15, Reward = 2.4 },
+	{ Id = "rare_small", Kind = "Rare", Text = "Find %d Rare or better", Target = 3, Reward = 1.4 },
+	{ Id = "rare_big", Kind = "Rare", Text = "Find %d Rare or better", Target = 8, Reward = 2.8 },
+} :: { QuestDef }
+
 -- Daily streaks: a VISIBLE 7-day reward cycle (repeats forever, 1 grace day).
 -- Day 7 anchor: big coins + a guaranteed Golden Chest roll (free-action
 -- randomness, no paid-random surface).
@@ -3285,6 +3322,7 @@ local FUNCTIONS = {
 	"ToggleAutoCrack", -- () -> nowEnabled (pass owners can watch the full reveal again)
 	"BuyArea", -- (areaIndex) -> ok, err  (coins; permanent, survives Set Sail)
 	"TravelArea", -- (areaIndex) -> ok, err  (sail to water you already own)
+	"ClaimQuest", -- (questIndex) -> ok, err  (daily objective reward)
 }
 
 local Remotes = {}
@@ -3388,6 +3426,7 @@ local MapBuilder = require(script.MapBuilder)
 local MiningService = require(script.MiningService)
 local MonetizationService = require(script.MonetizationService)
 local PolicyGuard = require(script.PolicyGuard)
+local QuestService = require(script.QuestService)
 local RackService = require(script.RackService)
 local RebirthService = require(script.RebirthService)
 local RodVisual = require(script.RodVisual)
@@ -3412,6 +3451,7 @@ local ctx: any = {
 	Upgrades = UpgradeService,
 	Monetization = MonetizationService,
 	Policy = PolicyGuard,
+	Quests = QuestService,
 	RodVis = RodVisual,
 	Analytics = AnalyticsService,
 	Flex = FlexAura,
@@ -3449,6 +3489,7 @@ RebirthService.Init(ctx)
 UpgradeService.Init(ctx)
 ShopService.Init(ctx)
 StreakService.Init(ctx)
+QuestService.Init(ctx)
 MiningService.Init(ctx, map.Nodes)
 AreaService.SetOrigins(map.Origins)
 AreaService.Init(ctx)
@@ -3833,6 +3874,14 @@ local LOUD_MUTATIONS: { [string]: boolean } = { Abyssal = true, Moonlit = true }
 -- entry, or the name on the "rarest find" board. Shop, streak and starter-pack
 -- grants all diverged from the crack path before this was hoisted out.
 local function recordRarest(player: Player, data: any, baseName: string, mutName: string, value: number)
+	-- Daily objective, counted BEFORE the early return below: a Rare find is
+	-- still a Rare find on a day you already pulled something better, and only
+	-- crediting new personal records would make the quest stall for exactly the
+	-- players doing best at it.
+	local tierDef = Crystals.GetBase(baseName)
+	if tierDef and tierDef.Tier ~= "Common" and tierDef.Tier ~= "Uncommon" then
+		ctx.Quests.Report(player, "Rare", 1)
+	end
 	if value <= data.Stats.RarestValue then
 		return
 	end
@@ -3928,6 +3977,7 @@ local function rollOne(player: Player, data: any, kind: string): CrackedCrystal
 	local crystal = { Base = baseName, Mut = mutName, Size = size, Layer = layer }
 	data.Crystals[id] = crystal
 	data.Stats.GeodesCracked += 1
+	ctx.Quests.Report(player, "Chest", 1)
 
 	local key = Crystals.IndexKey(baseName, mutName)
 	local isNew = not data.Collection[key]
@@ -4090,6 +4140,7 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 	local crystal = { Base = baseName, Mut = mutName, Size = size, Layer = layer }
 	data.Crystals[id] = crystal
 	data.Stats.GeodesCracked += 1
+	ctx.Quests.Report(player, "Chest", 1)
 	local key = Crystals.IndexKey(baseName, mutName)
 	local isNew = not data.Collection[key]
 	if isNew then
@@ -4226,6 +4277,9 @@ local TEMPLATE = {
 	OwnedPasses = {} :: { [string]: boolean },
 	StarterPackOwned = false,
 	Stats = { GeodesMined = 0, GeodesCracked = 0, RarestValue = 0, RarestName = "" },
+	-- Daily objectives. Day is the same day number the streak uses, so both roll
+	-- over together and a player never has two different "days" running.
+	Quests = { Day = 0, Ids = {} :: { string }, Progress = {} :: { number }, Claimed = {} :: { boolean } },
 	Funnel = {} :: { [string]: boolean },
 	PityCracks = 0,
 	RareGiven = false,
@@ -4428,6 +4482,7 @@ local function buildSnapshot(player: Player, data: Profile): { [string]: any }
 		Boost2xUntil = data.Boosts.Coins2xUntil,
 		Stats = data.Stats,
 		Funnel = data.Funnel,
+		Quests = if ctx and ctx.Quests then ctx.Quests.Describe(data) else {},
 	}
 end
 
@@ -6527,11 +6582,201 @@ local function makeCabana(at: Vector3, wall: Color3, parent: Instance)
 	}, parent)
 end
 
+-- HERO LANDMARKS. One unmistakable silhouette per area, placed where you see it
+-- from the dock the moment you arrive.
+--
+-- Props establish a mood; a landmark establishes a PLACE. Nobody looks at a
+-- pastel hut and thinks "Florida" — they think "hut". But the Key West marker
+-- and the Catalina Casino are single shapes that name their coast outright, and
+-- a player who recognises one has been sold the area before the Dock Master ever
+-- quotes them a price.
+
+-- The Southernmost Point marker: a fat concrete drum in painted bands. It is
+-- the most photographed object in Key West and it is, fittingly, a buoy.
+local function makeSouthernmostMarker(at: Vector3, parent: Instance)
+	local bands: { { Color: Color3, Height: number } } = {
+		{ Color = Color3.fromRGB(28, 26, 30), Height = 2.2 },
+		{ Color = Color3.fromRGB(226, 224, 216), Height = 1.1 },
+		{ Color = Color3.fromRGB(196, 44, 40), Height = 2.6 },
+		{ Color = Color3.fromRGB(226, 224, 216), Height = 1.1 },
+		{ Color = Color3.fromRGB(236, 190, 46), Height = 2.4 },
+		{ Color = Color3.fromRGB(28, 26, 30), Height = 1.6 },
+	}
+	local y = 0
+	for _, band in bands do
+		local color, height = band.Color, band.Height
+		deco({
+			Name = "MarkerBand",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(height, 7.4, 7.4),
+			CFrame = CFrame.new(at + Vector3.new(0, y + height * 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = color,
+			Material = Enum.Material.Concrete,
+		}, parent).CanCollide = true
+		y += height
+	end
+	deco({
+		Name = "MarkerCap",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(7.4, 2.6, 7.4),
+		Position = at + Vector3.new(0, y, 0),
+		Color = Color3.fromRGB(28, 26, 30),
+		Material = Enum.Material.Concrete,
+	}, parent)
+	deco({
+		Name = "MarkerPlinth",
+		Size = Vector3.new(9.5, 0.8, 9.5),
+		Position = at + Vector3.new(0, 0.4, 0),
+		Color = Color3.fromRGB(198, 194, 186),
+		Material = Enum.Material.Concrete,
+	}, parent).CanCollide = true
+end
+
+-- The Catalina Casino: a round white ballroom under a red tile cone, standing on
+-- its own point over the water. THE silhouette of that island.
+local function makeCasino(at: Vector3, parent: Instance)
+	local WALL = Color3.fromRGB(238, 232, 216)
+	local TILE = Color3.fromRGB(168, 80, 56)
+	local radius = 15
+	local segments = 16
+	local height = 20
+	local chord = 2 * radius * math.sin(math.pi / segments) * 1.35
+	-- Drum wall, built as a ring of panels (Roblox has no cylinder shell).
+	for i = 1, segments do
+		local theta = (i - 1) / segments * math.pi * 2
+		deco({
+			Name = "CasinoWall",
+			Size = Vector3.new(chord, height, 1.4),
+			CFrame = CFrame.new(at + Vector3.new(math.cos(theta) * radius, height * 0.5, math.sin(theta) * radius))
+				* CFrame.Angles(0, -theta, 0),
+			Color = WALL,
+			Material = Enum.Material.Concrete,
+		}, parent).CanCollide = true
+		-- Arched windows round the gallery.
+		deco({
+			Name = "CasinoArch",
+			Size = Vector3.new(chord * 0.5, 5.5, 0.5),
+			CFrame = CFrame.new(at + Vector3.new(math.cos(theta) * (radius + 0.6), height * 0.62, math.sin(theta) * (radius + 0.6)))
+				* CFrame.Angles(0, -theta, 0),
+			Color = Color3.fromRGB(96, 118, 130),
+			Material = Enum.Material.Glass,
+			Transparency = 0.25,
+		}, parent)
+	end
+	-- The cone roof: stacked shrinking tiers of red tile.
+	local tiers = 7
+	for i = 1, tiers do
+		local t = (i - 1) / tiers
+		deco({
+			Name = "CasinoRoof",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(1.9, (radius * 2 + 3) * (1 - t * 0.9), (radius * 2 + 3) * (1 - t * 0.9)),
+			CFrame = CFrame.new(at + Vector3.new(0, height + 0.9 + i * 1.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = TILE:Lerp(Color3.fromRGB(206, 120, 90), t * 0.35),
+			Material = Enum.Material.Slate,
+		}, parent)
+	end
+	deco({
+		Name = "CasinoFinial",
+		Size = Vector3.new(1.2, 4, 1.2),
+		Position = at + Vector3.new(0, height + 14, 0),
+		Color = Color3.fromRGB(196, 176, 120),
+		Material = Enum.Material.Metal,
+	}, parent)
+	-- The breakwater it stands on.
+	deco({
+		Name = "CasinoPoint",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(3.5, radius * 2.6, radius * 2.6),
+		CFrame = CFrame.new(at + Vector3.new(0, -1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(150, 146, 136),
+		Material = Enum.Material.Rock,
+	}, parent).CanCollide = true
+end
+
+-- A moai. Easter Island is Polynesia's most recognisable export, and one giant
+-- stone head staring out to sea tells a player where they are instantly.
+local function makeMoai(at: Vector3, parent: Instance)
+	local STONE = Color3.fromRGB(128, 122, 108)
+	local heading = rng:NextNumber(-0.4, 0.4)
+	local facing = CFrame.new(at) * CFrame.Angles(0, heading, 0)
+	deco({
+		Name = "MoaiBody",
+		Size = Vector3.new(7, 12, 5),
+		CFrame = facing * CFrame.new(0, 6, 0),
+		Color = STONE,
+		Material = Enum.Material.Rock,
+	}, parent).CanCollide = true
+	-- The head: longer than it is wide, with the heavy jaw that defines a moai.
+	deco({
+		Name = "MoaiHead",
+		Size = Vector3.new(7.4, 11, 6),
+		CFrame = facing * CFrame.new(0, 17, 0.4),
+		Color = STONE:Lerp(Color3.new(1, 1, 1), 0.06),
+		Material = Enum.Material.Rock,
+	}, parent)
+	deco({
+		Name = "MoaiBrow",
+		Size = Vector3.new(7.6, 1.6, 1.4),
+		CFrame = facing * CFrame.new(0, 19.4, -2.6),
+		Color = STONE:Lerp(Color3.new(0, 0, 0), 0.3),
+		Material = Enum.Material.Rock,
+	}, parent)
+	for _, side in { -1, 1 } do
+		deco({
+			Name = "MoaiEye",
+			Size = Vector3.new(2.2, 1.5, 0.9),
+			CFrame = facing * CFrame.new(side * 1.8, 18.2, -2.9),
+			Color = Color3.fromRGB(60, 56, 54),
+			Material = Enum.Material.Slate,
+		}, parent)
+		deco({
+			Name = "MoaiEar",
+			Size = Vector3.new(1.1, 5.5, 2.2),
+			CFrame = facing * CFrame.new(side * 3.9, 16.5, 0.6),
+			Color = STONE,
+			Material = Enum.Material.Rock,
+		}, parent)
+	end
+	deco({
+		Name = "MoaiNose",
+		Size = Vector3.new(2.0, 4.4, 2.0),
+		CFrame = facing * CFrame.new(0, 17.2, -2.9),
+		Color = STONE:Lerp(Color3.new(1, 1, 1), 0.1),
+		Material = Enum.Material.Rock,
+	}, parent)
+	deco({
+		Name = "MoaiLip",
+		Size = Vector3.new(3.4, 1.0, 1.2),
+		CFrame = facing * CFrame.new(0, 14.2, -2.8),
+		Color = STONE:Lerp(Color3.new(0, 0, 0), 0.22),
+		Material = Enum.Material.Rock,
+	}, parent)
+	-- Pukao: the red topknot.
+	deco({
+		Name = "MoaiPukao",
+		Size = Vector3.new(5.4, 3.2, 5.0),
+		CFrame = facing * CFrame.new(0, 23.4, 0.6),
+		Color = Color3.fromRGB(150, 72, 54),
+		Material = Enum.Material.Rock,
+	}, parent)
+	deco({
+		Name = "MoaiPlinth",
+		Size = Vector3.new(11, 1.6, 8),
+		CFrame = facing * CFrame.new(0, 0.6, 0),
+		Color = Color3.fromRGB(104, 100, 92),
+		Material = Enum.Material.Slate,
+	}, parent).CanCollide = true
+end
+
 -- Place the area's culture pack. Shore props go on the beach (+Z of the dock
 -- head); anything in the water goes wide of the fishing arc so it frames the
 -- spots rather than standing in them.
 local function buildCulture(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
 	if index == 1 then
+		-- The hero landmark first: you should know what coast you are on before
+		-- you have looked at anything else.
+		makeSouthernmostMarker(Vector3.new(ox + 96, 0, oz + 44), parent)
 		-- FLORIDA KEYS MARINA: pastel cabanas along the sand.
 		local pastels = {
 			Color3.fromRGB(126, 206, 214),
@@ -6578,6 +6823,7 @@ local function buildCulture(index: number, theme: AreaTheme, ox: number, oz: num
 		-- SOUTHERN CALIFORNIA KELP COAST. Every species here is a Californian
 		-- animal, so this is Monterey/Catalina: a working pier, cannery sheds,
 		-- and otters asleep in the canopy.
+		makeCasino(Vector3.new(ox - 104, 0, oz - 30), parent)
 		makePier(Vector3.new(ox - 72, 0, oz - 6), 74, parent)
 		makePier(Vector3.new(ox + 72, 0, oz - 6), 58, parent)
 		local walls = { Color3.fromRGB(196, 190, 176), Color3.fromRGB(150, 158, 150), Color3.fromRGB(178, 166, 148) }
@@ -6600,6 +6846,8 @@ local function buildCulture(index: number, theme: AreaTheme, ox: number, oz: num
 		end
 	elseif index == 3 then
 		-- POLYNESIAN REEF: tiki totems on the sand, huts out over the water.
+		makeMoai(Vector3.new(ox + 92, 0, oz + 40), parent)
+		makeMoai(Vector3.new(ox - 100, 0, oz + 52), parent)
 		for i = 1, 5 do
 			makeTiki(
 				Vector3.new(ox - 80 + (i - 1) * 40, 0, oz + rng:NextNumber(46, 62)),
@@ -8094,6 +8342,12 @@ local function landCatch(spot: BasePart, state: SpotState, player: Player, quali
 		data.Geodes += chests
 	end
 	data.Stats.GeodesMined += caught
+	-- Daily objectives. Reported in bulk, because a good reel lands several fish
+	-- at once and counting that as one catch would make the quest feel broken.
+	ctx.Quests.Report(player, "Catch", #fish)
+	if quality >= 0.85 then
+		ctx.Quests.Report(player, "Perfect", 1)
+	end
 	ctx.Data.MarkDirty(player)
 	ctx.Analytics.FunnelStep(player, data, 1, "FirstGeode")
 
@@ -10847,6 +11101,230 @@ return PolicyGuard
       </Item>
       <Item class="ModuleScript" referent="29">
         <Properties>
+          <string name="Name">QuestService</string>
+          <string name="Source"><![CDATA[--!strict
+-- DAILY QUESTS: three things to do today.
+--
+-- The game already rewards you for playing. What it had no version of was a
+-- REASON to open the app — a small, finishable, visible list. That is the
+-- strongest honest retention lever a simulator has, and the one thing this one
+-- was missing: streaks reward the login, events reward being lucky enough to be
+-- online, but neither gives a returning player something to aim at.
+--
+-- Three rules this file keeps to, because the audience is largely children:
+--
+--   1. Every quest is something the player was going to do anyway. Naming it and
+--      paying for it is the whole design; inventing busywork is not.
+--   2. Nothing expires mid-session and nothing punishes a miss. Yesterday's
+--      unclaimed quests simply roll over into today's three.
+--   3. Nothing is finishable only by spending Robux. A quest a kid cannot
+--      complete without paying is an advert wearing a checklist's clothes.
+
+local Players = game:GetService("Players")
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Balance = require(Shared.Config.Balance)
+local Remotes = require(Shared.Remotes)
+
+local QuestService = {}
+
+local ctx: any = nil
+
+local function today(): number
+	-- The same boundary StreakService uses, so a player never has two different
+	-- "days" running at once.
+	return os.time() // 86400
+end
+
+-- Deterministic per (player, day): the same three quests survive a rejoin, a
+-- server hop and a crash. Rolling fresh on every load would let a player reroll
+-- an unwanted quest by rejoining, which turns a checklist into a slot machine.
+local function rollFor(userId: number, day: number): { string }
+	local rng = Random.new(userId * 1000003 + day)
+	local pool = table.clone(Balance.QuestPool)
+	local picked: { string } = {}
+	-- Sample without replacement so a player never gets the same quest twice.
+	for _ = 1, math.min(Balance.QuestCount, #pool) do
+		local index = rng:NextInteger(1, #pool)
+		table.insert(picked, pool[index].Id)
+		table.remove(pool, index)
+	end
+	return picked
+end
+
+local function defOf(id: string): Balance.QuestDef?
+	for _, def in Balance.QuestPool do
+		if def.Id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+-- Reward scales with the deepest water the player has unlocked, so a day-30
+-- player's quests stay worth doing without a day-1 player's being unfinishable.
+local function rewardFor(def: Balance.QuestDef, data: any): number
+	local layer = math.clamp(data.AreaUnlocked or 1, 1, Balance.MaxLayer)
+	local scaled = Balance.QuestRewardBase * Balance.QuestRewardPerLayer ^ (layer - 1)
+	return math.floor(scaled * def.Reward)
+end
+
+-- Roll today's list if the stored one is stale. Safe to call on every report.
+local function refresh(data: any, userId: number): boolean
+	local day = today()
+	local quests = data.Quests
+	if quests.Day == day and #quests.Ids > 0 then
+		return false
+	end
+	quests.Day = day
+	quests.Ids = rollFor(userId, day)
+	quests.Progress = {}
+	quests.Claimed = {}
+	for index = 1, #quests.Ids do
+		quests.Progress[index] = 0
+		quests.Claimed[index] = false
+	end
+	return true
+end
+
+function QuestService.Refresh(player: Player)
+	local data = ctx.Data.Get(player)
+	if not data then
+		return
+	end
+	if refresh(data, player.UserId) then
+		ctx.Data.MarkDirty(player)
+		ctx.Data.PushState(player)
+	end
+end
+
+-- Called from the gameplay services when something quest-worthy happens.
+-- `amount` may be more than one: a good reel lands several fish at once, and
+-- counting that as one catch would make the quest feel broken.
+function QuestService.Report(player: Player, kind: string, amount: number)
+	if amount <= 0 then
+		return
+	end
+	local data = ctx.Data.Get(player)
+	if not data or not data.Quests then
+		return
+	end
+	refresh(data, player.UserId)
+
+	local changed = false
+	for index, id in data.Quests.Ids do
+		local def = defOf(id)
+		if def and def.Kind == kind and not data.Quests.Claimed[index] then
+			local current = data.Quests.Progress[index] or 0
+			if current < def.Target then
+				data.Quests.Progress[index] = math.min(current + amount, def.Target)
+				changed = true
+				-- Tell them the moment it completes, not when they next open the
+				-- panel. A finished quest nobody noticed is a wasted reward.
+				if data.Quests.Progress[index] >= def.Target then
+					Remotes.Event("Notify"):FireClient(player, {
+						Text = "QUEST DONE! " .. def.Text:format(def.Target) .. " — claim it!",
+						Color = Color3.fromRGB(255, 214, 90),
+					})
+				end
+			end
+		end
+	end
+	if changed then
+		ctx.Data.MarkDirty(player)
+		ctx.Data.PushState(player)
+	end
+end
+
+function QuestService.Claim(player: Player, index: number): (boolean, string?)
+	local data = ctx.Data.Get(player)
+	if not data or not data.Quests then
+		return false, "Loading..."
+	end
+	refresh(data, player.UserId)
+	local id = data.Quests.Ids[index]
+	local def = if id then defOf(id) else nil
+	if not def then
+		return false, "No such quest."
+	end
+	if data.Quests.Claimed[index] then
+		return false, "Already claimed."
+	end
+	if (data.Quests.Progress[index] or 0) < def.Target then
+		return false, "Not finished yet."
+	end
+
+	data.Quests.Claimed[index] = true
+	local reward = rewardFor(def, data)
+	-- applyMult false: quest pay is a flat, predictable reward. Running it
+	-- through the coin multiplier would make the same checklist pay wildly
+	-- different amounts either side of a Set Sail, which reads as a bug.
+	ctx.Data.AddCoins(player, reward, false)
+	ctx.Data.MarkDirty(player)
+	ctx.Data.PushState(player)
+	Remotes.Event("Notify"):FireClient(player, {
+		Text = ("+%d coins — quest complete!"):format(reward),
+		Color = Color3.fromRGB(255, 214, 90),
+	})
+	return true, nil
+end
+
+-- What the client needs to draw the panel: text, progress, target, reward.
+function QuestService.Describe(data: any): { any }
+	if not data or not data.Quests then
+		return {}
+	end
+	local list = {}
+	for index, id in data.Quests.Ids do
+		local def = defOf(id)
+		if def then
+			table.insert(list, {
+				Text = def.Text:format(def.Target),
+				Progress = math.min(data.Quests.Progress[index] or 0, def.Target),
+				Target = def.Target,
+				Claimed = data.Quests.Claimed[index] == true,
+				Reward = rewardFor(def, data),
+				Index = index,
+			})
+		end
+	end
+	return list
+end
+
+function QuestService.Init(serviceCtx: any)
+	ctx = serviceCtx
+
+	Remotes.Function("ClaimQuest").OnServerInvoke = function(player, index)
+		if typeof(index) ~= "number" then
+			return false, "Bad request."
+		end
+		return QuestService.Claim(player, math.floor(index))
+	end
+
+	-- Roll over for anyone who stays online across the daily boundary, so a
+	-- player who never logs out still gets tomorrow's list.
+	task.spawn(function()
+		local lastDay = today()
+		while true do
+			task.wait(60)
+			local day = today()
+			if day ~= lastDay then
+				lastDay = day
+				for _, player in Players:GetPlayers() do
+					QuestService.Refresh(player)
+				end
+			end
+		end
+	end)
+end
+
+return QuestService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="30">
+        <Properties>
           <string name="Name">RackService</string>
           <string name="Source"><![CDATA[--!strict
 -- Growth racks: socketed crystals produce coins and grow in size over time,
@@ -11020,7 +11498,7 @@ return RackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[--!strict
@@ -11106,7 +11584,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">RodVisual</string>
           <string name="Source"><![CDATA[--!strict
@@ -11617,7 +12095,7 @@ return RodVisual
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[--!strict
@@ -11863,7 +12341,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">Spotlight</string>
           <string name="Source"><![CDATA[--!strict
@@ -11928,7 +12406,7 @@ return Spotlight
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -12023,7 +12501,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[--!strict
@@ -12098,16 +12576,16 @@ return UpgradeService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="36">
+  <Item class="StarterPlayer" referent="37">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterWalkSpeed">20</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="37">
+    <Item class="StarterPlayerScripts" referent="38">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="38">
+      <Item class="LocalScript" referent="39">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -12149,6 +12627,7 @@ local StoreScreen = require(script.Screens.StoreScreen)
 local IndexScreen = require(script.Screens.IndexScreen)
 local RebirthScreen = require(script.Screens.RebirthScreen)
 local DockScreen = require(script.Screens.DockScreen)
+local QuestsScreen = require(script.Screens.QuestsScreen)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -12177,6 +12656,7 @@ StoreScreen.Init(gui)
 IndexScreen.Init(gui)
 RebirthScreen.Init(gui)
 DockScreen.Init(gui)
+QuestsScreen.Init(gui)
 
 -- Walking up to a station and triggering its prompt opens the matching screen.
 local STATION_SCREENS: { [string]: string } = {
@@ -12198,7 +12678,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt)
 end)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">AquariumView</string>
             <string name="Source"><![CDATA[--!strict
@@ -12457,7 +12937,7 @@ return AquariumView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">FlexAura</string>
             <string name="Source"><![CDATA[--!strict
@@ -12601,7 +13081,7 @@ return FlexAura
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">GemView</string>
             <string name="Source"><![CDATA[--!strict
@@ -12751,7 +13231,7 @@ return GemView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -12911,6 +13391,7 @@ function Hud.Init(gui: ScreenGui)
 		{ Label = "Open", Screen = "Crack", Color = Color3.fromRGB(255, 170, 40) },
 		{ Label = "Aquarium", Screen = "Racks", Color = Color3.fromRGB(120, 255, 200) },
 		{ Label = "Shop", Screen = "Shop", Color = Color3.fromRGB(120, 170, 255) },
+		{ Label = "Quests", Screen = "Quests", Color = Color3.fromRGB(255, 214, 90) },
 		{ Label = "Index", Screen = "Index", Color = Color3.fromRGB(190, 90, 255) },
 		{ Label = "Areas", Screen = "Dock", Color = Color3.fromRGB(120, 200, 255) },
 		{ Label = "Set Sail", Screen = "Rebirth", Color = Color3.fromRGB(255, 120, 255) },
@@ -13159,7 +13640,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">MiningInput</string>
             <string name="Source"><![CDATA[--!strict
@@ -13342,7 +13823,7 @@ return MiningInput
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">ObjectiveBanner</string>
             <string name="Source"><![CDATA[--!strict
@@ -13436,7 +13917,7 @@ return ObjectiveBanner
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -13475,7 +13956,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">RebirthFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -13664,7 +14145,7 @@ return RebirthFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">ReelMinigame</string>
             <string name="Source"><![CDATA[--!strict
@@ -13958,7 +14439,7 @@ return ReelMinigame
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -14477,7 +14958,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -14534,11 +15015,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="50">
+        <Item class="Folder" referent="51">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="52">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -15178,7 +15659,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">DockScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -15329,7 +15810,7 @@ return DockScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="53">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -15479,7 +15960,175 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="54">
+          <Item class="ModuleScript" referent="55">
+            <Properties>
+              <string name="Name">QuestsScreen</string>
+              <string name="Source"><![CDATA[--!strict
+-- Today's three objectives, with a progress bar each and a claim button.
+--
+-- The bar is the point. A number ("12 / 25") tells you where you are; a bar
+-- that is two-thirds full tells you you are nearly there, which is the thing
+-- that gets one more cast out of somebody. Everything else on this screen is
+-- deliberately quiet so the bars carry it.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Remotes = require(Shared.Remotes)
+local ScreenManager = require(script.Parent.Parent.ScreenManager)
+local State = require(script.Parent.Parent.State)
+local UiKit = require(script.Parent.Parent.UiKit)
+
+local QuestsScreen = {}
+
+local list: Frame? = nil
+local subtitle: TextLabel? = nil
+
+local function render()
+	local state = State.Get()
+	local holder = list
+	if not state or not holder then
+		return
+	end
+	UiKit.Clear(holder)
+
+	local quests = state.Quests or {}
+	local done = 0
+	for _, quest in quests do
+		if quest.Claimed then
+			done += 1
+		end
+	end
+	if subtitle then
+		subtitle.Text = ("%d / %d claimed today — they reset tomorrow"):format(done, #quests)
+	end
+
+	for order, quest in quests do
+		local ready = quest.Progress >= quest.Target and not quest.Claimed
+		local row = UiKit.Create("Frame", {
+			BackgroundColor3 = if quest.Claimed then UiKit.Colors.Bg else UiKit.Colors.BgLighter,
+			Size = UDim2.new(1, 0, 0, 74),
+			LayoutOrder = order,
+			Parent = holder,
+		})
+		UiKit.Corner(10).Parent = row
+		if ready then
+			-- Only the claimable one gets an outline. Three highlighted rows
+			-- highlight nothing.
+			UiKit.Stroke(UiKit.Colors.Accent, 2).Parent = row
+		end
+
+		UiKit.Label({
+			Text = quest.Text,
+			Font = Enum.Font.GothamBold,
+			TextColor3 = if quest.Claimed then UiKit.Colors.TextDim else UiKit.Colors.Text,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Size = UDim2.new(1, -140, 0, 24),
+			Position = UDim2.fromOffset(12, 8),
+			Parent = row,
+		})
+
+		-- Progress track and fill.
+		local track = UiKit.Create("Frame", {
+			BackgroundColor3 = UiKit.Colors.Bg,
+			Size = UDim2.new(1, -150, 0, 16),
+			Position = UDim2.fromOffset(12, 40),
+			Parent = row,
+		})
+		UiKit.Corner(8).Parent = track
+		local fraction = if quest.Target > 0 then math.clamp(quest.Progress / quest.Target, 0, 1) else 0
+		local fill = UiKit.Create("Frame", {
+			BackgroundColor3 = if quest.Claimed then UiKit.Colors.TextDim else UiKit.Colors.Good,
+			Size = UDim2.fromScale(fraction, 1),
+			Parent = track,
+		})
+		UiKit.Corner(8).Parent = fill
+		UiKit.Label({
+			Text = ("%d / %d"):format(quest.Progress, quest.Target),
+			Font = Enum.Font.GothamBold,
+			TextColor3 = UiKit.Colors.Text,
+			Size = UDim2.fromScale(1, 1),
+			ZIndex = 3,
+			Parent = track,
+		})
+
+		if quest.Claimed then
+			UiKit.Label({
+				Text = "CLAIMED",
+				Font = Enum.Font.FredokaOne,
+				TextColor3 = UiKit.Colors.TextDim,
+				Size = UDim2.fromOffset(120, 40),
+				Position = UDim2.new(1, -132, 0, 17),
+				Parent = row,
+			})
+		else
+			local button = UiKit.Create("TextButton", {
+				Text = if ready then ("CLAIM %d"):format(quest.Reward) else ("%d coins"):format(quest.Reward),
+				Font = Enum.Font.FredokaOne,
+				TextScaled = true,
+				TextColor3 = if ready then Color3.fromRGB(28, 24, 20) else UiKit.Colors.TextDim,
+				BackgroundColor3 = if ready then UiKit.Colors.Accent else UiKit.Colors.Bg,
+				Size = UDim2.fromOffset(120, 40),
+				Position = UDim2.new(1, -132, 0, 17),
+				Parent = row,
+			})
+			UiKit.Corner(10).Parent = button
+			UiKit.Pad(6).Parent = button
+			button.Active = ready
+			button.AutoButtonColor = ready
+			if ready then
+				local index = quest.Index
+				button.Activated:Connect(function()
+					button.Active = false
+					Remotes.Function("ClaimQuest"):InvokeServer(index)
+				end)
+			end
+		end
+	end
+
+	local layout = holder:FindFirstChildOfClass("UIListLayout")
+	if layout and holder:IsA("ScrollingFrame") then
+		holder.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 10)
+	end
+end
+
+function QuestsScreen.Init(gui: ScreenGui)
+	local panel, content, close = UiKit.Panel(gui, "Today's Catch List", UDim2.fromScale(0.6, 0.62))
+
+	subtitle = UiKit.Label({
+		Text = "",
+		TextColor3 = UiKit.Colors.Good,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, 0, 0, 26),
+		Parent = content,
+	}) :: TextLabel
+
+	local holder = UiKit.Create("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 1, -34),
+		Position = UDim2.fromOffset(0, 34),
+		Parent = content,
+	}) :: Frame
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 8)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = holder
+	list = holder
+
+	-- Register wires the close button itself; the fourth argument runs on open.
+	ScreenManager.Register("Quests", panel, close, render)
+	State.Changed:Connect(function()
+		if panel.Visible then
+			render()
+		end
+	end)
+end
+
+return QuestsScreen
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="56">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -15771,7 +16420,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -15869,7 +16518,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -16141,7 +16790,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="59">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -16323,7 +16972,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="58">
+        <Item class="ModuleScript" referent="60">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -16370,7 +17019,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="59">
+        <Item class="ModuleScript" referent="61">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -16722,7 +17371,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="60">
+        <Item class="ModuleScript" referent="62">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -16882,7 +17531,7 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="61">
+        <Item class="ModuleScript" referent="63">
           <Properties>
             <string name="Name">WorldFx</string>
             <string name="Source"><![CDATA[--!strict

@@ -47,6 +47,14 @@ local LOUD_MUTATIONS: { [string]: boolean } = { Abyssal = true, Moonlit = true }
 -- entry, or the name on the "rarest find" board. Shop, streak and starter-pack
 -- grants all diverged from the crack path before this was hoisted out.
 local function recordRarest(player: Player, data: any, baseName: string, mutName: string, value: number)
+	-- Daily objective, counted BEFORE the early return below: a Rare find is
+	-- still a Rare find on a day you already pulled something better, and only
+	-- crediting new personal records would make the quest stall for exactly the
+	-- players doing best at it.
+	local tierDef = Crystals.GetBase(baseName)
+	if tierDef and tierDef.Tier ~= "Common" and tierDef.Tier ~= "Uncommon" then
+		ctx.Quests.Report(player, "Rare", 1)
+	end
 	if value <= data.Stats.RarestValue then
 		return
 	end
@@ -142,6 +150,7 @@ local function rollOne(player: Player, data: any, kind: string): CrackedCrystal
 	local crystal = { Base = baseName, Mut = mutName, Size = size, Layer = layer }
 	data.Crystals[id] = crystal
 	data.Stats.GeodesCracked += 1
+	ctx.Quests.Report(player, "Chest", 1)
 
 	local key = Crystals.IndexKey(baseName, mutName)
 	local isNew = not data.Collection[key]
@@ -304,6 +313,7 @@ function CrackService.RollWithLuck(player: Player, luckMult: number): CrackedCry
 	local crystal = { Base = baseName, Mut = mutName, Size = size, Layer = layer }
 	data.Crystals[id] = crystal
 	data.Stats.GeodesCracked += 1
+	ctx.Quests.Report(player, "Chest", 1)
 	local key = Crystals.IndexKey(baseName, mutName)
 	local isNew = not data.Collection[key]
 	if isNew then
