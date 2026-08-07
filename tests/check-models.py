@@ -64,6 +64,39 @@ def check_fish(config: Path, shapes: Path) -> list[str]:
     return problems
 
 
+def check_meshes(config: Path, meshes: Path) -> list[str]:
+    """Mesh overrides must name something that exists.
+
+    Config/Meshes.luau is hand-edited while working through an upload list, and
+    a typo'd species name is silent: the override simply never applies and the
+    primitive model keeps rendering, so it looks like the upload failed. An
+    asset id of 0 is worse - it renders an untextured blank where a fish was.
+    """
+    text = meshes.read_text()
+    names = set(re.findall(r'\{ Name = "([^"]+)", Kind = "(?:Fish|Relic)"', config.read_text()))
+    problems = []
+    total = 0
+    for table, kind in (("Fish", "fish"), ("Relic", "relic")):
+        try:
+            body = text[text.index(f"Meshes.{table} = {{"):]
+            body = body[: body.index("\n") if body.startswith(f"Meshes.{table} = {{}}") else body.index("\n}")]
+        except ValueError:
+            continue
+        for name, rest in re.findall(r'\["([^"]+)"\]\s*=\s*\{([^}]*)\}', body):
+            total += 1
+            if name not in names:
+                problems.append(
+                    f"  mesh override for {kind} {name!r} names nothing in Crystals.luau "
+                    f"(the override would silently never apply)"
+                )
+            asset = re.search(r"Mesh\s*=\s*(\d+)", rest)
+            if not asset or int(asset.group(1)) <= 0:
+                problems.append(f"  mesh override for {name!r} has no valid Mesh asset id")
+    if total:
+        print(f"  {total} mesh overrides, all naming real collectibles")
+    return problems
+
+
 def check(game: Path) -> list[str]:
     config = game / "src/shared/Config/Crystals.luau"
     problems = []
@@ -75,6 +108,9 @@ def check(game: Path) -> list[str]:
         problems += check_relics(config, relics)
     if fish.exists():
         problems += check_fish(config, fish)
+    meshes = game / "src/shared/Config/Meshes.luau"
+    if meshes.exists():
+        problems += check_meshes(config, meshes)
     return problems
 
 

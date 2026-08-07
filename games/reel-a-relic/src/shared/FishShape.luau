@@ -26,6 +26,9 @@
 -- eels, rays, a seahorse, a squid, an octopus, an isopod, a flatfish — get their
 -- own builder, because no amount of stretching an ellipsoid makes a manta ray.
 
+local MeshBuild = require(script.Parent.MeshBuild)
+local Meshes = require(script.Parent.Config.Meshes)
+
 local FishShape = {}
 
 export type Options = {
@@ -1527,6 +1530,15 @@ function FishShape.Build(options: Options): Model
 	local rng = Random.new(options.Seed or 5)
 	local color = options.Color
 	local profile = (if options.Name then PROFILES[options.Name] else nil) or FALLBACK
+
+	-- An uploaded mesh wins if one exists for this species. Per-species, not
+	-- all-or-nothing: six uploaded fish and twenty-seven primitive ones is a
+	-- perfectly good state to ship in, and the state you are in while working
+	-- through the list. See Config/Meshes.
+	local override = Meshes.ForFish(options.Name)
+	if override then
+		return MeshBuild.Build(override, options.Name or "Fish", color, scale, options.Glow)
+	end
 
 	local ctx: Ctx = {
 		Model = model,

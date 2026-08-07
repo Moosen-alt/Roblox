@@ -11,6 +11,9 @@
 -- Everything is built upright and facing +Z, because that is where the viewport
 -- camera and the billboard over a player's head both look from.
 
+local MeshBuild = require(script.Parent.MeshBuild)
+local Meshes = require(script.Parent.Config.Meshes)
+
 local RelicShape = {}
 
 export type Options = {
@@ -251,6 +254,14 @@ local function buildFallback(model: Model, color: Color3)
 end
 
 function RelicShape.Build(options: Options): Model
+	-- An uploaded mesh wins if one exists for this relic. Per-relic, not
+	-- all-or-nothing, so a partly-uploaded set is a valid state to ship in.
+	-- See Config/Meshes.
+	local override = Meshes.ForRelic(options.Name)
+	if override then
+		return MeshBuild.Build(override, options.Name, options.Color, options.Scale or 1, options.Glow)
+	end
+
 	local model = Instance.new("Model")
 	model.Name = "Relic"
 
