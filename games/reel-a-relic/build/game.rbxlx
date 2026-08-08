@@ -3809,7 +3809,15 @@ local Meshes = require(script.Parent.Config.Meshes)
 local WorldBuild = {}
 
 export type Placement = {
+	-- HOW BIG, by whichever dimension actually defines the thing.
+	--
+	-- Height is the right handle for almost everything: a spire, a boulder, a
+	-- tree. It is the wrong handle for anything long and low, because scale is
+	-- uniform — a bridge nineteen times wider than it is tall, asked to stand
+	-- eleven studs, comes out two hundred and ten studs long and spans the whole
+	-- cavern. Give those a Span instead and the height follows from it.
 	Height: number, -- how tall it should stand, in studs
+	Span: number?, -- if set, its LONGEST horizontal dimension instead; wins over Height
 	Position: Vector3, -- where its BASE goes; Y is the ground it rests on
 	Yaw: number?, -- degrees around Y. Free variety: these read the same all round.
 	Sink: number?, -- studs to bury, for things half-swallowed by sand or rock
@@ -3833,7 +3841,9 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 	local model = Instance.new("Model")
 	model.Name = name
 
-	local k = (place.Height / size.Y) * (def.Scale or 1)
+	local k = if place.Span
+		then (place.Span / math.max(size.X, size.Z, 0.001)) * (def.Scale or 1)
+		else (place.Height / size.Y) * (def.Scale or 1)
 
 	local part = Instance.new("Part")
 	part.Name = "Body"
@@ -5713,6 +5723,10 @@ type PropPlan = {
 	Min: number, -- shortest, in studs
 	Max: number, -- tallest
 	Zone: string, -- Shore | Floor | Surface | Dock
+	-- Min/Max mean HEIGHT unless this says "Span", in which case they mean the
+	-- longest horizontal dimension. A bridge is defined by how far it reaches,
+	-- not by how tall it is; sized by height it comes out longer than the beach.
+	Fit: string?,
 	Sink: number?, -- studs to bury, for things growing out of sand or rock
 	Glow: number?, -- PointLight range, for the ones that light the dark
 }
@@ -5799,7 +5813,7 @@ local AREA_THEMES: { AreaTheme } = {
 			{ Name = "Trench Basalt Spires", Count = 8, Min = 12, Max = 22, Zone = "Floor", Sink = 1 },
 			{ Name = "Trench Boulder", Count = 8, Min = 3.5, Max = 6, Zone = "Floor", Sink = 0.6 },
 			{ Name = "Hydrothermal Vent Cluster", Count = 6, Min = 4, Max = 6, Zone = "Floor", Glow = 18 },
-			{ Name = "Broken Metal Bridge", Count = 3, Min = 6, Max = 9, Zone = "Shore" },
+			{ Name = "Broken Metal Bridge", Count = 3, Min = 22, Max = 30, Zone = "Shore", Fit = "Span" },
 			{ Name = "Can Buoy", Count = 5, Min = 2, Max = 2.8, Zone = "Surface" },
 			{ Name = "Metal Dock Segment", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
 		},
@@ -7712,6 +7726,7 @@ local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: In
 
 			local model = WorldBuild.Build(plan.Name, {
 				Height = height,
+				Span = if plan.Fit == "Span" then height else nil,
 				Position = at,
 				-- Free rotation. These read the same from every side, so turning
 				-- each one is the cheapest way to stop eight copies of a boulder

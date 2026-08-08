@@ -34,6 +34,11 @@ type PropPlan = {
 	Min: number,
 	Max: number,
 	Zone: string, -- Flank | Back | Front | Ceiling | Float | Hero
+	-- Min/Max mean HEIGHT unless this says "Span", in which case they mean the
+	-- longest horizontal dimension. Bridges and ceiling strips are defined by
+	-- how far they reach, not by how tall they are, and sizing them by height
+	-- makes them hundreds of studs long — wider than the cavern they sit in.
+	Fit: string?,
 	Glow: number?,
 }
 
@@ -55,7 +60,7 @@ local LAYER_THEMES: { { PropPlan } } = {
 		{ Name = "Ruined Stone Arch", Count = 3, Min = 14, Max = 20, Zone = "Back" },
 		{ Name = "Old Mine Support", Count = 8, Min = 10, Max = 15, Zone = "Flank" },
 		{ Name = "Mine Boulder", Count = 7, Min = 4, Max = 9, Zone = "Flank" },
-		{ Name = "Broken Plank Bridge", Count = 2, Min = 8, Max = 11, Zone = "Front" },
+		{ Name = "Broken Plank Bridge", Count = 2, Min = 26, Max = 34, Zone = "Front", Fit = "Span" },
 		{ Name = "Amber Cluster", Count = 5, Min = 5, Max = 9, Zone = "Float", Glow = 24 },
 	},
 	{ -- 3 Frost Hollow — the first layer that is actively hostile. Ice above.
@@ -63,7 +68,7 @@ local LAYER_THEMES: { { PropPlan } } = {
 		{ Name = "Frozen Arch", Count = 3, Min = 14, Max = 20, Zone = "Back" },
 		{ Name = "Ice Spire Cluster", Count = 7, Min = 8, Max = 16, Zone = "Flank" },
 		{ Name = "Frost Boulder", Count = 6, Min = 4, Max = 9, Zone = "Flank" },
-		{ Name = "Icicle Ceiling Strip", Count = 9, Min = 7, Max = 14, Zone = "Ceiling" },
+		{ Name = "Icicle Ceiling Strip", Count = 9, Min = 14, Max = 24, Zone = "Ceiling", Fit = "Span" },
 		{ Name = "Ice Crystal Cluster", Count = 5, Min = 5, Max = 9, Zone = "Float", Glow = 22 },
 	},
 	{ -- 4 Ember Rift — heat. Everything glows from below rather than above.
@@ -71,7 +76,7 @@ local LAYER_THEMES: { { PropPlan } } = {
 		{ Name = "Basalt Spire Cluster", Count = 7, Min = 9, Max = 18, Zone = "Flank" },
 		{ Name = "Lava Fissure Rock", Count = 7, Min = 4, Max = 9, Zone = "Flank", Glow = 18 },
 		{ Name = "Hydrothermal Vent", Count = 5, Min = 7, Max = 12, Zone = "Front", Glow = 20 },
-		{ Name = "Broken Rift Bridge", Count = 2, Min = 8, Max = 11, Zone = "Front" },
+		{ Name = "Broken Rift Bridge", Count = 2, Min = 26, Max = 34, Zone = "Front", Fit = "Span" },
 		{ Name = "Ember Crystal Cluster", Count = 5, Min = 5, Max = 9, Zone = "Float", Glow = 26 },
 	},
 	{ -- 5 Starfall Core — the end of the authored run, so it gets to be strange.
@@ -131,21 +136,23 @@ local function placeIn(zone: string, rng: Random, height: number): (Vector3, num
 		-- The corners either side of the mine wall. Never in front of it: the
 		-- wall is the game.
 		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		return Vector3.new(side * rng:NextNumber(52, 98), FLOOR, rng:NextNumber(-62, -34)), nil
+		return Vector3.new(side * rng:NextNumber(50, 84), FLOOR, rng:NextNumber(-56, -38)), nil
 	elseif zone == "Flank" then
 		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		return Vector3.new(side * rng:NextNumber(56, 100), FLOOR, rng:NextNumber(-30, 62)), nil
+		return Vector3.new(side * rng:NextNumber(56, 92), FLOOR, rng:NextNumber(-28, 58)), nil
 	elseif zone == "Front" then
-		return Vector3.new(rng:NextNumber(-96, 96), FLOOR, rng:NextNumber(56, 70)), nil
+		-- Off to both sides of the Recrystallize pad rather than across it.
+		local side = if rng:NextNumber() < 0.5 then -1 else 1
+		return Vector3.new(side * rng:NextNumber(34, 80), FLOOR, rng:NextNumber(46, 56)), nil
 	elseif zone == "Ceiling" then
 		-- Sink by the model's own height hangs it from the ceiling rather than
 		-- standing it on one: the base drops a full height below the anchor, so
 		-- the top ends up flush with the rock.
-		return Vector3.new(rng:NextNumber(-98, 98), CEILING, rng:NextNumber(-60, 68)), height
+		return Vector3.new(rng:NextNumber(-88, 88), CEILING, rng:NextNumber(-54, 60)), height
 	end
 	-- Float: up in the air, out over the flanks.
 	local side = if rng:NextNumber() < 0.5 then -1 else 1
-	return Vector3.new(side * rng:NextNumber(50, 96), rng:NextNumber(12, 30), rng:NextNumber(-46, 60)), nil
+	return Vector3.new(side * rng:NextNumber(50, 86), rng:NextNumber(12, 30), rng:NextNumber(-44, 56)), nil
 end
 
 local function build(layer: number)
@@ -167,6 +174,7 @@ local function build(layer: number)
 			local at, sink = placeIn(plan.Zone, rng, height)
 			local model = WorldBuild.Build(plan.Name, {
 				Height = height,
+				Span = if plan.Fit == "Span" then height else nil,
 				Position = at,
 				Yaw = rng:NextNumber(0, 360),
 				Sink = sink,

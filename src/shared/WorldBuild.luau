@@ -29,7 +29,15 @@ local Meshes = require(script.Parent.Config.Meshes)
 local WorldBuild = {}
 
 export type Placement = {
+	-- HOW BIG, by whichever dimension actually defines the thing.
+	--
+	-- Height is the right handle for almost everything: a spire, a boulder, a
+	-- tree. It is the wrong handle for anything long and low, because scale is
+	-- uniform — a bridge nineteen times wider than it is tall, asked to stand
+	-- eleven studs, comes out two hundred and ten studs long and spans the whole
+	-- cavern. Give those a Span instead and the height follows from it.
 	Height: number, -- how tall it should stand, in studs
+	Span: number?, -- if set, its LONGEST horizontal dimension instead; wins over Height
 	Position: Vector3, -- where its BASE goes; Y is the ground it rests on
 	Yaw: number?, -- degrees around Y. Free variety: these read the same all round.
 	Sink: number?, -- studs to bury, for things half-swallowed by sand or rock
@@ -53,7 +61,9 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 	local model = Instance.new("Model")
 	model.Name = name
 
-	local k = (place.Height / size.Y) * (def.Scale or 1)
+	local k = if place.Span
+		then (place.Span / math.max(size.X, size.Z, 0.001)) * (def.Scale or 1)
+		else (place.Height / size.Y) * (def.Scale or 1)
 
 	local part = Instance.new("Part")
 	part.Name = "Body"

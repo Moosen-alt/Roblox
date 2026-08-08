@@ -68,6 +68,10 @@ type PropPlan = {
 	Min: number, -- shortest, in studs
 	Max: number, -- tallest
 	Zone: string, -- Shore | Floor | Surface | Dock
+	-- Min/Max mean HEIGHT unless this says "Span", in which case they mean the
+	-- longest horizontal dimension. A bridge is defined by how far it reaches,
+	-- not by how tall it is; sized by height it comes out longer than the beach.
+	Fit: string?,
 	Sink: number?, -- studs to bury, for things growing out of sand or rock
 	Glow: number?, -- PointLight range, for the ones that light the dark
 }
@@ -154,7 +158,7 @@ local AREA_THEMES: { AreaTheme } = {
 			{ Name = "Trench Basalt Spires", Count = 8, Min = 12, Max = 22, Zone = "Floor", Sink = 1 },
 			{ Name = "Trench Boulder", Count = 8, Min = 3.5, Max = 6, Zone = "Floor", Sink = 0.6 },
 			{ Name = "Hydrothermal Vent Cluster", Count = 6, Min = 4, Max = 6, Zone = "Floor", Glow = 18 },
-			{ Name = "Broken Metal Bridge", Count = 3, Min = 6, Max = 9, Zone = "Shore" },
+			{ Name = "Broken Metal Bridge", Count = 3, Min = 22, Max = 30, Zone = "Shore", Fit = "Span" },
 			{ Name = "Can Buoy", Count = 5, Min = 2, Max = 2.8, Zone = "Surface" },
 			{ Name = "Metal Dock Segment", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
 		},
@@ -2067,6 +2071,7 @@ local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: In
 
 			local model = WorldBuild.Build(plan.Name, {
 				Height = height,
+				Span = if plan.Fit == "Span" then height else nil,
 				Position = at,
 				-- Free rotation. These read the same from every side, so turning
 				-- each one is the cheapest way to stop eight copies of a boulder
