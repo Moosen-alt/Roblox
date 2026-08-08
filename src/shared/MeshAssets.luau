@@ -32,6 +32,16 @@ local MeshAssets = {}
 
 MeshAssets.FOLDER = "MeshAssets"
 
+-- THE ROLLOUT SWITCH. false = the game renders entirely from its primitive
+-- builders, exactly as it did before the mesh pack existed — that is the point
+-- of every builder having a fallback. The first attempt at turning the pack on
+-- shipped every defect at once — buried props, a grey geode in two
+-- interpenetrating halves, boulders in the walkway — because nothing could be
+-- seen in isolation before it was live. Turn this back on deliberately: one
+-- kind at a time, looked at in Studio or a test server first, not by pushing
+-- and hoping.
+MeshAssets.ENABLED = false
+
 -- Kind and name, flattened, because "Prop/ChestBase" and "World/ChestBase" are
 -- allowed to be different things.
 function MeshAssets.Key(kind: string, name: string): string
@@ -53,6 +63,9 @@ end
 -- Never returns the stored original: callers parent what they get into the
 -- world, and handing out the template would empty the library on first use.
 function MeshAssets.Clone(kind: string, name: string): Model?
+	if not MeshAssets.ENABLED then
+		return nil
+	end
 	local holder = folder()
 	if not holder then
 		return nil

@@ -149,11 +149,16 @@ function ChestView.Create(parent: Instance, position: UDim2, size: UDim2, tint: 
 	-- looks like it is dissolving; a real lid pivots on the back top edge. So
 	-- the rotation happens about the hinge point and the lid is carried around
 	-- it, rather than the lid being spun in place.
+	--
+	-- The BACK edge is +Z: the camera below sits on -Z, so -Z is the chest's
+	-- front. The first cut hinged on -Z — the edge nearest the viewer — and the
+	-- lid swung up TOWARD the camera, covering the contents at the exact moment
+	-- the reveal wants to show them.
 	local _, baseSize = base:GetBoundingBox()
 	local _, lidSize = lid:GetBoundingBox()
-	local hinge = CFrame.new(0, baseSize.Y * BASE_HEIGHT, -baseSize.Z * 0.5)
+	local hinge = CFrame.new(0, baseSize.Y * BASE_HEIGHT, baseSize.Z * 0.5)
 	-- Where the lid sits relative to the hinge when closed.
-	local restOffset = CFrame.new(0, lidSize.Y * LID_LIFT, lidSize.Z * 0.5)
+	local restOffset = CFrame.new(0, lidSize.Y * LID_LIFT, -lidSize.Z * 0.5)
 
 	local function placeLid(angle: number)
 		lid:PivotTo(hinge * CFrame.Angles(angle, 0, 0) * restOffset)
@@ -193,7 +198,9 @@ function ChestView.Create(parent: Instance, position: UDim2, size: UDim2, tint: 
 		TweenService:Create(
 			value,
 			TweenInfo.new(seconds, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ Value = math.rad(-108) }
+			-- Positive about X at a +Z hinge swings the lid up and AWAY from
+			-- the -Z camera, opening the box toward the viewer.
+			{ Value = math.rad(108) }
 		):Play()
 		-- The NumberValue is the only thing driving the lid, so it has to
 		-- outlive the tween but not the reveal. Parented to the viewport, it

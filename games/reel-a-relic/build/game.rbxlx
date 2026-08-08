@@ -860,8 +860,8 @@ Meshes.Relic = {
 -- name this codebase chooses rather than one from Crystals.luau. The chest is
 -- split into ChestBase and ChestLid so the lid can actually swing.
 Meshes.Prop = {
-	["ChestBase"] = { Mesh = 117569798192650, Scale = 1 },
-	["ChestLid"] = { Mesh = 84305083533626, Scale = 1 },
+	["ChestBase"] = { Mesh = 117569798192650, Scale = 1, Rotation = Vector3.new(0, 180, 0) },
+	["ChestLid"] = { Mesh = 84305083533626, Scale = 1, Rotation = Vector3.new(0, 180, 0) },
 } :: { [string]: MeshDef }
 
 -- World decoration: kelp, coral, buoys, docks, landmarks. Not collectibles and
@@ -2852,6 +2852,15 @@ local MeshAssets = {}
 
 MeshAssets.FOLDER = "MeshAssets"
 
+-- THE ROLLOUT SWITCH. false = the game renders entirely from its primitive
+-- builders, exactly as it did before the mesh pack existed — that is the point
+-- of every builder having a fallback. The first attempt at turning the pack on
+-- shipped every defect at once — buried props, boulders on the shops, a chest
+-- facing away from its own camera — because nothing could be seen in isolation
+-- before it was live. Turn this back on deliberately: one kind at a time,
+-- looked at in Studio or a test server first, not by pushing and hoping.
+MeshAssets.ENABLED = false
+
 -- Kind and name, flattened, because "Prop/ChestBase" and "World/ChestBase" are
 -- allowed to be different things.
 function MeshAssets.Key(kind: string, name: string): string
@@ -2873,6 +2882,9 @@ end
 -- Never returns the stored original: callers parent what they get into the
 -- world, and handing out the template would empty the library on first use.
 function MeshAssets.Clone(kind: string, name: string): Model?
+	if not MeshAssets.ENABLED then
+		return nil
+	end
 	local holder = folder()
 	if not holder then
 		return nil
@@ -4517,9 +4529,15 @@ function AssetPreload.Start(): Folder
 	holder.Name = MeshAssets.FOLDER
 	holder.Parent = ReplicatedStorage
 
-	local entries = collect()
+	-- Disabled = an instantly-Loaded empty library. Every deferred build still
+	-- fires, every Clone returns nil, every builder renders its primitive — the
+	-- game as it was before the pack — without spending one network call.
+	local entries = if MeshAssets.ENABLED then collect() else {}
 	if #entries == 0 then
 		holder:SetAttribute("Loaded", true)
+		if not MeshAssets.ENABLED then
+			print("[AssetPreload] Mesh library disabled (MeshAssets.ENABLED); primitives everywhere.")
+		end
 		return holder
 	end
 
@@ -8124,40 +8142,77 @@ local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: In
 	-- rng draw still happens in the same order at the same time, so the layout
 	-- stays identical to when this built inline.
 	local placements: { { Name: string, Place: WorldBuild.Placement } } = {}
+
+	-- The five beach/dock stations sit at fixed offsets (the makeStation calls
+	-- in buildArea). A boulder standing on one buries the shop the player is
+	-- walking to — which is exactly what happened the day placement started
+	-- landing props where they were actually asked for, because until then the
+	-- overlapping ones were underground where nobody could see the mistake.
+	local stations = {
+		Vector2.new(ox - 34, oz + 30), -- Treasure Chests
+		Vector2.new(ox, oz + 40), -- Aquarium
+		Vector2.new(ox + 34, oz + 30), -- Chest Shop
+		Vector2.new(ox, oz + 78), -- Set Sail
+		Vector2.new(ox - 16, oz - 8), -- Dock Master
+	}
+	local CLEARANCE = 14
+	local function clearOfStations(at: Vector3): boolean
+		for _, pad in stations do
+			if (Vector2.new(at.X, at.Z) - pad).Magnitude < CLEARANCE then
+				return false
+			end
+		end
+		return true
+	end
+
 	for _, plan in theme.Props do
 		for i = 1, plan.Count do
 			local height = rng:NextNumber(plan.Min, plan.Max)
-			local at: Vector3
-			local sink = plan.Sink
 			local side = if i % 2 == 0 then 1 else -1
 
-			if plan.Zone == "Shore" then
-				-- Close to the walk, both sides of it, not spread to the horizon.
-				at = Vector3.new(ox + side * rng:NextNumber(8, 68), 0, oz + rng:NextNumber(16, 50))
-			elseif plan.Zone == "Backdrop" then
-				-- Behind and above the stations: this is what you see past them,
-				-- so it is what tells you which island you are standing on.
-				at = Vector3.new(ox + side * rng:NextNumber(24, 120), 0, oz + rng:NextNumber(54, 112))
-			elseif plan.Zone == "Dockside" then
-				-- Rising out of shallow water beside the pier. The water is only
-				-- about six studs deep, so anything shorter than that stays hidden
-				-- under it — these are sized to come out.
-				at = Vector3.new(ox + side * rng:NextNumber(12, 40), SEA_FLOOR, oz - rng:NextNumber(4, 68))
-			elseif plan.Zone == "Headland" then
-				at = Vector3.new(ox + side * rng:NextNumber(60, 124), SEA_FLOOR, oz - rng:NextNumber(8, 124))
-			elseif plan.Zone == "Dock" then
-				-- Beside the dock, not on it. The dock is 14 studs wide and is the
-				-- only route to the water; anything standing in it is in the way,
-				-- even when it cannot be collided with.
-				at = Vector3.new(ox + side * rng:NextNumber(9, 13), 1.1, oz - rng:NextNumber(2, 46))
-			elseif plan.Zone == "Surface" then
-				local spot = growthSpot(ox, oz)
-				-- Floats sit ON the water, so the base goes just below the line.
-				at = Vector3.new(spot.X, SURFACE - height * 0.35, spot.Z)
-				sink = nil
-			else -- Floor
-				local spot = growthSpot(ox, oz)
-				at = Vector3.new(spot.X, SEA_FLOOR, spot.Z)
+			local function draw(): (Vector3, number?)
+				local sink = plan.Sink
+				local at: Vector3
+				if plan.Zone == "Shore" then
+					-- Close to the walk, both sides of it, not spread to the horizon.
+					at = Vector3.new(ox + side * rng:NextNumber(8, 68), 0, oz + rng:NextNumber(16, 50))
+				elseif plan.Zone == "Backdrop" then
+					-- Behind and above the stations: this is what you see past them,
+					-- so it is what tells you which island you are standing on.
+					at = Vector3.new(ox + side * rng:NextNumber(24, 120), 0, oz + rng:NextNumber(54, 112))
+				elseif plan.Zone == "Dockside" then
+					-- Rising out of shallow water beside the pier. The water is only
+					-- about six studs deep, so anything shorter than that stays hidden
+					-- under it — these are sized to come out.
+					at = Vector3.new(ox + side * rng:NextNumber(12, 40), SEA_FLOOR, oz - rng:NextNumber(4, 68))
+				elseif plan.Zone == "Headland" then
+					at = Vector3.new(ox + side * rng:NextNumber(60, 124), SEA_FLOOR, oz - rng:NextNumber(8, 124))
+				elseif plan.Zone == "Dock" then
+					-- Beside the dock, not on it. The dock is 14 studs wide and is the
+					-- only route to the water; anything standing in it is in the way,
+					-- even when it cannot be collided with.
+					at = Vector3.new(ox + side * rng:NextNumber(9, 13), 1.1, oz - rng:NextNumber(2, 46))
+				elseif plan.Zone == "Surface" then
+					local spot = growthSpot(ox, oz)
+					-- Floats sit ON the water, so the base goes just below the line.
+					at = Vector3.new(spot.X, SURFACE - height * 0.35, spot.Z)
+					sink = nil
+				else -- Floor
+					local spot = growthSpot(ox, oz)
+					at = Vector3.new(spot.X, SEA_FLOOR, spot.Z)
+				end
+				return at, sink
+			end
+
+			-- Twelve tries to stay clear of the stations, the same policy the
+			-- cavern uses. If every try collides, the last one stands: a rare
+			-- overlapped prop beats a plan that silently drops scenery.
+			local at, sink = draw()
+			for _ = 1, 11 do
+				if clearOfStations(at) then
+					break
+				end
+				at, sink = draw()
 			end
 
 			table.insert(placements, {
@@ -14369,11 +14424,16 @@ function ChestView.Create(parent: Instance, position: UDim2, size: UDim2, tint: 
 	-- looks like it is dissolving; a real lid pivots on the back top edge. So
 	-- the rotation happens about the hinge point and the lid is carried around
 	-- it, rather than the lid being spun in place.
+	--
+	-- The BACK edge is +Z: the camera below sits on -Z, so -Z is the chest's
+	-- front. The first cut hinged on -Z — the edge nearest the viewer — and the
+	-- lid swung up TOWARD the camera, covering the contents at the exact moment
+	-- the reveal wants to show them.
 	local _, baseSize = base:GetBoundingBox()
 	local _, lidSize = lid:GetBoundingBox()
-	local hinge = CFrame.new(0, baseSize.Y * BASE_HEIGHT, -baseSize.Z * 0.5)
+	local hinge = CFrame.new(0, baseSize.Y * BASE_HEIGHT, baseSize.Z * 0.5)
 	-- Where the lid sits relative to the hinge when closed.
-	local restOffset = CFrame.new(0, lidSize.Y * LID_LIFT, lidSize.Z * 0.5)
+	local restOffset = CFrame.new(0, lidSize.Y * LID_LIFT, -lidSize.Z * 0.5)
 
 	local function placeLid(angle: number)
 		lid:PivotTo(hinge * CFrame.Angles(angle, 0, 0) * restOffset)
@@ -14413,7 +14473,9 @@ function ChestView.Create(parent: Instance, position: UDim2, size: UDim2, tint: 
 		TweenService:Create(
 			value,
 			TweenInfo.new(seconds, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ Value = math.rad(-108) }
+			-- Positive about X at a +Z hinge swings the lid up and AWAY from
+			-- the -Z camera, opening the box toward the viewer.
+			{ Value = math.rad(108) }
 		):Play()
 		-- The NumberValue is the only thing driving the lid, so it has to
 		-- outlive the tween but not the reveal. Parented to the viewport, it

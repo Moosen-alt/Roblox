@@ -159,8 +159,8 @@ Meshes.Relic = {
 -- name this codebase chooses rather than one from Crystals.luau. The chest is
 -- split into ChestBase and ChestLid so the lid can actually swing.
 Meshes.Prop = {
-	["ChestBase"] = { Mesh = 117569798192650, Scale = 1 },
-	["ChestLid"] = { Mesh = 84305083533626, Scale = 1 },
+	["ChestBase"] = { Mesh = 117569798192650, Scale = 1, Rotation = Vector3.new(0, 180, 0) },
+	["ChestLid"] = { Mesh = 84305083533626, Scale = 1, Rotation = Vector3.new(0, 180, 0) },
 } :: { [string]: MeshDef }
 
 -- World decoration: kelp, coral, buoys, docks, landmarks. Not collectibles and

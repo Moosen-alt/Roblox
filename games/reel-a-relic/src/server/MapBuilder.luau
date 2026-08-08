@@ -2087,40 +2087,77 @@ local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: In
 	-- rng draw still happens in the same order at the same time, so the layout
 	-- stays identical to when this built inline.
 	local placements: { { Name: string, Place: WorldBuild.Placement } } = {}
+
+	-- The five beach/dock stations sit at fixed offsets (the makeStation calls
+	-- in buildArea). A boulder standing on one buries the shop the player is
+	-- walking to — which is exactly what happened the day placement started
+	-- landing props where they were actually asked for, because until then the
+	-- overlapping ones were underground where nobody could see the mistake.
+	local stations = {
+		Vector2.new(ox - 34, oz + 30), -- Treasure Chests
+		Vector2.new(ox, oz + 40), -- Aquarium
+		Vector2.new(ox + 34, oz + 30), -- Chest Shop
+		Vector2.new(ox, oz + 78), -- Set Sail
+		Vector2.new(ox - 16, oz - 8), -- Dock Master
+	}
+	local CLEARANCE = 14
+	local function clearOfStations(at: Vector3): boolean
+		for _, pad in stations do
+			if (Vector2.new(at.X, at.Z) - pad).Magnitude < CLEARANCE then
+				return false
+			end
+		end
+		return true
+	end
+
 	for _, plan in theme.Props do
 		for i = 1, plan.Count do
 			local height = rng:NextNumber(plan.Min, plan.Max)
-			local at: Vector3
-			local sink = plan.Sink
 			local side = if i % 2 == 0 then 1 else -1
 
-			if plan.Zone == "Shore" then
-				-- Close to the walk, both sides of it, not spread to the horizon.
-				at = Vector3.new(ox + side * rng:NextNumber(8, 68), 0, oz + rng:NextNumber(16, 50))
-			elseif plan.Zone == "Backdrop" then
-				-- Behind and above the stations: this is what you see past them,
-				-- so it is what tells you which island you are standing on.
-				at = Vector3.new(ox + side * rng:NextNumber(24, 120), 0, oz + rng:NextNumber(54, 112))
-			elseif plan.Zone == "Dockside" then
-				-- Rising out of shallow water beside the pier. The water is only
-				-- about six studs deep, so anything shorter than that stays hidden
-				-- under it — these are sized to come out.
-				at = Vector3.new(ox + side * rng:NextNumber(12, 40), SEA_FLOOR, oz - rng:NextNumber(4, 68))
-			elseif plan.Zone == "Headland" then
-				at = Vector3.new(ox + side * rng:NextNumber(60, 124), SEA_FLOOR, oz - rng:NextNumber(8, 124))
-			elseif plan.Zone == "Dock" then
-				-- Beside the dock, not on it. The dock is 14 studs wide and is the
-				-- only route to the water; anything standing in it is in the way,
-				-- even when it cannot be collided with.
-				at = Vector3.new(ox + side * rng:NextNumber(9, 13), 1.1, oz - rng:NextNumber(2, 46))
-			elseif plan.Zone == "Surface" then
-				local spot = growthSpot(ox, oz)
-				-- Floats sit ON the water, so the base goes just below the line.
-				at = Vector3.new(spot.X, SURFACE - height * 0.35, spot.Z)
-				sink = nil
-			else -- Floor
-				local spot = growthSpot(ox, oz)
-				at = Vector3.new(spot.X, SEA_FLOOR, spot.Z)
+			local function draw(): (Vector3, number?)
+				local sink = plan.Sink
+				local at: Vector3
+				if plan.Zone == "Shore" then
+					-- Close to the walk, both sides of it, not spread to the horizon.
+					at = Vector3.new(ox + side * rng:NextNumber(8, 68), 0, oz + rng:NextNumber(16, 50))
+				elseif plan.Zone == "Backdrop" then
+					-- Behind and above the stations: this is what you see past them,
+					-- so it is what tells you which island you are standing on.
+					at = Vector3.new(ox + side * rng:NextNumber(24, 120), 0, oz + rng:NextNumber(54, 112))
+				elseif plan.Zone == "Dockside" then
+					-- Rising out of shallow water beside the pier. The water is only
+					-- about six studs deep, so anything shorter than that stays hidden
+					-- under it — these are sized to come out.
+					at = Vector3.new(ox + side * rng:NextNumber(12, 40), SEA_FLOOR, oz - rng:NextNumber(4, 68))
+				elseif plan.Zone == "Headland" then
+					at = Vector3.new(ox + side * rng:NextNumber(60, 124), SEA_FLOOR, oz - rng:NextNumber(8, 124))
+				elseif plan.Zone == "Dock" then
+					-- Beside the dock, not on it. The dock is 14 studs wide and is the
+					-- only route to the water; anything standing in it is in the way,
+					-- even when it cannot be collided with.
+					at = Vector3.new(ox + side * rng:NextNumber(9, 13), 1.1, oz - rng:NextNumber(2, 46))
+				elseif plan.Zone == "Surface" then
+					local spot = growthSpot(ox, oz)
+					-- Floats sit ON the water, so the base goes just below the line.
+					at = Vector3.new(spot.X, SURFACE - height * 0.35, spot.Z)
+					sink = nil
+				else -- Floor
+					local spot = growthSpot(ox, oz)
+					at = Vector3.new(spot.X, SEA_FLOOR, spot.Z)
+				end
+				return at, sink
+			end
+
+			-- Twelve tries to stay clear of the stations, the same policy the
+			-- cavern uses. If every try collides, the last one stands: a rare
+			-- overlapped prop beats a plan that silently drops scenery.
+			local at, sink = draw()
+			for _ = 1, 11 do
+				if clearOfStations(at) then
+					break
+				end
+				at, sink = draw()
 			end
 
 			table.insert(placements, {

@@ -107,9 +107,15 @@ function AssetPreload.Start(): Folder
 	holder.Name = MeshAssets.FOLDER
 	holder.Parent = ReplicatedStorage
 
-	local entries = collect()
+	-- Disabled = an instantly-Loaded empty library. Every deferred build still
+	-- fires, every Clone returns nil, every builder renders its primitive — the
+	-- game as it was before the pack — without spending one network call.
+	local entries = if MeshAssets.ENABLED then collect() else {}
 	if #entries == 0 then
 		holder:SetAttribute("Loaded", true)
+		if not MeshAssets.ENABLED then
+			print("[AssetPreload] Mesh library disabled (MeshAssets.ENABLED); primitives everywhere.")
+		end
 		return holder
 	end
 

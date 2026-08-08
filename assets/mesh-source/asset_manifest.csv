@@ -68,8 +68,8 @@ Crack a Geode,Crystal,Sapphire,crack-a-geode/crystals/Sapphire.obj,1182554441080
 Crack a Geode,Crystal,Ruby,crack-a-geode/crystals/Ruby.obj,99957108703251,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Crystal,Opal,crack-a-geode/crystals/Opal.obj,80277452297193,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Crystal,Diamond,crack-a-geode/crystals/Diamond.obj,78952983628622,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Reel a Relic,Prop,ChestBase,props/fishing_relic_chest_base.obj,117569798192650,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
-Reel a Relic,Prop,ChestLid,props/fishing_relic_chest_lid.obj,84305083533626,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Prop,ChestBase,props/fishing_relic_chest_base.obj,117569798192650,1.0,0,180,0,Included original low-poly OBJ,No third-party geometry bundled
+Reel a Relic,Prop,ChestLid,props/fishing_relic_chest_lid.obj,84305083533626,1.0,0,180,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Prop,ChestBase,props/crystal_geode_chest_base.obj,73620068125097,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Prop,ChestLid,props/crystal_geode_chest_lid.obj,131543048004444,1.0,0,0,0,Included original low-poly OBJ,No third-party geometry bundled
 Crack a Geode,Prop,GeodeHalfA,props/geode_half_a.obj,93767624394202,0.674,0,0,0,Blue Agate Geode by ArcticGreenhouse,"CC BY 4.0 - credit required, see Config/Credits.luau"
