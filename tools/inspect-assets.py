@@ -78,11 +78,25 @@ def main() -> int:
             "https://games.roblox.com/v1/games", params={"universeIds": universe}, timeout=60
         )
         data = (response.json().get("data") or [None])[0] if response.status_code < 300 else None
-        if not data:
-            print(f"  {label:14} -> lookup failed: HTTP {response.status_code} {response.text[:120]}")
-            continue
-        creator = data.get("creator") or {}
+        creator = (data or {}).get("creator") or {}
         owner = f"{str(creator.get('type', '?')).lower()} {creator.get('id', '?')} ({creator.get('name', '?')})"
+        # The public endpoint returns creator id 0 for unreleased/private
+        # experiences. Open Cloud sees them with the same key that publishes.
+        if not creator.get("id"):
+            cloud = session.get(
+                f"https://apis.roblox.com/cloud/v2/universes/{universe}",
+                headers={"x-api-key": key},
+                timeout=60,
+            )
+            if cloud.status_code < 300:
+                body = cloud.json()
+                if body.get("group"):
+                    owner = f"group {body['group'].split('/')[-1]} ({body.get('displayName', '?')})"
+                elif body.get("user"):
+                    owner = f"user {body['user'].split('/')[-1]} ({body.get('displayName', '?')})"
+            else:
+                print(f"  {label:14} -> public lookup empty; Open Cloud: HTTP {cloud.status_code} {cloud.text[:120]}")
+                continue
         verdict = (
             "MATCHES asset creator"
             if any(owner.startswith(o + " ") for o in creators)
