@@ -88,14 +88,18 @@ local AREA_THEMES: { AreaTheme } = {
 		DeckColor = Color3.fromRGB(210, 185, 140),
 		DeckMaterial = Enum.Material.WoodPlanks,
 		Props = {
-			-- The holiday beach: palms behind the sand, driftwood on it, reeds in
-			-- the shallows. Nothing here breaks the surface except the palms.
-			{ Name = "Palm Tree", Count = 5, Min = 20, Max = 28, Zone = "Shore" },
-			{ Name = "Beach Rock A", Count = 7, Min = 3.5, Max = 7, Zone = "Shore", Sink = 0.4 },
-			{ Name = "Driftwood", Count = 6, Min = 2, Max = 3.5, Zone = "Shore" },
-			{ Name = "Reed Patch", Count = 14, Min = 2.5, Max = 4.5, Zone = "Floor" },
-			{ Name = "Wood Dock Segment", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
-			{ Name = "Ring Buoy", Count = 5, Min = 1.8, Max = 2.6, Zone = "Surface" },
+			-- FLORIDA KEYS. Palms crowding the skyline behind the stations, sand
+			-- littered with driftwood, reeds standing out of the shallows either
+			-- side of the pier.
+			{ Name = "Palm Tree", Count = 16, Min = 20, Max = 30, Zone = "Backdrop" },
+			{ Name = "Palm Tree", Count = 7, Min = 18, Max = 26, Zone = "Shore" },
+			{ Name = "Beach Rock A", Count = 10, Min = 3.5, Max = 7, Zone = "Shore", Sink = 0.4 },
+			{ Name = "Beach Rock A", Count = 6, Min = 7, Max = 11, Zone = "Dockside", Sink = 0.5 },
+			{ Name = "Driftwood", Count = 10, Min = 2, Max = 3.5, Zone = "Shore" },
+			{ Name = "Reed Patch", Count = 16, Min = 6.5, Max = 9, Zone = "Dockside" },
+			{ Name = "Reed Patch", Count = 10, Min = 3, Max = 5, Zone = "Floor" },
+			{ Name = "Wood Dock Segment", Count = 6, Min = 1.6, Max = 2.2, Zone = "Dock" },
+			{ Name = "Ring Buoy", Count = 6, Min = 1.8, Max = 2.6, Zone = "Surface" },
 		},
 	},
 	{ -- 2 Kelp Forest: a cold northern cove. Kelp towers up THROUGH the surface
@@ -110,15 +114,18 @@ local AREA_THEMES: { AreaTheme } = {
 		DeckColor = Color3.fromRGB(112, 92, 72),
 		DeckMaterial = Enum.Material.Wood,
 		Props = {
-			-- Kelp is sized to REACH the surface and mat across it: the water is
-			-- only about six studs deep, so nine studs of kelp is a canopy you
-			-- look across rather than weeds you look down at.
-			{ Name = "Pine Tree", Count = 10, Min = 22, Max = 32, Zone = "Shore" },
-			{ Name = "Cold Shore Boulder", Count = 8, Min = 4, Max = 8, Zone = "Shore", Sink = 0.6 },
-			{ Name = "Drift Log", Count = 5, Min = 2, Max = 3.5, Zone = "Shore" },
-			{ Name = "Tall Kelp Patch", Count = 16, Min = 7, Max = 9.5, Zone = "Floor" },
-			{ Name = "Kelp Rock Cluster", Count = 8, Min = 3, Max = 5, Zone = "Floor", Sink = 0.5 },
-			{ Name = "Old Wood Dock", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
+			-- CATALINA / NORTHERN CALIFORNIA. A cold pine cove, not a beach. The
+			-- kelp is the whole point of the area, so it is thickest right beside
+			-- the pier and sized to reach the surface and mat across it.
+			{ Name = "Pine Tree", Count = 20, Min = 24, Max = 36, Zone = "Backdrop" },
+			{ Name = "Pine Tree", Count = 8, Min = 20, Max = 30, Zone = "Shore" },
+			{ Name = "Cold Shore Boulder", Count = 10, Min = 4, Max = 8, Zone = "Shore", Sink = 0.6 },
+			{ Name = "Cold Shore Boulder", Count = 8, Min = 10, Max = 18, Zone = "Headland", Sink = 1 },
+			{ Name = "Drift Log", Count = 8, Min = 2, Max = 3.5, Zone = "Shore" },
+			{ Name = "Tall Kelp Patch", Count = 20, Min = 7, Max = 10, Zone = "Dockside" },
+			{ Name = "Tall Kelp Patch", Count = 14, Min = 7, Max = 9.5, Zone = "Floor" },
+			{ Name = "Kelp Rock Cluster", Count = 10, Min = 6.5, Max = 9, Zone = "Dockside", Sink = 0.5 },
+			{ Name = "Old Wood Dock", Count = 6, Min = 1.6, Max = 2.2, Zone = "Dock" },
 		},
 	},
 	{ -- 3 Twilight Reef: warm and loud. Coral heads, fans, urchins.
@@ -132,14 +139,18 @@ local AREA_THEMES: { AreaTheme } = {
 		DeckColor = Color3.fromRGB(226, 168, 150),
 		DeckMaterial = Enum.Material.Sandstone,
 		Props = {
-			-- A reef is dense and low. Lots of small things close together beats a
-			-- few big ones, which is the opposite of how the trench is dressed.
-			{ Name = "Reef Rock", Count = 7, Min = 4, Max = 8, Zone = "Shore", Sink = 0.5 },
+			-- A REEF. Dense and low, and above all CLOSE — coral bommies breaking
+			-- the surface right beside the pier are what make this read as a reef
+			-- rather than as blue water with fish in it.
+			{ Name = "Reef Rock", Count = 10, Min = 10, Max = 20, Zone = "Headland", Sink = 1 },
+			{ Name = "Reef Rock", Count = 8, Min = 4, Max = 8, Zone = "Shore", Sink = 0.5 },
+			{ Name = "Coral Head", Count = 16, Min = 6.5, Max = 10, Zone = "Dockside" },
 			{ Name = "Coral Head", Count = 14, Min = 3, Max = 5, Zone = "Floor" },
-			{ Name = "Coral Fan", Count = 12, Min = 2.5, Max = 4.5, Zone = "Floor" },
-			{ Name = "Sea Urchin", Count = 10, Min = 1.2, Max = 2, Zone = "Floor" },
-			{ Name = "Tiki Buoy", Count = 5, Min = 2.2, Max = 3, Zone = "Surface" },
-			{ Name = "Sandstone Dock Segment", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
+			{ Name = "Coral Fan", Count = 12, Min = 6.5, Max = 9, Zone = "Dockside" },
+			{ Name = "Coral Fan", Count = 10, Min = 2.5, Max = 4.5, Zone = "Floor" },
+			{ Name = "Sea Urchin", Count = 12, Min = 1.2, Max = 2, Zone = "Floor" },
+			{ Name = "Tiki Buoy", Count = 6, Min = 2.2, Max = 3, Zone = "Surface" },
+			{ Name = "Sandstone Dock Segment", Count = 6, Min = 1.6, Max = 2.2, Zone = "Dock" },
 		},
 	},
 	{ -- 4 Midnight Trench: black basalt spires and hydrothermal vents.
@@ -153,14 +164,18 @@ local AREA_THEMES: { AreaTheme } = {
 		DeckColor = Color3.fromRGB(78, 80, 96),
 		DeckMaterial = Enum.Material.DiamondPlate,
 		Props = {
-			-- Spires tall enough to come up out of the water and be seen from the
-			-- dock. A trench should have a horizon of its own.
-			{ Name = "Trench Basalt Spires", Count = 8, Min = 12, Max = 22, Zone = "Floor", Sink = 1 },
-			{ Name = "Trench Boulder", Count = 8, Min = 3.5, Max = 6, Zone = "Floor", Sink = 0.6 },
+			-- AN INDUSTRIAL TRENCH. Black rock coming up out of the water high
+			-- enough to be a skyline, vents glowing at the pier, and the rusted
+			-- remains of whatever was here before.
+			{ Name = "Trench Basalt Spires", Count = 12, Min = 16, Max = 32, Zone = "Headland", Sink = 1 },
+			{ Name = "Trench Basalt Spires", Count = 6, Min = 8, Max = 14, Zone = "Dockside", Sink = 0.5 },
+			{ Name = "Trench Boulder", Count = 10, Min = 3.5, Max = 6, Zone = "Shore", Sink = 0.6 },
+			{ Name = "Trench Boulder", Count = 8, Min = 7, Max = 11, Zone = "Dockside", Sink = 0.6 },
+			{ Name = "Hydrothermal Vent Cluster", Count = 8, Min = 7, Max = 11, Zone = "Dockside", Glow = 20 },
 			{ Name = "Hydrothermal Vent Cluster", Count = 6, Min = 4, Max = 6, Zone = "Floor", Glow = 18 },
-			{ Name = "Broken Metal Bridge", Count = 3, Min = 22, Max = 30, Zone = "Shore", Fit = "Span" },
-			{ Name = "Can Buoy", Count = 5, Min = 2, Max = 2.8, Zone = "Surface" },
-			{ Name = "Metal Dock Segment", Count = 4, Min = 1.6, Max = 2.2, Zone = "Dock" },
+			{ Name = "Broken Metal Bridge", Count = 4, Min = 22, Max = 30, Zone = "Shore", Fit = "Span" },
+			{ Name = "Can Buoy", Count = 6, Min = 2, Max = 2.8, Zone = "Surface" },
+			{ Name = "Metal Dock Segment", Count = 6, Min = 1.6, Max = 2.2, Zone = "Dock" },
 		},
 	},
 	{ -- 5 The Abyss: no light that isn't alive. Bones on the floor.
@@ -174,15 +189,19 @@ local AREA_THEMES: { AreaTheme } = {
 		DeckColor = Color3.fromRGB(206, 200, 186),
 		DeckMaterial = Enum.Material.Slate,
 		Props = {
-			-- Everything that glows down here is alive or mineral, never lit from
-			-- above — which is the one rule that makes the Abyss read as deep
-			-- rather than as night-time.
-			{ Name = "Abyss Spires", Count = 8, Min = 12, Max = 24, Zone = "Floor", Sink = 1 },
-			{ Name = "Whale Rib Bones", Count = 5, Min = 4.5, Max = 7, Zone = "Floor" },
-			{ Name = "Sea Creature Skull", Count = 4, Min = 2.5, Max = 4, Zone = "Floor" },
+			-- THE ABYSS. Everything that glows down here is alive or mineral and
+			-- lit from within, never from above — that one rule is what makes it
+			-- read as deep rather than as night-time. Bones on the shore say what
+			-- happened to the last thing that came this far.
+			{ Name = "Abyss Spires", Count = 12, Min = 16, Max = 34, Zone = "Headland", Sink = 1 },
+			{ Name = "Abyss Spires", Count = 6, Min = 8, Max = 14, Zone = "Dockside", Sink = 0.5 },
+			{ Name = "Whale Rib Bones", Count = 8, Min = 5, Max = 9, Zone = "Shore" },
+			{ Name = "Sea Creature Skull", Count = 6, Min = 3, Max = 5, Zone = "Shore" },
+			{ Name = "Biolum Mushroom Cluster", Count = 16, Min = 6.5, Max = 9, Zone = "Dockside", Glow = 16 },
 			{ Name = "Biolum Mushroom Cluster", Count = 12, Min = 1.8, Max = 3.2, Zone = "Floor", Glow = 14 },
-			{ Name = "Abyss Crystal Cluster", Count = 9, Min = 3, Max = 5, Zone = "Floor", Glow = 16 },
-			{ Name = "Lantern Buoy", Count = 5, Min = 2.2, Max = 3, Zone = "Surface", Glow = 20 },
+			{ Name = "Abyss Crystal Cluster", Count = 12, Min = 6.5, Max = 10, Zone = "Dockside", Glow = 18 },
+			{ Name = "Abyss Crystal Cluster", Count = 8, Min = 10, Max = 18, Zone = "Headland", Glow = 22 },
+			{ Name = "Lantern Buoy", Count = 6, Min = 2.2, Max = 3, Zone = "Surface", Glow = 20 },
 		},
 	},
 }
@@ -2037,27 +2056,55 @@ end
 -- exactly like it did before the pack existed. That is deliberate — the map must
 -- never depend on an asset sitting in a moderation queue.
 --
--- Four zones, because "scatter it around" is how you end up with a palm growing
--- out of the water and a boulder standing on the dock:
+-- ZONES ARE ABOUT SIGHTLINES, NOT ABOUT SAFETY.
 --
---   Shore    on the sand behind the beach, clear of the walkway
---   Floor    on the sea bed, clear of the fishing arc so it never eats a cast
---   Surface  floating, drifting slightly, well outside the arc
---   Dock     along the edges of the pier, never on the planks themselves
+-- The first version of this spread props across the full 250-stud width of the
+-- map and put the rest on the sea bed. Nothing was wrong with any single
+-- placement and the whole thing was invisible: a player stands on a dock at
+-- x = 0 and walks to stations between x = -34 and 34, so props at x = 115 are
+-- over a hundred studs from anyone, and props under six studs of water cannot be
+-- seen at all. Forty props an area, and the area looked untouched.
+--
+-- Density has to be where the player is. These five zones are the places you
+-- actually look from the dock and the walk to the stations:
+--
+--   Shore     the sand you cross to reach the stations, close in
+--   Backdrop  the island mass behind them, which is the skyline of the area
+--   Dockside  shallow water either side of the pier, tall enough to break the
+--             surface — the nearest scenery to the player, and the only zone
+--             they pass within arm's reach of
+--   Headland  rock out in the water to both sides, framing the fishing arc
+--   Floor     on the sea bed, submerged; depth under the cast rather than sights
+--   Surface   floats riding the swell, outside the arc
+--
+-- Everything still keeps clear of the fishing arc (radius 24-50 about the spot
+-- centre) so decoration can never eat a cast.
 local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: Instance)
 	for _, plan in theme.Props do
 		for i = 1, plan.Count do
 			local height = rng:NextNumber(plan.Min, plan.Max)
 			local at: Vector3
 			local sink = plan.Sink
+			local side = if i % 2 == 0 then 1 else -1
 
 			if plan.Zone == "Shore" then
-				at = Vector3.new(ox + rng:NextNumber(-115, 115), 0, oz + rng:NextNumber(40, 104))
+				-- Close to the walk, both sides of it, not spread to the horizon.
+				at = Vector3.new(ox + side * rng:NextNumber(8, 68), 0, oz + rng:NextNumber(16, 50))
+			elseif plan.Zone == "Backdrop" then
+				-- Behind and above the stations: this is what you see past them,
+				-- so it is what tells you which island you are standing on.
+				at = Vector3.new(ox + side * rng:NextNumber(24, 120), 0, oz + rng:NextNumber(54, 112))
+			elseif plan.Zone == "Dockside" then
+				-- Rising out of shallow water beside the pier. The water is only
+				-- about six studs deep, so anything shorter than that stays hidden
+				-- under it — these are sized to come out.
+				at = Vector3.new(ox + side * rng:NextNumber(12, 40), SEA_FLOOR, oz - rng:NextNumber(4, 68))
+			elseif plan.Zone == "Headland" then
+				at = Vector3.new(ox + side * rng:NextNumber(60, 124), SEA_FLOOR, oz - rng:NextNumber(8, 124))
 			elseif plan.Zone == "Dock" then
 				-- Beside the dock, not on it. The dock is 14 studs wide and is the
 				-- only route to the water; anything standing in it is in the way,
 				-- even when it cannot be collided with.
-				local side = if i % 2 == 0 then 1 else -1
 				at = Vector3.new(ox + side * rng:NextNumber(9, 13), 1.1, oz - rng:NextNumber(2, 46))
 			elseif plan.Zone == "Surface" then
 				local spot = growthSpot(ox, oz)

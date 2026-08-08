@@ -7399,43 +7399,43 @@ local LAYER_THEMES: { { PropPlan } } = {
 	{ -- 1 Crystal Cavern — where everyone starts. Bright, and the only layer
 		-- that gets a true hero piece, so the first room reads as the good one.
 		{ Name = "Hero Crystal Cluster", Count = 1, Min = 24, Max = 24, Zone = "Hero", Glow = 40 },
-		{ Name = "Crystal Arch", Count = 3, Min = 15, Max = 21, Zone = "Back" },
-		{ Name = "Stalagmite Cluster", Count = 7, Min = 6, Max = 13, Zone = "Flank" },
-		{ Name = "Cave Boulder A", Count = 6, Min = 5, Max = 10, Zone = "Flank" },
-		{ Name = "Cave Boulder B", Count = 5, Min = 5, Max = 11, Zone = "Front" },
-		{ Name = "Floating Crystal Ring", Count = 4, Min = 8, Max = 12, Zone = "Float", Glow = 26 },
+		{ Name = "Crystal Arch", Count = 6, Min = 15, Max = 21, Zone = "Back" },
+		{ Name = "Stalagmite Cluster", Count = 14, Min = 6, Max = 13, Zone = "Flank" },
+		{ Name = "Cave Boulder A", Count = 12, Min = 5, Max = 10, Zone = "Flank" },
+		{ Name = "Cave Boulder B", Count = 10, Min = 5, Max = 11, Zone = "Front" },
+		{ Name = "Floating Crystal Ring", Count = 7, Min = 8, Max = 12, Zone = "Float", Glow = 26 },
 	},
 	{ -- 2 Amber Depths — a worked-out mine. Timber and warm stone.
-		{ Name = "Amber Pillar", Count = 4, Min = 16, Max = 26, Zone = "Back" },
-		{ Name = "Ruined Stone Arch", Count = 3, Min = 14, Max = 20, Zone = "Back" },
-		{ Name = "Old Mine Support", Count = 8, Min = 10, Max = 15, Zone = "Flank" },
-		{ Name = "Mine Boulder", Count = 7, Min = 4, Max = 9, Zone = "Flank" },
-		{ Name = "Broken Plank Bridge", Count = 2, Min = 26, Max = 34, Zone = "Front", Fit = "Span" },
-		{ Name = "Amber Cluster", Count = 5, Min = 5, Max = 9, Zone = "Float", Glow = 24 },
+		{ Name = "Amber Pillar", Count = 8, Min = 16, Max = 26, Zone = "Back" },
+		{ Name = "Ruined Stone Arch", Count = 6, Min = 14, Max = 20, Zone = "Back" },
+		{ Name = "Old Mine Support", Count = 14, Min = 10, Max = 15, Zone = "Flank" },
+		{ Name = "Mine Boulder", Count = 13, Min = 4, Max = 9, Zone = "Flank" },
+		{ Name = "Broken Plank Bridge", Count = 4, Min = 26, Max = 34, Zone = "Front", Fit = "Span" },
+		{ Name = "Amber Cluster", Count = 10, Min = 5, Max = 9, Zone = "Float", Glow = 24 },
 	},
 	{ -- 3 Frost Hollow — the first layer that is actively hostile. Ice above.
-		{ Name = "Frozen Pillar", Count = 4, Min = 18, Max = 28, Zone = "Back" },
-		{ Name = "Frozen Arch", Count = 3, Min = 14, Max = 20, Zone = "Back" },
-		{ Name = "Ice Spire Cluster", Count = 7, Min = 8, Max = 16, Zone = "Flank" },
-		{ Name = "Frost Boulder", Count = 6, Min = 4, Max = 9, Zone = "Flank" },
-		{ Name = "Icicle Ceiling Strip", Count = 9, Min = 14, Max = 24, Zone = "Ceiling", Fit = "Span" },
-		{ Name = "Ice Crystal Cluster", Count = 5, Min = 5, Max = 9, Zone = "Float", Glow = 22 },
+		{ Name = "Frozen Pillar", Count = 8, Min = 18, Max = 28, Zone = "Back" },
+		{ Name = "Frozen Arch", Count = 6, Min = 14, Max = 20, Zone = "Back" },
+		{ Name = "Ice Spire Cluster", Count = 14, Min = 8, Max = 16, Zone = "Flank" },
+		{ Name = "Frost Boulder", Count = 12, Min = 4, Max = 9, Zone = "Flank" },
+		{ Name = "Icicle Ceiling Strip", Count = 16, Min = 14, Max = 24, Zone = "Ceiling", Fit = "Span" },
+		{ Name = "Ice Crystal Cluster", Count = 10, Min = 5, Max = 9, Zone = "Float", Glow = 22 },
 	},
 	{ -- 4 Ember Rift — heat. Everything glows from below rather than above.
-		{ Name = "Basalt Gate", Count = 2, Min = 18, Max = 24, Zone = "Back" },
-		{ Name = "Basalt Spire Cluster", Count = 7, Min = 9, Max = 18, Zone = "Flank" },
-		{ Name = "Lava Fissure Rock", Count = 7, Min = 4, Max = 9, Zone = "Flank", Glow = 18 },
-		{ Name = "Hydrothermal Vent", Count = 5, Min = 7, Max = 12, Zone = "Front", Glow = 20 },
-		{ Name = "Broken Rift Bridge", Count = 2, Min = 26, Max = 34, Zone = "Front", Fit = "Span" },
-		{ Name = "Ember Crystal Cluster", Count = 5, Min = 5, Max = 9, Zone = "Float", Glow = 26 },
+		{ Name = "Basalt Gate", Count = 4, Min = 18, Max = 24, Zone = "Back" },
+		{ Name = "Basalt Spire Cluster", Count = 14, Min = 9, Max = 18, Zone = "Flank" },
+		{ Name = "Lava Fissure Rock", Count = 13, Min = 4, Max = 9, Zone = "Flank", Glow = 18 },
+		{ Name = "Hydrothermal Vent", Count = 9, Min = 7, Max = 12, Zone = "Front", Glow = 20 },
+		{ Name = "Broken Rift Bridge", Count = 4, Min = 26, Max = 34, Zone = "Front", Fit = "Span" },
+		{ Name = "Ember Crystal Cluster", Count = 10, Min = 5, Max = 9, Zone = "Float", Glow = 26 },
 	},
 	{ -- 5 Starfall Core — the end of the authored run, so it gets to be strange.
-		{ Name = "Star Monolith", Count = 3, Min = 20, Max = 30, Zone = "Back", Glow = 24 },
-		{ Name = "Star Pillar", Count = 4, Min = 16, Max = 26, Zone = "Back" },
-		{ Name = "Meteor Chunk A", Count = 6, Min = 5, Max = 11, Zone = "Flank" },
-		{ Name = "Meteor Chunk B", Count = 6, Min = 5, Max = 11, Zone = "Front" },
-		{ Name = "Cosmic Ring", Count = 3, Min = 12, Max = 18, Zone = "Float", Glow = 30 },
-		{ Name = "Prismatic Core Cluster", Count = 5, Min = 6, Max = 10, Zone = "Float", Glow = 30 },
+		{ Name = "Star Monolith", Count = 5, Min = 20, Max = 30, Zone = "Back", Glow = 24 },
+		{ Name = "Star Pillar", Count = 8, Min = 16, Max = 26, Zone = "Back" },
+		{ Name = "Meteor Chunk A", Count = 12, Min = 5, Max = 11, Zone = "Flank" },
+		{ Name = "Meteor Chunk B", Count = 11, Min = 5, Max = 11, Zone = "Front" },
+		{ Name = "Cosmic Ring", Count = 5, Min = 12, Max = 18, Zone = "Float", Glow = 30 },
+		{ Name = "Prismatic Core Cluster", Count = 10, Min = 6, Max = 10, Zone = "Float", Glow = 30 },
 	},
 }
 
@@ -7444,15 +7444,15 @@ local LAYER_THEMES: { { PropPlan } } = {
 -- means layer 11 always looks like layer 11 — you can tell how deep you are by
 -- looking, and rejoining does not reshuffle the room.
 local REMIX: { PropPlan } = {
-	{ Name = "Shattered Monolith", Count = 3, Min = 20, Max = 30, Zone = "Back" },
-	{ Name = "Drowned Pillar", Count = 4, Min = 16, Max = 26, Zone = "Back" },
-	{ Name = "Ashen Gate", Count = 2, Min = 18, Max = 24, Zone = "Back" },
-	{ Name = "Cinder Spires", Count = 7, Min = 9, Max = 18, Zone = "Flank" },
-	{ Name = "Glacier Shards", Count = 7, Min = 6, Max = 13, Zone = "Flank" },
-	{ Name = "Obsidian Boulder", Count = 6, Min = 5, Max = 11, Zone = "Flank" },
-	{ Name = "Gilded Ruin", Count = 4, Min = 8, Max = 14, Zone = "Front", Glow = 18 },
-	{ Name = "Verdant Crystals", Count = 5, Min = 5, Max = 9, Zone = "Float", Glow = 24 },
-	{ Name = "Radiant Cluster", Count = 5, Min = 6, Max = 10, Zone = "Float", Glow = 30 },
+	{ Name = "Shattered Monolith", Count = 6, Min = 20, Max = 30, Zone = "Back" },
+	{ Name = "Drowned Pillar", Count = 8, Min = 16, Max = 26, Zone = "Back" },
+	{ Name = "Ashen Gate", Count = 4, Min = 18, Max = 24, Zone = "Back" },
+	{ Name = "Cinder Spires", Count = 14, Min = 9, Max = 18, Zone = "Flank" },
+	{ Name = "Glacier Shards", Count = 14, Min = 6, Max = 13, Zone = "Flank" },
+	{ Name = "Obsidian Boulder", Count = 12, Min = 5, Max = 11, Zone = "Flank" },
+	{ Name = "Gilded Ruin", Count = 8, Min = 8, Max = 14, Zone = "Front", Glow = 18 },
+	{ Name = "Verdant Crystals", Count = 10, Min = 5, Max = 9, Zone = "Float", Glow = 24 },
+	{ Name = "Radiant Cluster", Count = 10, Min = 6, Max = 10, Zone = "Float", Glow = 30 },
 }
 
 local FLOOR = 0
@@ -7476,33 +7476,68 @@ local function planFor(layer: number): { PropPlan }
 	return picked
 end
 
+-- The four station pads and the walk between them. Decoration goes AROUND these,
+-- never on them: a prop you can walk through still reads as being in the way.
+local STATIONS = {
+	Vector3.new(-34, 0, -20),
+	Vector3.new(0, 0, -10),
+	Vector3.new(34, 0, -20),
+	Vector3.new(0, 0, 42),
+}
+
+local function clearOfStations(at: Vector3): boolean
+	for _, pad in STATIONS do
+		if (Vector3.new(at.X, 0, at.Z) - pad).Magnitude < 20 then
+			return false
+		end
+	end
+	return true
+end
+
 -- Somewhere in this zone, given a per-instance random source.
+--
+-- THESE BOUNDS ARE ABOUT BEING SEEN. The first version kept everything at
+-- |x| >= 50 to stay out of the walkway, which also put all of it outside the
+-- part of the room anyone looks at — a player works the wall between x = -45 and
+-- 45, so forty props sat in the wings and the cavern looked untouched. Coming
+-- inward is the whole fix; the station clearance above is what makes it safe.
 local function placeIn(zone: string, rng: Random, height: number): (Vector3, number?)
 	if zone == "Hero" then
-		-- One fixed spot, off to the side of the wall where it is the first thing
-		-- you see on spawn without ever being in front of a node.
-		return Vector3.new(-72, FLOOR, -46), nil
-	elseif zone == "Back" then
-		-- The corners either side of the mine wall. Never in front of it: the
-		-- wall is the game.
-		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		return Vector3.new(side * rng:NextNumber(50, 84), FLOOR, rng:NextNumber(-56, -38)), nil
-	elseif zone == "Flank" then
-		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		return Vector3.new(side * rng:NextNumber(56, 92), FLOOR, rng:NextNumber(-28, 58)), nil
-	elseif zone == "Front" then
-		-- Off to both sides of the Recrystallize pad rather than across it.
-		local side = if rng:NextNumber() < 0.5 then -1 else 1
-		return Vector3.new(side * rng:NextNumber(34, 80), FLOOR, rng:NextNumber(46, 56)), nil
-	elseif zone == "Ceiling" then
-		-- Sink by the model's own height hangs it from the ceiling rather than
-		-- standing it on one: the base drops a full height below the anchor, so
-		-- the top ends up flush with the rock.
-		return Vector3.new(rng:NextNumber(-88, 88), CEILING, rng:NextNumber(-54, 60)), height
+		-- Off the left shoulder of the wall: the first thing you see on spawn,
+		-- and never in front of a node.
+		return Vector3.new(-56, FLOOR, -48), nil
 	end
-	-- Float: up in the air, out over the flanks.
+
 	local side = if rng:NextNumber() < 0.5 then -1 else 1
-	return Vector3.new(side * rng:NextNumber(50, 86), rng:NextNumber(12, 30), rng:NextNumber(-44, 56)), nil
+	for _ = 1, 12 do
+		local at: Vector3
+		local sink: number? = nil
+		if zone == "Back" then
+			-- Either side of the mine wall, close enough to frame it. Never in
+			-- front of it: the wall is the game.
+			at = Vector3.new(side * rng:NextNumber(30, 92), FLOOR, rng:NextNumber(-58, -40))
+		elseif zone == "Flank" then
+			-- In close along both sides of the working area, which is where a
+			-- player spends the entire session looking.
+			at = Vector3.new(side * rng:NextNumber(28, 96), FLOOR, rng:NextNumber(-34, 62))
+		elseif zone == "Front" then
+			at = Vector3.new(side * rng:NextNumber(24, 84), FLOOR, rng:NextNumber(38, 56))
+		elseif zone == "Ceiling" then
+			-- Sink by the model's own height hangs it from the ceiling rather
+			-- than standing it on one: the base drops a full height below the
+			-- anchor, so the top ends up flush with the rock.
+			at = Vector3.new(rng:NextNumber(-88, 88), CEILING, rng:NextNumber(-54, 62))
+			sink = height
+		else -- Float: up in the air where it reads against the dark ceiling.
+			at = Vector3.new(side * rng:NextNumber(26, 88), rng:NextNumber(10, 30), rng:NextNumber(-46, 58))
+		end
+		-- Overhead pieces are never in anybody's way, so they skip the check.
+		if zone == "Ceiling" or clearOfStations(at) then
+			return at, sink
+		end
+	end
+	-- Every try landed on a station. Fall back to the wings rather than drop it.
+	return Vector3.new(side * rng:NextNumber(64, 92), FLOOR, rng:NextNumber(-40, 50)), nil
 end
 
 local function build(layer: number)
