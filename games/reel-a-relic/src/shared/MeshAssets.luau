@@ -64,23 +64,22 @@ function MeshAssets.Clone(kind: string, name: string): Model?
 	return template:Clone()
 end
 
-function MeshAssets.Has(kind: string, name: string): boolean
-	local holder = folder()
-	return holder ~= nil and holder:FindFirstChild(MeshAssets.Key(kind, name)) ~= nil
-end
-
--- Clients need to know when the library exists before they draw anything from
--- it. The server sets Loaded once, after the whole batch has been attempted.
-function MeshAssets.WaitForLibrary(timeout: number): Folder?
-	local holder = ReplicatedStorage:WaitForChild(MeshAssets.FOLDER, timeout) :: Folder?
-	if not holder then
-		return nil
-	end
-	local deadline = os.clock() + timeout
-	while not holder:GetAttribute("Loaded") and os.clock() < deadline do
-		task.wait(0.1)
-	end
-	return holder
+-- Clients must not draw from the library before it is ready, and "ready" means
+-- the server has finished its whole batch, not merely that the folder has
+-- replicated. The server sets Loaded exactly once, after every load has been
+-- attempted; this runs `callback` (on a fresh thread) at that moment, or
+-- immediately if it has already passed. Event-driven on purpose — the previous
+-- timed wait returned the folder on timeout exactly as it did on success, so a
+-- server slower than the guess quietly froze every caller's fallback in place
+-- for the session.
+function MeshAssets.OnReady(callback: () -> ())
+	task.spawn(function()
+		local holder = ReplicatedStorage:WaitForChild(MeshAssets.FOLDER, math.huge) :: Folder
+		while not holder:GetAttribute("Loaded") do
+			holder:GetAttributeChangedSignal("Loaded"):Wait()
+		end
+		callback()
+	end)
 end
 
 return MeshAssets

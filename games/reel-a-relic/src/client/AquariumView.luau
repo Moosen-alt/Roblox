@@ -17,6 +17,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Crystals = require(Shared.Config.Crystals)
 local FishShape = require(Shared.FishShape)
+local MeshAssets = require(Shared.MeshAssets)
 local RelicShape = require(Shared.RelicShape)
 local State = require(script.Parent.State)
 
@@ -214,6 +215,19 @@ function AquariumView.Init()
 		local next = signatureOf(state)
 		if next ~= signature then
 			signature = next
+			rebuild(state)
+		end
+	end)
+
+	-- Same join window the cavern decor has in the sister game: fish built
+	-- before the server's mesh library replicates all fall back to primitives,
+	-- and the signature gate would then hold those primitives for the whole
+	-- session, because an identical state pushes no rebuild. Rebuild when the
+	-- library lands; the models exist now even though the state has not changed.
+	MeshAssets.OnReady(function()
+		local state = State.Get()
+		if state and state.Racks and state.Crystals then
+			signature = signatureOf(state)
 			rebuild(state)
 		end
 	end)

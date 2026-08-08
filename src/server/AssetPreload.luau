@@ -46,16 +46,18 @@ local function collect(): { Entry }
 end
 
 -- What comes back from LoadAsset is a container holding the imported thing,
--- which may be a lone MeshPart or a Model of several. Normalise it to a Model so
--- callers have one shape to deal with, and strip anything that could act on the
--- world — decoration must never collide, block a raycast, or run a script.
+-- which may be a lone MeshPart or a Model of several. Normalise it to one
+-- contract every builder can rely on — a Model centred on the world origin,
+-- pivot at the origin with identity orientation — and strip anything that could
+-- act on the world: decoration must never collide, block a raycast, or run a
+-- script.
 local function normalise(loaded: Model, key: string): Model?
 	local model = Instance.new("Model")
 	model.Name = key
 	for _, child in loaded:GetChildren() do
 		child.Parent = model
 	end
-	local parts = {}
+	local parts = 0
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.Anchored = true
@@ -63,18 +65,26 @@ local function normalise(loaded: Model, key: string): Model?
 			descendant.CanQuery = false
 			descendant.CanTouch = false
 			descendant.Massless = true
-			table.insert(parts, descendant)
+			parts += 1
 		elseif descendant:IsA("Script") or descendant:IsA("LocalScript") then
 			descendant:Destroy()
 		end
 	end
-	if #parts == 0 then
+	if parts == 0 then
 		model:Destroy()
 		return nil
 	end
-	if not model.PrimaryPart then
-		model.PrimaryPart = parts[1]
-	end
+	-- NO PrimaryPart, ever. A pivot that rides on a part sits wherever that
+	-- part's author left it, and GetBoundingBox aligns itself to that part —
+	-- which is how the first cut of this file buried every placed prop by its
+	-- authored centre height. An explicit identity pivot, with the parts moved
+	-- so their bounding box is centred on it, gives every clone the guarantee
+	-- the primitive builders already provide: PivotTo(x) puts the middle of the
+	-- visible thing at x, and GetBoundingBox stays axis-aligned.
+	model.WorldPivot = CFrame.identity
+	local box = model:GetBoundingBox()
+	model.WorldPivot = CFrame.new(box.Position)
+	model:PivotTo(CFrame.identity)
 	return model
 end
 
@@ -94,6 +104,22 @@ function AssetPreload.Run(): Folder
 	local firstError: string? = nil
 	local active = 0
 
+	-- The WHOLE entry sits inside pcall — LoadAsset, normalise, parenting — so
+	-- one malformed asset is one line in `failed`, never a dead worker. The
+	-- first cut protected only LoadAsset; anything throwing after it killed the
+	-- worker before its `active -= 1`, and the wait below then spun forever:
+	-- no map, no services, no error naming the cause.
+	local function handle(entry: Entry): boolean
+		local result = InsertService:LoadAsset(entry.Id)
+		local model = normalise(result, MeshAssets.Key(entry.Kind, entry.Name))
+		result:Destroy()
+		if not model then
+			return false
+		end
+		model.Parent = holder
+		return true
+	end
+
 	local function worker()
 		while true do
 			local index = next_
@@ -102,18 +128,11 @@ function AssetPreload.Run(): Folder
 			if not entry then
 				break
 			end
-			local ok, result = pcall(function()
-				return InsertService:LoadAsset(entry.Id)
-			end)
-			if ok and typeof(result) == "Instance" then
-				local model = normalise(result :: Model, MeshAssets.Key(entry.Kind, entry.Name))
-				;(result :: Instance):Destroy()
-				if model then
-					model.Parent = holder
-					loaded += 1
-				else
-					table.insert(failed, entry.Name .. " (no parts)")
-				end
+			local ok, result = pcall(handle, entry)
+			if ok and result == true then
+				loaded += 1
+			elseif ok then
+				table.insert(failed, entry.Name .. " (no parts)")
 			else
 				table.insert(failed, entry.Name)
 				if not firstError then
@@ -121,23 +140,37 @@ function AssetPreload.Run(): Folder
 				end
 			end
 		end
-		active -= 1
 	end
 
 	for _ = 1, math.min(CONCURRENCY, #entries) do
 		active += 1
-		task.spawn(worker)
+		task.spawn(function()
+			pcall(worker)
+			active -= 1
+		end)
 	end
-	while active > 0 do
+	-- LoadAsset can stall as well as fail, and a hung Roblox call must not hold
+	-- the server at "no map yet" forever. Past the deadline the game starts
+	-- with what it has; stragglers still land in the folder and reach clients
+	-- through the same ready-redraw that covers a slow load.
+	local deadline = os.clock() + 120
+	while active > 0 and os.clock() < deadline do
 		task.wait(0.1)
+	end
+	if active > 0 then
+		warn(
+			("[AssetPreload] Still loading after 120s; starting with %d/%d models."):format(loaded, #entries)
+		)
 	end
 
 	holder:SetAttribute("Loaded", true)
 	print(("[AssetPreload] %d/%d models loaded"):format(loaded, #entries))
 	if #failed > 0 then
 		warn(
-			("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s")
-				:format(#failed, firstError or "?")
+			("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s"):format(
+				#failed,
+				firstError or "?"
+			)
 		)
 		if loaded == 0 then
 			-- Every single one failing is not bad luck, it is a permission

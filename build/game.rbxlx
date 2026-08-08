@@ -456,7 +456,6 @@ local Meshes = {}
 
 export type MeshDef = {
 	Mesh: number, -- Roblox asset id (the number, not the rbxassetid:// string)
-	Texture: number?, -- optional; omit to tint the mesh with the crystal colour
 	Scale: number?, -- multiplier on the crystal's normal size (default 1)
 	Offset: Vector3?, -- nudge if the model's origin is not its centre
 	Rotation: Vector3?, -- degrees, X then Y then Z
@@ -949,23 +948,22 @@ function MeshAssets.Clone(kind: string, name: string): Model?
 	return template:Clone()
 end
 
-function MeshAssets.Has(kind: string, name: string): boolean
-	local holder = folder()
-	return holder ~= nil and holder:FindFirstChild(MeshAssets.Key(kind, name)) ~= nil
-end
-
--- Clients need to know when the library exists before they draw anything from
--- it. The server sets Loaded once, after the whole batch has been attempted.
-function MeshAssets.WaitForLibrary(timeout: number): Folder?
-	local holder = ReplicatedStorage:WaitForChild(MeshAssets.FOLDER, timeout) :: Folder?
-	if not holder then
-		return nil
-	end
-	local deadline = os.clock() + timeout
-	while not holder:GetAttribute("Loaded") and os.clock() < deadline do
-		task.wait(0.1)
-	end
-	return holder
+-- Clients must not draw from the library before it is ready, and "ready" means
+-- the server has finished its whole batch, not merely that the folder has
+-- replicated. The server sets Loaded exactly once, after every load has been
+-- attempted; this runs `callback` (on a fresh thread) at that moment, or
+-- immediately if it has already passed. Event-driven on purpose — the previous
+-- timed wait returned the folder on timeout exactly as it did on success, so a
+-- server slower than the guess quietly froze every caller's fallback in place
+-- for the session.
+function MeshAssets.OnReady(callback: () -> ())
+	task.spawn(function()
+		local holder = ReplicatedStorage:WaitForChild(MeshAssets.FOLDER, math.huge) :: Folder
+		while not holder:GetAttribute("Loaded") do
+			holder:GetAttributeChangedSignal("Loaded"):Wait()
+		end
+		callback()
+	end)
 end
 
 return MeshAssets
@@ -979,36 +977,38 @@ return MeshAssets
 -- Builds a collectible from an uploaded mesh, in the same shape the primitive
 -- builders return: a Model, pivoted at its own centroid, ready to PivotTo.
 --
--- Uses a Part + SpecialMesh rather than a MeshPart. MeshPart.MeshId cannot be
--- assigned at runtime (you need AssetService:CreateMeshPartAsync, which yields
--- and is awkward on the client), whereas SpecialMesh.MeshId is a plain writable
--- property that works identically on the server, on the client, and inside a
--- ViewportFrame — which is where most of these get drawn.
+-- The library templates (see server/AssetPreload) are real MeshParts, centred
+-- on the world origin with an identity pivot. That makes everything here
+-- arithmetic on a known frame: scale to the shared baseline, bake the authored
+-- orientation fix into the parts, and hand back a model whose pivot still marks
+-- the middle of what you see.
 
 local Meshes = require(script.Parent.Config.Meshes)
 local MeshAssets = require(script.Parent.MeshAssets)
 
 local MeshBuild = {}
 
--- The primitive fish are roughly 3 studs nose to tail at Scale = 1, so a mesh
+-- The primitive crystals are roughly 3 studs across at Scale = 1, so a mesh
 -- gets sized to match that by default and the config's Scale trims from there.
 -- Without a shared baseline every uploaded model would need its scale found by
 -- trial and error against a different reference.
 local BASE_STUDS = 3
 
--- KIND is needed now that models are cloned out of the preloaded library rather
--- than addressed by id: the library is keyed by (kind, name) so two different
--- things may share a name. Defaults to Crystal, which is what every existing
--- caller in this game meant.
+-- KIND names the library shelf. The library is keyed by (kind, name) because
+-- two different things may share a name — "Prop/ChestBase" and
+-- "World/ChestBase" are allowed to differ — so every caller says which one it
+-- means. Required, not defaulted: a wrong guess here returns nil and renders
+-- the primitive fallback, which is exactly the invisible failure this seam
+-- exists to keep out.
 function MeshBuild.Build(
 	def: Meshes.MeshDef,
 	name: string,
 	color: Color3,
 	scale: number,
 	glow: number?,
-	kind: string?
+	kind: string
 ): Model?
-	local model = MeshAssets.Clone(kind or "Crystal", name)
+	local model = MeshAssets.Clone(kind, name)
 	-- Not loaded: the caller falls back to its primitive builder, which is the
 	-- behaviour this whole seam was designed around.
 	if not model then
@@ -1025,45 +1025,49 @@ function MeshBuild.Build(
 		model:ScaleTo((BASE_STUDS * scale * (def.Scale or 1)) / longest)
 	end
 
-	local rotation = def.Rotation or Vector3.zero
-	local box = model:GetBoundingBox()
-	model:PivotTo(
-		CFrame.new((def.Offset or Vector3.zero) - box.Position)
-			* CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z))
-	)
+	-- def.Rotation squares up a model authored on the wrong axes. It has to be
+	-- baked into the PARTS — turn them about the pivot, then put the pivot's
+	-- orientation back — because callers PivotTo these with their own animation
+	-- CFrames, and anything carried on the pivot itself would be overwritten by
+	-- the first one.
+	local rotation = def.Rotation
+	if rotation then
+		model:PivotTo(CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z)))
+		model.WorldPivot = CFrame.identity
+	end
 
+	-- Centroid pivot, matching the primitive builders: callers PivotTo these and
+	-- expect the middle of the thing to land where they asked. def.Offset moves
+	-- the visible middle off the pivot, for the rare model whose visual centre
+	-- is not its bounding-box centre.
+	local box = model:GetBoundingBox()
+	model:PivotTo(CFrame.new((def.Offset or Vector3.zero) - box.Position))
+	model.WorldPivot = CFrame.identity
+
+	-- Anchored/CanCollide/CanQuery were set once on the library template and
+	-- clone with it; only appearance is per-use. An untextured model gets tinted
+	-- to the crystal colour so auras still read; a textured one already carries
+	-- its own surface.
+	local anchor: BasePart? = nil
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
-			part.Anchored = true
-			part.CanCollide = false
-			part.CanQuery = false -- a cast must never land on a decoration
-			part.CanTouch = false
-			part.Massless = true
-			-- An untextured model gets tinted to the species colour so auras
-			-- still read; a textured one already carries its own surface.
-			local textured = false
-			if part:IsA("MeshPart") then
-				textured = part.TextureID ~= ""
-			end
+			anchor = anchor or part
+			local textured = part:IsA("MeshPart") and part.TextureID ~= ""
 			if not textured then
 				part.Color = color
 			end
 		end
 	end
 
-	if glow and glow > 0 and model.PrimaryPart then
+	if glow and glow > 0 and anchor then
 		local light = Instance.new("PointLight")
 		light.Color = color
 		light.Range = glow
 		light.Brightness = 0.7
 		light.Shadows = false
-		light.Parent = model.PrimaryPart
+		light.Parent = anchor
 	end
 
-	-- Centroid pivot, matching the primitive builders: callers PivotTo these and
-	-- expect the middle of the thing to land where they asked.
-	local final = model:GetBoundingBox()
-	model.WorldPivot = CFrame.new(final.Position)
 	return model
 end
 
@@ -1333,22 +1337,12 @@ return Remotes
 -- it, and both have to be a believable size next to a player who is five studs
 -- tall. Getting that wrong does not look like a bug, it looks like cheap art.
 --
--- The catch is that a SpecialMesh does not tell you how big it draws. The Part
--- stays 1x1x1 whatever Scale is set to, so `GetBoundingBox` reports a one-stud
--- cube for a thirty-stud arch, and anything that positions from it is guessing.
--- That guess is what put the aquarium relics through the table.
---
--- So the extents are not measured at runtime — they are measured from the source
--- OBJ by tools/build-meshes.py and generated into Config/Meshes.luau, and this
--- module does exact arithmetic on them:
---
---     k          = wanted height / the model's own height
---     mesh.Offset = -middle * k         -- recentre a model authored off-origin
---     part.Y      = ground + (middle.Y - floor) * k
---
--- which puts the lowest vertex exactly on the ground, at any height, for a model
--- authored grounded, centred, or sunk below its own origin. All three are in the
--- pack.
+-- The library templates (see server/AssetPreload) are real MeshParts, centred
+-- on the world origin with an identity pivot, so the model is measured rather
+-- than trusted: scale from its live bounding box, then set it down so the box's
+-- lowest face lands exactly on Position.Y — whatever the model was authored
+-- around. The extents generated into Config/Meshes from the source OBJ remain
+-- only as the fallback for a template that comes back unmeasurable.
 
 local Meshes = require(script.Parent.Config.Meshes)
 local MeshAssets = require(script.Parent.MeshAssets)
@@ -1388,9 +1382,6 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 	end
 	model.Name = name
 
-	-- Real MeshParts, so the extents are measurable at runtime. The generated
-	-- Size/Floor from the source OBJ stay as a fallback for anything the library
-	-- hands back without a usable box.
 	local _, size = model:GetBoundingBox()
 	if size.Y <= 0 then
 		size = def.Size or Vector3.one
@@ -1402,41 +1393,39 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 	k *= (def.Scale or 1)
 	model:ScaleTo(k)
 
-	-- Sit it ON the ground. Measured from the scaled model rather than assumed,
-	-- which is the whole point of having real parts: the lowest vertex goes
-	-- exactly on Position.Y, whether the model was authored grounded, centred,
-	-- or below its own origin.
+	-- Sit it ON the ground, measured from the scaled model. The pivot is the
+	-- origin of a centred template with identity orientation, so PivotTo is
+	-- absolute arithmetic: the box keeps its height under a yaw-only turn, and
+	-- whatever horizontal drift the template has left turns with the model
+	-- instead of smearing it off its spot. The lowest face lands exactly on
+	-- Position.Y whether the model was authored grounded, centred, or below its
+	-- own origin.
 	local box, extents = model:GetBoundingBox()
 	local rotation = def.Rotation or Vector3.zero
-	local bottom = box.Position.Y - extents.Y * 0.5
+	local yaw = CFrame.Angles(0, math.rad((place.Yaw or 0) + rotation.Y), 0)
+	local drift = yaw:VectorToWorldSpace(Vector3.new(box.Position.X, 0, box.Position.Z))
 	model:PivotTo(
 		CFrame.new(
-			place.Position.X - box.Position.X,
-			place.Position.Y - bottom - (place.Sink or 0),
-			place.Position.Z - box.Position.Z
-		)
-			* box.Rotation
-			* CFrame.Angles(0, math.rad((place.Yaw or 0) + rotation.Y), 0)
+			place.Position.X - drift.X,
+			place.Position.Y - (place.Sink or 0) + extents.Y * 0.5 - box.Position.Y,
+			place.Position.Z - drift.Z
+		) * yaw
 	)
 
+	-- Anchored/CanCollide/CanQuery were set once on the library template — the
+	-- procedural geometry beneath is what players stand on and what casts land
+	-- on — and clone with it. What is per-placement is appearance.
+	local anchor: BasePart? = nil
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
-			part.Anchored = true
-			-- Decoration never blocks anything. The procedural geometry beneath
-			-- is what players stand on and what casts land on; these are laid
-			-- over the top, so a mesh overhanging a dock must not become a wall.
-			part.CanCollide = false
-			part.CanQuery = false
-			part.CanTouch = false
-			part.Massless = true
+			anchor = anchor or part
+			-- Decoration casts no shadows: there are dozens per area, and the
+			-- ground already carries the scene's light.
 			part.CastShadow = false
 			if place.Transparency then
 				part.Transparency = place.Transparency
 			end
-			local textured = false
-			if part:IsA("MeshPart") then
-				textured = part.TextureID ~= ""
-			end
+			local textured = part:IsA("MeshPart") and part.TextureID ~= ""
 			local tint = place.Tint or def.Tint
 			if tint and not textured then
 				part.Color = tint
@@ -1448,13 +1437,13 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 		end
 	end
 
-	if place.Glow and place.Glow > 0 and model.PrimaryPart then
+	if place.Glow and place.Glow > 0 and anchor then
 		local light = Instance.new("PointLight")
-		light.Color = model.PrimaryPart.Color
+		light.Color = anchor.Color
 		light.Range = place.Glow
 		light.Brightness = 0.6
 		light.Shadows = false
-		light.Parent = model.PrimaryPart
+		light.Parent = anchor
 	end
 
 	return model
@@ -1672,16 +1661,18 @@ local function collect(): { Entry }
 end
 
 -- What comes back from LoadAsset is a container holding the imported thing,
--- which may be a lone MeshPart or a Model of several. Normalise it to a Model so
--- callers have one shape to deal with, and strip anything that could act on the
--- world — decoration must never collide, block a raycast, or run a script.
+-- which may be a lone MeshPart or a Model of several. Normalise it to one
+-- contract every builder can rely on — a Model centred on the world origin,
+-- pivot at the origin with identity orientation — and strip anything that could
+-- act on the world: decoration must never collide, block a raycast, or run a
+-- script.
 local function normalise(loaded: Model, key: string): Model?
 	local model = Instance.new("Model")
 	model.Name = key
 	for _, child in loaded:GetChildren() do
 		child.Parent = model
 	end
-	local parts = {}
+	local parts = 0
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.Anchored = true
@@ -1689,18 +1680,26 @@ local function normalise(loaded: Model, key: string): Model?
 			descendant.CanQuery = false
 			descendant.CanTouch = false
 			descendant.Massless = true
-			table.insert(parts, descendant)
+			parts += 1
 		elseif descendant:IsA("Script") or descendant:IsA("LocalScript") then
 			descendant:Destroy()
 		end
 	end
-	if #parts == 0 then
+	if parts == 0 then
 		model:Destroy()
 		return nil
 	end
-	if not model.PrimaryPart then
-		model.PrimaryPart = parts[1]
-	end
+	-- NO PrimaryPart, ever. A pivot that rides on a part sits wherever that
+	-- part's author left it, and GetBoundingBox aligns itself to that part —
+	-- which is how the first cut of this file buried every placed prop by its
+	-- authored centre height. An explicit identity pivot, with the parts moved
+	-- so their bounding box is centred on it, gives every clone the guarantee
+	-- the primitive builders already provide: PivotTo(x) puts the middle of the
+	-- visible thing at x, and GetBoundingBox stays axis-aligned.
+	model.WorldPivot = CFrame.identity
+	local box = model:GetBoundingBox()
+	model.WorldPivot = CFrame.new(box.Position)
+	model:PivotTo(CFrame.identity)
 	return model
 end
 
@@ -1720,6 +1719,22 @@ function AssetPreload.Run(): Folder
 	local firstError: string? = nil
 	local active = 0
 
+	-- The WHOLE entry sits inside pcall — LoadAsset, normalise, parenting — so
+	-- one malformed asset is one line in `failed`, never a dead worker. The
+	-- first cut protected only LoadAsset; anything throwing after it killed the
+	-- worker before its `active -= 1`, and the wait below then spun forever:
+	-- no map, no services, no error naming the cause.
+	local function handle(entry: Entry): boolean
+		local result = InsertService:LoadAsset(entry.Id)
+		local model = normalise(result, MeshAssets.Key(entry.Kind, entry.Name))
+		result:Destroy()
+		if not model then
+			return false
+		end
+		model.Parent = holder
+		return true
+	end
+
 	local function worker()
 		while true do
 			local index = next_
@@ -1728,18 +1743,11 @@ function AssetPreload.Run(): Folder
 			if not entry then
 				break
 			end
-			local ok, result = pcall(function()
-				return InsertService:LoadAsset(entry.Id)
-			end)
-			if ok and typeof(result) == "Instance" then
-				local model = normalise(result :: Model, MeshAssets.Key(entry.Kind, entry.Name))
-				;(result :: Instance):Destroy()
-				if model then
-					model.Parent = holder
-					loaded += 1
-				else
-					table.insert(failed, entry.Name .. " (no parts)")
-				end
+			local ok, result = pcall(handle, entry)
+			if ok and result == true then
+				loaded += 1
+			elseif ok then
+				table.insert(failed, entry.Name .. " (no parts)")
 			else
 				table.insert(failed, entry.Name)
 				if not firstError then
@@ -1747,23 +1755,37 @@ function AssetPreload.Run(): Folder
 				end
 			end
 		end
-		active -= 1
 	end
 
 	for _ = 1, math.min(CONCURRENCY, #entries) do
 		active += 1
-		task.spawn(worker)
+		task.spawn(function()
+			pcall(worker)
+			active -= 1
+		end)
 	end
-	while active > 0 do
+	-- LoadAsset can stall as well as fail, and a hung Roblox call must not hold
+	-- the server at "no map yet" forever. Past the deadline the game starts
+	-- with what it has; stragglers still land in the folder and reach clients
+	-- through the same ready-redraw that covers a slow load.
+	local deadline = os.clock() + 120
+	while active > 0 and os.clock() < deadline do
 		task.wait(0.1)
+	end
+	if active > 0 then
+		warn(
+			("[AssetPreload] Still loading after 120s; starting with %d/%d models."):format(loaded, #entries)
+		)
 	end
 
 	holder:SetAttribute("Loaded", true)
 	print(("[AssetPreload] %d/%d models loaded"):format(loaded, #entries))
 	if #failed > 0 then
 		warn(
-			("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s")
-				:format(#failed, firstError or "?")
+			("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s"):format(
+				#failed,
+				firstError or "?"
+			)
 		)
 		if loaded == 0 then
 			-- Every single one failing is not bad luck, it is a permission
@@ -7891,13 +7913,13 @@ function CaveDecor.Init()
 
 	-- The models come from the server's preload, so at join there is a window
 	-- where every Build would return nil and the cavern would stay bare for the
-	-- session. Wait for the library, then redraw once — clearing `shown` is what
-	-- makes the next apply actually rebuild rather than early-out.
-	task.spawn(function()
-		if MeshAssets.WaitForLibrary(45) then
-			shown = -1
-			apply()
-		end
+	-- session. Redraw once the library is ready — clearing `shown` is what makes
+	-- the next apply actually rebuild rather than early-out. OnReady rather than
+	-- a timed wait: a server throttled past any fixed deadline still gets its
+	-- cavern the moment the batch lands.
+	MeshAssets.OnReady(function()
+		shown = -1
+		apply()
 	end)
 end
 

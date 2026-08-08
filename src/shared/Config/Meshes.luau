@@ -73,7 +73,6 @@ local Meshes = {}
 
 export type MeshDef = {
 	Mesh: number, -- Roblox asset id (the number, not the rbxassetid:// string)
-	Texture: number?, -- optional; omit to tint the mesh with the crystal colour
 	Scale: number?, -- multiplier on the crystal's normal size (default 1)
 	Offset: Vector3?, -- nudge if the model's origin is not its centre
 	Rotation: Vector3?, -- degrees, X then Y then Z

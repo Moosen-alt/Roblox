@@ -248,13 +248,13 @@ function CaveDecor.Init()
 
 	-- The models come from the server's preload, so at join there is a window
 	-- where every Build would return nil and the cavern would stay bare for the
-	-- session. Wait for the library, then redraw once — clearing `shown` is what
-	-- makes the next apply actually rebuild rather than early-out.
-	task.spawn(function()
-		if MeshAssets.WaitForLibrary(45) then
-			shown = -1
-			apply()
-		end
+	-- session. Redraw once the library is ready — clearing `shown` is what makes
+	-- the next apply actually rebuild rather than early-out. OnReady rather than
+	-- a timed wait: a server throttled past any fixed deadline still gets its
+	-- cavern the moment the batch lands.
+	MeshAssets.OnReady(function()
+		shown = -1
+		apply()
 	end)
 end
 

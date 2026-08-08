@@ -7,22 +7,12 @@
 -- it, and both have to be a believable size next to a player who is five studs
 -- tall. Getting that wrong does not look like a bug, it looks like cheap art.
 --
--- The catch is that a SpecialMesh does not tell you how big it draws. The Part
--- stays 1x1x1 whatever Scale is set to, so `GetBoundingBox` reports a one-stud
--- cube for a thirty-stud arch, and anything that positions from it is guessing.
--- That guess is what put the aquarium relics through the table.
---
--- So the extents are not measured at runtime — they are measured from the source
--- OBJ by tools/build-meshes.py and generated into Config/Meshes.luau, and this
--- module does exact arithmetic on them:
---
---     k          = wanted height / the model's own height
---     mesh.Offset = -middle * k         -- recentre a model authored off-origin
---     part.Y      = ground + (middle.Y - floor) * k
---
--- which puts the lowest vertex exactly on the ground, at any height, for a model
--- authored grounded, centred, or sunk below its own origin. All three are in the
--- pack.
+-- The library templates (see server/AssetPreload) are real MeshParts, centred
+-- on the world origin with an identity pivot, so the model is measured rather
+-- than trusted: scale from its live bounding box, then set it down so the box's
+-- lowest face lands exactly on Position.Y — whatever the model was authored
+-- around. The extents generated into Config/Meshes from the source OBJ remain
+-- only as the fallback for a template that comes back unmeasurable.
 
 local Meshes = require(script.Parent.Config.Meshes)
 local MeshAssets = require(script.Parent.MeshAssets)
@@ -62,9 +52,6 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 	end
 	model.Name = name
 
-	-- Real MeshParts, so the extents are measurable at runtime. The generated
-	-- Size/Floor from the source OBJ stay as a fallback for anything the library
-	-- hands back without a usable box.
 	local _, size = model:GetBoundingBox()
 	if size.Y <= 0 then
 		size = def.Size or Vector3.one
@@ -76,41 +63,39 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 	k *= (def.Scale or 1)
 	model:ScaleTo(k)
 
-	-- Sit it ON the ground. Measured from the scaled model rather than assumed,
-	-- which is the whole point of having real parts: the lowest vertex goes
-	-- exactly on Position.Y, whether the model was authored grounded, centred,
-	-- or below its own origin.
+	-- Sit it ON the ground, measured from the scaled model. The pivot is the
+	-- origin of a centred template with identity orientation, so PivotTo is
+	-- absolute arithmetic: the box keeps its height under a yaw-only turn, and
+	-- whatever horizontal drift the template has left turns with the model
+	-- instead of smearing it off its spot. The lowest face lands exactly on
+	-- Position.Y whether the model was authored grounded, centred, or below its
+	-- own origin.
 	local box, extents = model:GetBoundingBox()
 	local rotation = def.Rotation or Vector3.zero
-	local bottom = box.Position.Y - extents.Y * 0.5
+	local yaw = CFrame.Angles(0, math.rad((place.Yaw or 0) + rotation.Y), 0)
+	local drift = yaw:VectorToWorldSpace(Vector3.new(box.Position.X, 0, box.Position.Z))
 	model:PivotTo(
 		CFrame.new(
-			place.Position.X - box.Position.X,
-			place.Position.Y - bottom - (place.Sink or 0),
-			place.Position.Z - box.Position.Z
-		)
-			* box.Rotation
-			* CFrame.Angles(0, math.rad((place.Yaw or 0) + rotation.Y), 0)
+			place.Position.X - drift.X,
+			place.Position.Y - (place.Sink or 0) + extents.Y * 0.5 - box.Position.Y,
+			place.Position.Z - drift.Z
+		) * yaw
 	)
 
+	-- Anchored/CanCollide/CanQuery were set once on the library template — the
+	-- procedural geometry beneath is what players stand on and what casts land
+	-- on — and clone with it. What is per-placement is appearance.
+	local anchor: BasePart? = nil
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
-			part.Anchored = true
-			-- Decoration never blocks anything. The procedural geometry beneath
-			-- is what players stand on and what casts land on; these are laid
-			-- over the top, so a mesh overhanging a dock must not become a wall.
-			part.CanCollide = false
-			part.CanQuery = false
-			part.CanTouch = false
-			part.Massless = true
+			anchor = anchor or part
+			-- Decoration casts no shadows: there are dozens per area, and the
+			-- ground already carries the scene's light.
 			part.CastShadow = false
 			if place.Transparency then
 				part.Transparency = place.Transparency
 			end
-			local textured = false
-			if part:IsA("MeshPart") then
-				textured = part.TextureID ~= ""
-			end
+			local textured = part:IsA("MeshPart") and part.TextureID ~= ""
 			local tint = place.Tint or def.Tint
 			if tint and not textured then
 				part.Color = tint
@@ -122,13 +107,13 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 		end
 	end
 
-	if place.Glow and place.Glow > 0 and model.PrimaryPart then
+	if place.Glow and place.Glow > 0 and anchor then
 		local light = Instance.new("PointLight")
-		light.Color = model.PrimaryPart.Color
+		light.Color = anchor.Color
 		light.Range = place.Glow
 		light.Brightness = 0.6
 		light.Shadows = false
-		light.Parent = model.PrimaryPart
+		light.Parent = anchor
 	end
 
 	return model

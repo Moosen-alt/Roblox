@@ -2,11 +2,11 @@
 -- Builds a collectible from an uploaded mesh, in the same shape the primitive
 -- builders return: a Model, pivoted at its own centroid, ready to PivotTo.
 --
--- Uses a Part + SpecialMesh rather than a MeshPart. MeshPart.MeshId cannot be
--- assigned at runtime (you need AssetService:CreateMeshPartAsync, which yields
--- and is awkward on the client), whereas SpecialMesh.MeshId is a plain writable
--- property that works identically on the server, on the client, and inside a
--- ViewportFrame — which is where most of these get drawn.
+-- The library templates (see server/AssetPreload) are real MeshParts, centred
+-- on the world origin with an identity pivot. That makes everything here
+-- arithmetic on a known frame: scale to the shared baseline, bake the authored
+-- orientation fix into the parts, and hand back a model whose pivot still marks
+-- the middle of what you see.
 
 local Meshes = require(script.Parent.Config.Meshes)
 local MeshAssets = require(script.Parent.MeshAssets)
@@ -19,19 +19,21 @@ local MeshBuild = {}
 -- trial and error against a different reference.
 local BASE_STUDS = 3
 
--- KIND is needed now that models are cloned out of the preloaded library rather
--- than addressed by id: the library is keyed by (kind, name) so two different
--- things may share a name. Defaults to Crystal, which is what every existing
--- caller in this game meant.
+-- KIND names the library shelf. The library is keyed by (kind, name) because
+-- two different things may share a name — "Prop/ChestBase" and
+-- "World/ChestBase" are allowed to differ — so every caller says which one it
+-- means. Required, not defaulted: a wrong guess here returns nil and renders
+-- the primitive fallback, which is exactly the invisible failure this seam
+-- exists to keep out.
 function MeshBuild.Build(
 	def: Meshes.MeshDef,
 	name: string,
 	color: Color3,
 	scale: number,
 	glow: number?,
-	kind: string?
+	kind: string
 ): Model?
-	local model = MeshAssets.Clone(kind or "Crystal", name)
+	local model = MeshAssets.Clone(kind, name)
 	-- Not loaded: the caller falls back to its primitive builder, which is the
 	-- behaviour this whole seam was designed around.
 	if not model then
@@ -48,45 +50,49 @@ function MeshBuild.Build(
 		model:ScaleTo((BASE_STUDS * scale * (def.Scale or 1)) / longest)
 	end
 
-	local rotation = def.Rotation or Vector3.zero
-	local box = model:GetBoundingBox()
-	model:PivotTo(
-		CFrame.new((def.Offset or Vector3.zero) - box.Position)
-			* CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z))
-	)
+	-- def.Rotation squares up a model authored on the wrong axes. It has to be
+	-- baked into the PARTS — turn them about the pivot, then put the pivot's
+	-- orientation back — because callers PivotTo these with their own animation
+	-- CFrames, and anything carried on the pivot itself would be overwritten by
+	-- the first one.
+	local rotation = def.Rotation
+	if rotation then
+		model:PivotTo(CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z)))
+		model.WorldPivot = CFrame.identity
+	end
 
+	-- Centroid pivot, matching the primitive builders: callers PivotTo these and
+	-- expect the middle of the thing to land where they asked. def.Offset moves
+	-- the visible middle off the pivot, for the rare model whose visual centre
+	-- is not its bounding-box centre.
+	local box = model:GetBoundingBox()
+	model:PivotTo(CFrame.new((def.Offset or Vector3.zero) - box.Position))
+	model.WorldPivot = CFrame.identity
+
+	-- Anchored/CanCollide/CanQuery were set once on the library template and
+	-- clone with it; only appearance is per-use. An untextured model gets tinted
+	-- to the species colour so auras still read; a textured one already carries
+	-- its own surface.
+	local anchor: BasePart? = nil
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
-			part.Anchored = true
-			part.CanCollide = false
-			part.CanQuery = false -- a cast must never land on a decoration
-			part.CanTouch = false
-			part.Massless = true
-			-- An untextured model gets tinted to the species colour so auras
-			-- still read; a textured one already carries its own surface.
-			local textured = false
-			if part:IsA("MeshPart") then
-				textured = part.TextureID ~= ""
-			end
+			anchor = anchor or part
+			local textured = part:IsA("MeshPart") and part.TextureID ~= ""
 			if not textured then
 				part.Color = color
 			end
 		end
 	end
 
-	if glow and glow > 0 and model.PrimaryPart then
+	if glow and glow > 0 and anchor then
 		local light = Instance.new("PointLight")
 		light.Color = color
 		light.Range = glow
 		light.Brightness = 0.7
 		light.Shadows = false
-		light.Parent = model.PrimaryPart
+		light.Parent = anchor
 	end
 
-	-- Centroid pivot, matching the primitive builders: callers PivotTo these and
-	-- expect the middle of the thing to land where they asked.
-	local final = model:GetBoundingBox()
-	model.WorldPivot = CFrame.new(final.Position)
 	return model
 end
 
