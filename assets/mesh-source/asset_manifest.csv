@@ -75,71 +75,71 @@ Crack a Geode,Prop,ChestLid,props/crystal_geode_chest_lid.obj,131543048004444,1.
 Crack a Geode,Prop,GeodeHalfA,props/geode_half_a.obj,93767624394202,0.674,0,0,0,Blue Agate Geode by ArcticGreenhouse,"CC BY 4.0 - credit required, see Config/Credits.luau"
 Crack a Geode,Prop,GeodeHalfB,props/geode_half_b.obj,83706691568376,0.674,0,0,0,Blue Agate Geode by ArcticGreenhouse,"CC BY 4.0 - credit required, see Config/Credits.luau"
 Crack a Geode,World,Hero Crystal Cluster,world/crack-a-geode/01_Crystal_Cavern/Hero_Crystal_Cluster.obj,102783224246936,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Cave Boulder A,world/crack-a-geode/01_Crystal_Cavern/Cave_Boulder_A.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Cave Boulder B,world/crack-a-geode/01_Crystal_Cavern/Cave_Boulder_B.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Crystal Arch,world/crack-a-geode/01_Crystal_Cavern/Crystal_Arch.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Stalagmite Cluster,world/crack-a-geode/01_Crystal_Cavern/Stalagmite_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Floating Crystal Ring,world/crack-a-geode/01_Crystal_Cavern/Floating_Crystal_Ring.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Amber Cluster,world/crack-a-geode/02_Amber_Depths/Amber_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Old Mine Support,world/crack-a-geode/02_Amber_Depths/Old_Mine_Support.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Ruined Stone Arch,world/crack-a-geode/02_Amber_Depths/Ruined_Stone_Arch.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Mine Boulder,world/crack-a-geode/02_Amber_Depths/Mine_Boulder.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Broken Plank Bridge,world/crack-a-geode/02_Amber_Depths/Broken_Plank_Bridge.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Amber Pillar,world/crack-a-geode/02_Amber_Depths/Amber_Pillar.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Ice Spire Cluster,world/crack-a-geode/03_Frost_Hollow/Ice_Spire_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Frozen Arch,world/crack-a-geode/03_Frost_Hollow/Frozen_Arch.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Frost Boulder,world/crack-a-geode/03_Frost_Hollow/Frost_Boulder.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Ice Crystal Cluster,world/crack-a-geode/03_Frost_Hollow/Ice_Crystal_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Frozen Pillar,world/crack-a-geode/03_Frost_Hollow/Frozen_Pillar.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Icicle Ceiling Strip,world/crack-a-geode/03_Frost_Hollow/Icicle_Ceiling_Strip.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Basalt Spire Cluster,world/crack-a-geode/04_Ember_Rift/Basalt_Spire_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Lava Fissure Rock,world/crack-a-geode/04_Ember_Rift/Lava_Fissure_Rock.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Hydrothermal Vent,world/crack-a-geode/04_Ember_Rift/Hydrothermal_Vent.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Broken Rift Bridge,world/crack-a-geode/04_Ember_Rift/Broken_Rift_Bridge.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Ember Crystal Cluster,world/crack-a-geode/04_Ember_Rift/Ember_Crystal_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Basalt Gate,world/crack-a-geode/04_Ember_Rift/Basalt_Gate.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Meteor Chunk A,world/crack-a-geode/05_Starfall_Core/Meteor_Chunk_A.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Meteor Chunk B,world/crack-a-geode/05_Starfall_Core/Meteor_Chunk_B.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Star Monolith,world/crack-a-geode/05_Starfall_Core/Star_Monolith.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Cosmic Ring,world/crack-a-geode/05_Starfall_Core/Cosmic_Ring.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Star Pillar,world/crack-a-geode/05_Starfall_Core/Star_Pillar.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Prismatic Core Cluster,world/crack-a-geode/05_Starfall_Core/Prismatic_Core_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Obsidian Boulder,world/crack-a-geode/06_25_Deep_Layer_Remix/Obsidian_Boulder.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Cinder Spires,world/crack-a-geode/06_25_Deep_Layer_Remix/Cinder_Spires.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Glacier Shards,world/crack-a-geode/06_25_Deep_Layer_Remix/Glacier_Shards.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Verdant Crystals,world/crack-a-geode/06_25_Deep_Layer_Remix/Verdant_Crystals.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Ashen Gate,world/crack-a-geode/06_25_Deep_Layer_Remix/Ashen_Gate.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Radiant Cluster,world/crack-a-geode/06_25_Deep_Layer_Remix/Radiant_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Drowned Pillar,world/crack-a-geode/06_25_Deep_Layer_Remix/Drowned_Pillar.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Gilded Ruin,world/crack-a-geode/06_25_Deep_Layer_Remix/Gilded_Ruin.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Crack a Geode,World,Shattered Monolith,world/crack-a-geode/06_25_Deep_Layer_Remix/Shattered_Monolith.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Palm Tree,world/reel-a-relic/01_Sunny_Shallows/Palm_Tree.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Beach Rock A,world/reel-a-relic/01_Sunny_Shallows/Beach_Rock_A.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Reed Patch,world/reel-a-relic/01_Sunny_Shallows/Reed_Patch.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Wood Dock Segment,world/reel-a-relic/01_Sunny_Shallows/Wood_Dock_Segment.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Ring Buoy,world/reel-a-relic/01_Sunny_Shallows/Ring_Buoy.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Driftwood,world/reel-a-relic/01_Sunny_Shallows/Driftwood.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Tall Kelp Patch,world/reel-a-relic/02_Kelp_Forest/Tall_Kelp_Patch.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Pine Tree,world/reel-a-relic/02_Kelp_Forest/Pine_Tree.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Cold Shore Boulder,world/reel-a-relic/02_Kelp_Forest/Cold_Shore_Boulder.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Old Wood Dock,world/reel-a-relic/02_Kelp_Forest/Old_Wood_Dock.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Kelp Rock Cluster,world/reel-a-relic/02_Kelp_Forest/Kelp_Rock_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Drift Log,world/reel-a-relic/02_Kelp_Forest/Drift_Log.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Coral Head,world/reel-a-relic/03_Twilight_Reef/Coral_Head.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Coral Fan,world/reel-a-relic/03_Twilight_Reef/Coral_Fan.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Sea Urchin,world/reel-a-relic/03_Twilight_Reef/Sea_Urchin.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Reef Rock,world/reel-a-relic/03_Twilight_Reef/Reef_Rock.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Tiki Buoy,world/reel-a-relic/03_Twilight_Reef/Tiki_Buoy.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Sandstone Dock Segment,world/reel-a-relic/03_Twilight_Reef/Sandstone_Dock_Segment.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Trench Basalt Spires,world/reel-a-relic/04_Midnight_Trench/Trench_Basalt_Spires.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Hydrothermal Vent Cluster,world/reel-a-relic/04_Midnight_Trench/Hydrothermal_Vent_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Can Buoy,world/reel-a-relic/04_Midnight_Trench/Can_Buoy.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Metal Dock Segment,world/reel-a-relic/04_Midnight_Trench/Metal_Dock_Segment.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Trench Boulder,world/reel-a-relic/04_Midnight_Trench/Trench_Boulder.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Broken Metal Bridge,world/reel-a-relic/04_Midnight_Trench/Broken_Metal_Bridge.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Whale Rib Bones,world/reel-a-relic/05_The_Abyss/Whale_Rib_Bones.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Sea Creature Skull,world/reel-a-relic/05_The_Abyss/Sea_Creature_Skull.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Lantern Buoy,world/reel-a-relic/05_The_Abyss/Lantern_Buoy.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Abyss Spires,world/reel-a-relic/05_The_Abyss/Abyss_Spires.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Biolum Mushroom Cluster,world/reel-a-relic/05_The_Abyss/Biolum_Mushroom_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
-Reel a Relic,World,Abyss Crystal Cluster,world/reel-a-relic/05_The_Abyss/Abyss_Crystal_Cluster.obj,,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Cave Boulder A,world/crack-a-geode/01_Crystal_Cavern/Cave_Boulder_A.obj,127912618011165,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Cave Boulder B,world/crack-a-geode/01_Crystal_Cavern/Cave_Boulder_B.obj,95013049554131,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Crystal Arch,world/crack-a-geode/01_Crystal_Cavern/Crystal_Arch.obj,126534106034620,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Stalagmite Cluster,world/crack-a-geode/01_Crystal_Cavern/Stalagmite_Cluster.obj,75181055587609,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Floating Crystal Ring,world/crack-a-geode/01_Crystal_Cavern/Floating_Crystal_Ring.obj,76527006285935,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Amber Cluster,world/crack-a-geode/02_Amber_Depths/Amber_Cluster.obj,126343695026058,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Old Mine Support,world/crack-a-geode/02_Amber_Depths/Old_Mine_Support.obj,110057472014097,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Ruined Stone Arch,world/crack-a-geode/02_Amber_Depths/Ruined_Stone_Arch.obj,82726266755091,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Mine Boulder,world/crack-a-geode/02_Amber_Depths/Mine_Boulder.obj,108682528139793,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Broken Plank Bridge,world/crack-a-geode/02_Amber_Depths/Broken_Plank_Bridge.obj,139633458342809,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Amber Pillar,world/crack-a-geode/02_Amber_Depths/Amber_Pillar.obj,95364474303428,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Ice Spire Cluster,world/crack-a-geode/03_Frost_Hollow/Ice_Spire_Cluster.obj,134333074279344,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Frozen Arch,world/crack-a-geode/03_Frost_Hollow/Frozen_Arch.obj,83124592572307,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Frost Boulder,world/crack-a-geode/03_Frost_Hollow/Frost_Boulder.obj,89175754879265,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Ice Crystal Cluster,world/crack-a-geode/03_Frost_Hollow/Ice_Crystal_Cluster.obj,88179758410571,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Frozen Pillar,world/crack-a-geode/03_Frost_Hollow/Frozen_Pillar.obj,105738261356824,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Icicle Ceiling Strip,world/crack-a-geode/03_Frost_Hollow/Icicle_Ceiling_Strip.obj,106194877400856,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Basalt Spire Cluster,world/crack-a-geode/04_Ember_Rift/Basalt_Spire_Cluster.obj,103363314173012,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Lava Fissure Rock,world/crack-a-geode/04_Ember_Rift/Lava_Fissure_Rock.obj,102170394358533,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Hydrothermal Vent,world/crack-a-geode/04_Ember_Rift/Hydrothermal_Vent.obj,100138343153094,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Broken Rift Bridge,world/crack-a-geode/04_Ember_Rift/Broken_Rift_Bridge.obj,119071075207566,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Ember Crystal Cluster,world/crack-a-geode/04_Ember_Rift/Ember_Crystal_Cluster.obj,103227041124452,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Basalt Gate,world/crack-a-geode/04_Ember_Rift/Basalt_Gate.obj,112116585124241,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Meteor Chunk A,world/crack-a-geode/05_Starfall_Core/Meteor_Chunk_A.obj,109052224251768,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Meteor Chunk B,world/crack-a-geode/05_Starfall_Core/Meteor_Chunk_B.obj,107031374387276,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Star Monolith,world/crack-a-geode/05_Starfall_Core/Star_Monolith.obj,84087413567390,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Cosmic Ring,world/crack-a-geode/05_Starfall_Core/Cosmic_Ring.obj,103698859838027,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Star Pillar,world/crack-a-geode/05_Starfall_Core/Star_Pillar.obj,89165921201910,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Prismatic Core Cluster,world/crack-a-geode/05_Starfall_Core/Prismatic_Core_Cluster.obj,105758051499205,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Obsidian Boulder,world/crack-a-geode/06_25_Deep_Layer_Remix/Obsidian_Boulder.obj,123318334368423,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Cinder Spires,world/crack-a-geode/06_25_Deep_Layer_Remix/Cinder_Spires.obj,82428337923473,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Glacier Shards,world/crack-a-geode/06_25_Deep_Layer_Remix/Glacier_Shards.obj,98096908202393,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Verdant Crystals,world/crack-a-geode/06_25_Deep_Layer_Remix/Verdant_Crystals.obj,121593256394266,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Ashen Gate,world/crack-a-geode/06_25_Deep_Layer_Remix/Ashen_Gate.obj,101535301124921,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Radiant Cluster,world/crack-a-geode/06_25_Deep_Layer_Remix/Radiant_Cluster.obj,92515924939554,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Drowned Pillar,world/crack-a-geode/06_25_Deep_Layer_Remix/Drowned_Pillar.obj,92819093586376,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Gilded Ruin,world/crack-a-geode/06_25_Deep_Layer_Remix/Gilded_Ruin.obj,84587884048707,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Crack a Geode,World,Shattered Monolith,world/crack-a-geode/06_25_Deep_Layer_Remix/Shattered_Monolith.obj,137791662333329,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Palm Tree,world/reel-a-relic/01_Sunny_Shallows/Palm_Tree.obj,99925129880846,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Beach Rock A,world/reel-a-relic/01_Sunny_Shallows/Beach_Rock_A.obj,81070296586096,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Reed Patch,world/reel-a-relic/01_Sunny_Shallows/Reed_Patch.obj,135384892593450,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Wood Dock Segment,world/reel-a-relic/01_Sunny_Shallows/Wood_Dock_Segment.obj,118962856470986,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Ring Buoy,world/reel-a-relic/01_Sunny_Shallows/Ring_Buoy.obj,125963009418615,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Driftwood,world/reel-a-relic/01_Sunny_Shallows/Driftwood.obj,109235365932935,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Tall Kelp Patch,world/reel-a-relic/02_Kelp_Forest/Tall_Kelp_Patch.obj,70758180426613,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Pine Tree,world/reel-a-relic/02_Kelp_Forest/Pine_Tree.obj,99094106242063,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Cold Shore Boulder,world/reel-a-relic/02_Kelp_Forest/Cold_Shore_Boulder.obj,108666960364655,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Old Wood Dock,world/reel-a-relic/02_Kelp_Forest/Old_Wood_Dock.obj,88675995301052,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Kelp Rock Cluster,world/reel-a-relic/02_Kelp_Forest/Kelp_Rock_Cluster.obj,112813337741910,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Drift Log,world/reel-a-relic/02_Kelp_Forest/Drift_Log.obj,126987886164070,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Coral Head,world/reel-a-relic/03_Twilight_Reef/Coral_Head.obj,99512566685246,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Coral Fan,world/reel-a-relic/03_Twilight_Reef/Coral_Fan.obj,128638136408548,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Sea Urchin,world/reel-a-relic/03_Twilight_Reef/Sea_Urchin.obj,73588658819482,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Reef Rock,world/reel-a-relic/03_Twilight_Reef/Reef_Rock.obj,130942262054159,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Tiki Buoy,world/reel-a-relic/03_Twilight_Reef/Tiki_Buoy.obj,71962793843365,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Sandstone Dock Segment,world/reel-a-relic/03_Twilight_Reef/Sandstone_Dock_Segment.obj,88974751177204,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Trench Basalt Spires,world/reel-a-relic/04_Midnight_Trench/Trench_Basalt_Spires.obj,137027280726629,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Hydrothermal Vent Cluster,world/reel-a-relic/04_Midnight_Trench/Hydrothermal_Vent_Cluster.obj,117311320531873,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Can Buoy,world/reel-a-relic/04_Midnight_Trench/Can_Buoy.obj,140052778135213,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Metal Dock Segment,world/reel-a-relic/04_Midnight_Trench/Metal_Dock_Segment.obj,120552368590037,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Trench Boulder,world/reel-a-relic/04_Midnight_Trench/Trench_Boulder.obj,90443832869084,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Broken Metal Bridge,world/reel-a-relic/04_Midnight_Trench/Broken_Metal_Bridge.obj,128488352091109,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Whale Rib Bones,world/reel-a-relic/05_The_Abyss/Whale_Rib_Bones.obj,138869319384204,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Sea Creature Skull,world/reel-a-relic/05_The_Abyss/Sea_Creature_Skull.obj,140532906196177,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Lantern Buoy,world/reel-a-relic/05_The_Abyss/Lantern_Buoy.obj,78718823998383,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Abyss Spires,world/reel-a-relic/05_The_Abyss/Abyss_Spires.obj,106471878342245,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Biolum Mushroom Cluster,world/reel-a-relic/05_The_Abyss/Biolum_Mushroom_Cluster.obj,84694811062435,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled
+Reel a Relic,World,Abyss Crystal Cluster,world/reel-a-relic/05_The_Abyss/Abyss_Crystal_Cluster.obj,88464272470792,1.0,0,0,0,Included original low-poly OBJ (world pack),No third-party geometry bundled

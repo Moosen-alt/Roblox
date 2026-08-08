@@ -171,7 +171,38 @@ Meshes.Prop = {
 -- procedural geometry alone. That is the whole reason decoration lives behind
 -- its own table: the map must never depend on an asset that might be in
 -- moderation.
-Meshes.World = {} :: { [string]: MeshDef }
+Meshes.World = {
+	["Abyss Crystal Cluster"] = { Mesh = 88464272470792, Scale = 1, Size = Vector3.new(5.079, 4.475, 3.129), Floor = -0.6558, Middle = Vector3.new(-0.2376, 1.582, -0.04301), Material = Enum.Material.Neon, Tint = Color3.fromRGB(150, 255, 235) },
+	["Abyss Spires"] = { Mesh = 106471878342245, Scale = 1, Size = Vector3.new(3.92, 7, 1.639), Floor = 0, Middle = Vector3.new(-0.04, 3.5, 0.0134), Material = Enum.Material.Slate, Tint = Color3.fromRGB(48, 45, 62) },
+	["Beach Rock A"] = { Mesh = 81070296586096, Scale = 1, Size = Vector3.new(4.248, 2.463, 3.005), Floor = -1.28, Middle = Vector3.new(-0.1075, -0.04811, 0.06888), Material = Enum.Material.Sandstone, Tint = Color3.fromRGB(195, 178, 145) },
+	["Biolum Mushroom Cluster"] = { Mesh = 84694811062435, Scale = 1, Size = Vector3.new(3.4, 2.28, 2.65), Floor = 0, Middle = Vector3.new(-0.05, 1.14, -0.275), Material = Enum.Material.Neon, Tint = Color3.fromRGB(140, 100, 255) },
+	["Broken Metal Bridge"] = { Mesh = 128488352091109, Scale = 1, Size = Vector3.new(9, 0.515, 3.16), Floor = -0.2577, Middle = Vector3.new(0, -0.0002209, 0), Material = Enum.Material.DiamondPlate, Tint = Color3.fromRGB(82, 84, 98) },
+	["Can Buoy"] = { Mesh = 140052778135213, Scale = 1, Size = Vector3.new(1.36, 3.98, 1.36), Floor = 0, Middle = Vector3.new(0, 1.99, 0), Material = Enum.Material.Metal, Tint = Color3.fromRGB(95, 105, 120) },
+	["Cold Shore Boulder"] = { Mesh = 108666960364655, Scale = 1, Size = Vector3.new(5.05, 3.049, 4.05), Floor = -1.553, Middle = Vector3.new(-0.06425, -0.02863, 0.06884), Material = Enum.Material.Rock, Tint = Color3.fromRGB(100, 112, 105) },
+	["Coral Fan"] = { Mesh = 128638136408548, Scale = 1, Size = Vector3.new(4.204, 4, 0.24), Floor = 0, Middle = Vector3.new(0, 2, 0), Material = Enum.Material.SmoothPlastic, Tint = Color3.fromRGB(255, 145, 220) },
+	["Coral Head"] = { Mesh = 99512566685246, Scale = 1, Size = Vector3.new(2.96, 3.496, 1.16), Floor = -0.01628, Middle = Vector3.new(0.1, 1.732, 0.1), Material = Enum.Material.SmoothPlastic, Tint = Color3.fromRGB(255, 125, 150) },
+	["Drift Log"] = { Mesh = 126987886164070, Scale = 1, Size = Vector3.new(6.041, 1.579, 1.447), Floor = -0.2192, Middle = Vector3.new(0, 0.5703, 0.1036), Material = Enum.Material.Wood, Tint = Color3.fromRGB(95, 72, 54) },
+	["Driftwood"] = { Mesh = 109235365932935, Scale = 1, Size = Vector3.new(6.041, 1.579, 1.447), Floor = -0.2192, Middle = Vector3.new(0, 0.5703, 0.1036), Material = Enum.Material.Wood, Tint = Color3.fromRGB(120, 86, 55) },
+	["Hydrothermal Vent Cluster"] = { Mesh = 117311320531873, Scale = 1, Size = Vector3.new(2.997, 7.578, 1.967), Floor = -2.5, Middle = Vector3.new(-0.01842, 1.289, -0.2106), Material = Enum.Material.Basalt, Tint = Color3.fromRGB(70, 65, 76) },
+	["Kelp Rock Cluster"] = { Mesh = 112813337741910, Scale = 1, Size = Vector3.new(6.1, 7.987, 3.075), Floor = -0.9725, Middle = Vector3.new(0, 3.021, 0.1388), Material = Enum.Material.Rock, Tint = Color3.fromRGB(90, 105, 92) },
+	["Lantern Buoy"] = { Mesh = 78718823998383, Scale = 1, Size = Vector3.new(1.5, 3.5, 1.427), Floor = 0, Middle = Vector3.new(0, 1.75, 0), Material = Enum.Material.Slate, Tint = Color3.fromRGB(190, 90, 255) },
+	["Metal Dock Segment"] = { Mesh = 120552368590037, Scale = 1, Size = Vector3.new(6, 3.025, 4), Floor = -2.75, Middle = Vector3.new(0, -1.238, 0), Material = Enum.Material.DiamondPlate, Tint = Color3.fromRGB(80, 82, 96) },
+	["Old Wood Dock"] = { Mesh = 88675995301052, Scale = 1, Size = Vector3.new(6, 3.025, 4), Floor = -2.75, Middle = Vector3.new(0, -1.238, 0), Material = Enum.Material.Wood, Tint = Color3.fromRGB(105, 82, 60) },
+	["Palm Tree"] = { Mesh = 99925129880846, Scale = 1, Size = Vector3.new(6.5, 6.274, 5.513), Floor = 0, Middle = Vector3.new(0, 3.137, 0), Material = Enum.Material.Grass, Tint = Color3.fromRGB(70, 170, 90) },
+	["Pine Tree"] = { Mesh = 99094106242063, Scale = 1, Size = Vector3.new(3.879, 6, 3.939), Floor = 0, Middle = Vector3.new(0.06031, 3, 0), Material = Enum.Material.Grass, Tint = Color3.fromRGB(50, 110, 70) },
+	["Reed Patch"] = { Mesh = 135384892593450, Scale = 1, Size = Vector3.new(3.96, 2.9, 0.8585), Floor = 0, Middle = Vector3.new(0.18, 1.45, 0.0005966), Material = Enum.Material.Grass, Tint = Color3.fromRGB(90, 185, 100) },
+	["Reef Rock"] = { Mesh = 130942262054159, Scale = 1, Size = Vector3.new(4.374, 2.812, 3.694), Floor = -1.457, Middle = Vector3.new(-0.19, -0.05055, -0.103), Material = Enum.Material.Sandstone, Tint = Color3.fromRGB(215, 168, 155) },
+	["Ring Buoy"] = { Mesh = 125963009418615, Scale = 1, Size = Vector3.new(2.48, 2.884, 2.442), Floor = 0.966, Middle = Vector3.new(0, 2.408, 0), Material = Enum.Material.SmoothPlastic, Tint = Color3.fromRGB(255, 180, 55) },
+	["Sandstone Dock Segment"] = { Mesh = 88974751177204, Scale = 1, Size = Vector3.new(6, 3.025, 4), Floor = -2.75, Middle = Vector3.new(0, -1.238, 0), Material = Enum.Material.Sandstone, Tint = Color3.fromRGB(220, 170, 145) },
+	["Sea Creature Skull"] = { Mesh = 140532906196177, Scale = 1, Size = Vector3.new(2.4, 2.15, 2.07), Floor = 0.1, Middle = Vector3.new(0, 1.175, 0.085), Material = Enum.Material.Sand, Tint = Color3.fromRGB(205, 200, 185) },
+	["Sea Urchin"] = { Mesh = 73588658819482, Scale = 1, Size = Vector3.new(2.663, 2.029, 2.666), Floor = 0, Middle = Vector3.new(0, 1.014, 0), Material = Enum.Material.SmoothPlastic, Tint = Color3.fromRGB(120, 70, 170) },
+	["Tall Kelp Patch"] = { Mesh = 70758180426613, Scale = 1, Size = Vector3.new(6.1, 7.032, 0.5781), Floor = -0.01797, Middle = Vector3.new(0, 3.498, 0.009067), Material = Enum.Material.Grass, Tint = Color3.fromRGB(60, 150, 90) },
+	["Tiki Buoy"] = { Mesh = 71962793843365, Scale = 1, Size = Vector3.new(1.6, 2.55, 1.6), Floor = 0, Middle = Vector3.new(0, 1.275, 0), Material = Enum.Material.Wood, Tint = Color3.fromRGB(155, 95, 60) },
+	["Trench Basalt Spires"] = { Mesh = 137027280726629, Scale = 1, Size = Vector3.new(3.92, 7, 1.639), Floor = 0, Middle = Vector3.new(-0.04, 3.5, 0.0134), Material = Enum.Material.Basalt, Tint = Color3.fromRGB(55, 58, 72) },
+	["Trench Boulder"] = { Mesh = 90443832869084, Scale = 1, Size = Vector3.new(4.674, 4.017, 4.02), Floor = -1.998, Middle = Vector3.new(0.05768, 0.01001, 0.1135), Material = Enum.Material.Basalt, Tint = Color3.fromRGB(50, 52, 68) },
+	["Whale Rib Bones"] = { Mesh = 138869319384204, Scale = 1, Size = Vector3.new(5, 2.884, 2.114), Floor = 0.075, Middle = Vector3.new(0, 1.517, 0.1955), Material = Enum.Material.Sand, Tint = Color3.fromRGB(205, 200, 185) },
+	["Wood Dock Segment"] = { Mesh = 118962856470986, Scale = 1, Size = Vector3.new(6, 3.025, 4), Floor = -2.75, Middle = Vector3.new(0, -1.238, 0), Material = Enum.Material.WoodPlanks, Tint = Color3.fromRGB(185, 145, 95) },
+} :: { [string]: MeshDef }
 
 function Meshes.ForProp(name: string?): MeshDef?
 	return if name then Meshes.Prop[name] else nil
