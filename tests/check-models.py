@@ -110,6 +110,73 @@ MANIFEST = Path(__file__).resolve().parent.parent / "assets/mesh-source/asset_ma
 # Game directory -> the Game column in the manifest.
 GAME_NAMES = {".": "Crack a Geode", "games/reel-a-relic": "Reel a Relic"}
 
+# A placement plan asks for a size in studs along ONE axis. Scale is uniform, so
+# the other two are a consequence nobody wrote down and nobody looks at — which
+# is how a bridge asked to stand 11 studs tall came out 210 studs long, in a
+# cavern 220 studs wide. Past this, a prop is not decoration any more.
+MAX_FOOTPRINT = 60
+
+
+def obj_extents(path: Path) -> tuple[float, float, float] | None:
+    lo = [float("inf")] * 3
+    hi = [float("-inf")] * 3
+    if not path.exists():
+        return None
+    with path.open(encoding="utf-8", errors="ignore") as handle:
+        for line in handle:
+            if line.startswith("v "):
+                parts = line.split()
+                for axis in range(3):
+                    value = float(parts[axis + 1])
+                    lo[axis] = min(lo[axis], value)
+                    hi[axis] = max(hi[axis], value)
+    if lo[0] == float("inf"):
+        return None
+    return tuple(hi[a] - lo[a] for a in range(3))
+
+
+def check_footprints(game: Path, rows: list[dict]) -> list[str]:
+    """What a placement plan actually renders, not what it asks for.
+
+    The plan says "eleven studs". For a boulder that is the whole story; for
+    anything long and low it is one third of it, and the other two thirds is
+    where the model ends up wider than the room. This measures the source OBJ
+    and works the rendered footprint out, which is the only way to see it — the
+    numbers in the plan look completely reasonable either way.
+    """
+    source = Path("assets/mesh-source")
+    by_name = {row["ExactName"]: row for row in rows}
+    problems = []
+    for relative in DECOR_SOURCES:
+        plan_file = game / relative
+        if not plan_file.exists():
+            continue
+        pattern = (
+            r'\{\s*Name = "([^"]+)", Count = \d+, Min = ([\d.]+), Max = ([\d.]+), '
+            r'Zone = "\w+"(, Fit = "Span")?'
+        )
+        for name, _, biggest, by_span in re.findall(pattern, plan_file.read_text()):
+            row = by_name.get(name)
+            if row is None:
+                continue  # the name check above already reports this
+            extents = obj_extents(source / row["LocalFile"])
+            if extents is None:
+                continue
+            width, height, depth = extents
+            longest = max(width, depth)
+            # Span sizes the longest horizontal axis; otherwise height does, and
+            # the horizontal size falls out of the model's own proportions.
+            scale = float(biggest) / (longest if by_span else height)
+            footprint = longest * scale
+            if footprint > MAX_FOOTPRINT:
+                problems.append(
+                    f"  {relative} places {name!r} at {footprint:.0f} studs across "
+                    f"(asked for {biggest} {'span' if by_span else 'tall'}; the model is "
+                    f"{longest / height:.0f}x wider than it is tall). "
+                    f"Size it with Fit = \"Span\" instead."
+                )
+    return problems
+
 
 def check_decor(game: Path) -> list[str]:
     """A world prop named in a placement plan must exist in the pack.
@@ -125,15 +192,16 @@ def check_decor(game: Path) -> list[str]:
     key = GAME_NAMES.get(game.as_posix())
     if key is None or not MANIFEST.exists():
         return []
-    known = {
-        row["ExactName"]
+    rows = [
+        row
         for row in csv.DictReader(MANIFEST.open(newline="", encoding="utf-8"))
         if row["Game"] == key and row["Kind"] == "World"
-    }
+    ]
+    known = {row["ExactName"] for row in rows}
     if not known:
         return []
 
-    problems, used = [], set()
+    problems, used = check_footprints(game, rows), set()
     for relative in DECOR_SOURCES:
         source = game / relative
         if not source.exists():
