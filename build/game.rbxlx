@@ -7756,6 +7756,13 @@ type PropPlan = {
 	-- how far they reach, not by how tall they are, and sizing them by height
 	-- makes them hundreds of studs long — wider than the cavern they sit in.
 	Fit: string?,
+	-- Style overrides for models whose pack suggestion reads badly in the room.
+	-- Every pack model is one mesh = one flat colour, and one flat colour in
+	-- full Neon is a fullbright blob — the orange pumpkins of the first live
+	-- look. Ice carries crystalline surface grain and takes a tint; the
+	-- PointLight does the glowing instead of the surface.
+	Tint: Color3?,
+	Material: Enum.Material?,
 	Glow: number?,
 }
 
@@ -7765,12 +7772,12 @@ type PropPlan = {
 local LAYER_THEMES: { { PropPlan } } = {
 	{ -- 1 Crystal Cavern — where everyone starts. Bright, and the only layer
 		-- that gets a true hero piece, so the first room reads as the good one.
-		{ Name = "Hero Crystal Cluster", Count = 1, Min = 24, Max = 24, Zone = "Hero", Glow = 40 },
+		{ Name = "Hero Crystal Cluster", Count = 1, Min = 26, Max = 26, Zone = "Hero", Material = Enum.Material.Ice, Glow = 34 },
 		{ Name = "Crystal Arch", Count = 6, Min = 15, Max = 21, Zone = "Back" },
 		{ Name = "Stalagmite Cluster", Count = 14, Min = 6, Max = 13, Zone = "Flank" },
 		{ Name = "Cave Boulder A", Count = 12, Min = 5, Max = 10, Zone = "Flank" },
 		{ Name = "Cave Boulder B", Count = 10, Min = 5, Max = 11, Zone = "Front" },
-		{ Name = "Floating Crystal Ring", Count = 7, Min = 8, Max = 12, Zone = "Float", Glow = 26 },
+		{ Name = "Floating Crystal Ring", Count = 4, Min = 6, Max = 9, Zone = "Float", Material = Enum.Material.Ice, Glow = 14 },
 	},
 	{ -- 2 Amber Depths — a worked-out mine. Timber and warm stone.
 		{ Name = "Amber Pillar", Count = 8, Min = 16, Max = 26, Zone = "Back" },
@@ -7778,7 +7785,7 @@ local LAYER_THEMES: { { PropPlan } } = {
 		{ Name = "Old Mine Support", Count = 14, Min = 10, Max = 15, Zone = "Flank" },
 		{ Name = "Mine Boulder", Count = 13, Min = 4, Max = 9, Zone = "Flank" },
 		{ Name = "Broken Plank Bridge", Count = 4, Min = 26, Max = 34, Zone = "Front", Fit = "Span" },
-		{ Name = "Amber Cluster", Count = 10, Min = 5, Max = 9, Zone = "Float", Glow = 24 },
+		{ Name = "Amber Cluster", Count = 5, Min = 3.5, Max = 6.5, Zone = "Float", Material = Enum.Material.Glass, Glow = 12 },
 	},
 	{ -- 3 Frost Hollow — the first layer that is actively hostile. Ice above.
 		{ Name = "Frozen Pillar", Count = 8, Min = 18, Max = 28, Zone = "Back" },
@@ -7786,23 +7793,23 @@ local LAYER_THEMES: { { PropPlan } } = {
 		{ Name = "Ice Spire Cluster", Count = 14, Min = 8, Max = 16, Zone = "Flank" },
 		{ Name = "Frost Boulder", Count = 12, Min = 4, Max = 9, Zone = "Flank" },
 		{ Name = "Icicle Ceiling Strip", Count = 16, Min = 14, Max = 24, Zone = "Ceiling", Fit = "Span" },
-		{ Name = "Ice Crystal Cluster", Count = 10, Min = 5, Max = 9, Zone = "Float", Glow = 22 },
+		{ Name = "Ice Crystal Cluster", Count = 6, Min = 3.5, Max = 6.5, Zone = "Float", Material = Enum.Material.Ice, Glow = 12 },
 	},
 	{ -- 4 Ember Rift — heat. Everything glows from below rather than above.
 		{ Name = "Basalt Gate", Count = 4, Min = 18, Max = 24, Zone = "Back" },
 		{ Name = "Basalt Spire Cluster", Count = 14, Min = 9, Max = 18, Zone = "Flank" },
-		{ Name = "Lava Fissure Rock", Count = 13, Min = 4, Max = 9, Zone = "Flank", Glow = 18 },
-		{ Name = "Hydrothermal Vent", Count = 9, Min = 7, Max = 12, Zone = "Front", Glow = 20 },
+		{ Name = "Lava Fissure Rock", Count = 10, Min = 4, Max = 8, Zone = "Flank", Tint = Color3.fromRGB(72, 48, 42), Material = Enum.Material.Basalt, Glow = 12 },
+		{ Name = "Hydrothermal Vent", Count = 6, Min = 6, Max = 10, Zone = "Front", Tint = Color3.fromRGB(58, 48, 50), Material = Enum.Material.Basalt, Glow = 14 },
 		{ Name = "Broken Rift Bridge", Count = 4, Min = 26, Max = 34, Zone = "Front", Fit = "Span" },
-		{ Name = "Ember Crystal Cluster", Count = 10, Min = 5, Max = 9, Zone = "Float", Glow = 26 },
+		{ Name = "Ember Crystal Cluster", Count = 5, Min = 3.5, Max = 6.5, Zone = "Float", Material = Enum.Material.Glass, Glow = 13 },
 	},
 	{ -- 5 Starfall Core — the end of the authored run, so it gets to be strange.
-		{ Name = "Star Monolith", Count = 5, Min = 20, Max = 30, Zone = "Back", Glow = 24 },
+		{ Name = "Star Monolith", Count = 4, Min = 20, Max = 28, Zone = "Back", Tint = Color3.fromRGB(56, 50, 82), Material = Enum.Material.Slate, Glow = 12 },
 		{ Name = "Star Pillar", Count = 8, Min = 16, Max = 26, Zone = "Back" },
 		{ Name = "Meteor Chunk A", Count = 12, Min = 5, Max = 11, Zone = "Flank" },
 		{ Name = "Meteor Chunk B", Count = 11, Min = 5, Max = 11, Zone = "Front" },
-		{ Name = "Cosmic Ring", Count = 5, Min = 12, Max = 18, Zone = "Float", Glow = 30 },
-		{ Name = "Prismatic Core Cluster", Count = 10, Min = 6, Max = 10, Zone = "Float", Glow = 30 },
+		{ Name = "Cosmic Ring", Count = 3, Min = 10, Max = 14, Zone = "Float", Material = Enum.Material.Glass, Glow = 14 },
+		{ Name = "Prismatic Core Cluster", Count = 5, Min = 4, Max = 7, Zone = "Float", Material = Enum.Material.Glass, Glow = 14 },
 	},
 }
 
@@ -7817,9 +7824,9 @@ local REMIX: { PropPlan } = {
 	{ Name = "Cinder Spires", Count = 14, Min = 9, Max = 18, Zone = "Flank" },
 	{ Name = "Glacier Shards", Count = 14, Min = 6, Max = 13, Zone = "Flank" },
 	{ Name = "Obsidian Boulder", Count = 12, Min = 5, Max = 11, Zone = "Flank" },
-	{ Name = "Gilded Ruin", Count = 8, Min = 8, Max = 14, Zone = "Front", Glow = 18 },
-	{ Name = "Verdant Crystals", Count = 10, Min = 5, Max = 9, Zone = "Float", Glow = 24 },
-	{ Name = "Radiant Cluster", Count = 10, Min = 6, Max = 10, Zone = "Float", Glow = 30 },
+	{ Name = "Gilded Ruin", Count = 6, Min = 8, Max = 13, Zone = "Front", Glow = 11 },
+	{ Name = "Verdant Crystals", Count = 6, Min = 3.5, Max = 6.5, Zone = "Float", Material = Enum.Material.Glass, Glow = 12 },
+	{ Name = "Radiant Cluster", Count = 5, Min = 4, Max = 7, Zone = "Float", Material = Enum.Material.Glass, Glow = 14 },
 }
 
 local FLOOR = 0
@@ -7854,7 +7861,7 @@ local STATIONS = {
 
 local function clearOfStations(at: Vector3): boolean
 	for _, pad in STATIONS do
-		if (Vector3.new(at.X, 0, at.Z) - pad).Magnitude < 20 then
+		if (Vector3.new(at.X, 0, at.Z) - pad).Magnitude < 24 then
 			return false
 		end
 	end
@@ -7896,7 +7903,7 @@ local function placeIn(zone: string, rng: Random, height: number): (Vector3, num
 			at = Vector3.new(rng:NextNumber(-88, 88), CEILING, rng:NextNumber(-54, 62))
 			sink = height
 		else -- Float: up in the air where it reads against the dark ceiling.
-			at = Vector3.new(side * rng:NextNumber(26, 88), rng:NextNumber(10, 30), rng:NextNumber(-46, 58))
+			at = Vector3.new(side * rng:NextNumber(30, 82), rng:NextNumber(18, 34), rng:NextNumber(-44, 56))
 		end
 		-- Overhead pieces are never in anybody's way, so they skip the check.
 		if zone == "Ceiling" or clearOfStations(at) then
@@ -7929,6 +7936,8 @@ local function build(layer: number)
 				Span = if plan.Fit == "Span" then height else nil,
 				Position = at,
 				Yaw = rng:NextNumber(0, 360),
+				Tint = plan.Tint,
+				Material = plan.Material,
 				Sink = sink,
 				Glow = plan.Glow,
 			})

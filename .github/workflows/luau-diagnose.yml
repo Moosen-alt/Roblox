@@ -1,0 +1,44 @@
+name: Diagnose mesh library in the cloud
+
+# Diagnostic only: runs tools/diagnose-library.luau inside a fresh server of the
+# published place via the Luau Execution API and prints what it finds. Uploads
+# nothing, commits nothing, changes nothing.
+#
+# This exists because nothing else in CI can see the game. The asset pipeline
+# once sat completely broken behind green checks for hours; this is the check
+# that would have caught it in one run, and it answers structural questions
+# (did every model load, how many parts, is anything textured) without spending
+# one of the owner's playtests.
+on:
+  workflow_dispatch:
+    inputs:
+      game:
+        description: "Which game to diagnose"
+        type: choice
+        options: [both, geode, reel]
+        default: both
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet requests
+      - name: Crack a Geode
+        if: inputs.game == 'both' || inputs.game == 'geode'
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: |
+          python3 tools/luau-exec.py \
+            --universe "${{ secrets.GEODE_UNIVERSE_ID || '10631514772' }}" \
+            --place "${{ secrets.GEODE_PLACE_ID || '87385359444928' }}" \
+            --script tools/diagnose-library.luau
+      - name: Reel a Relic
+        if: (inputs.game == 'both' || inputs.game == 'reel') && !cancelled()
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: |
+          python3 tools/luau-exec.py \
+            --universe "${{ secrets.REEL_UNIVERSE_ID || '10645988430' }}" \
+            --place "${{ secrets.REEL_PLACE_ID || '84472237297273' }}" \
+            --script tools/diagnose-library.luau

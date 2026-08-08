@@ -73,6 +73,12 @@ type PropPlan = {
 	-- longest horizontal dimension. A bridge is defined by how far it reaches,
 	-- not by how tall it is; sized by height it comes out longer than the beach.
 	Fit: string?,
+	-- Style overrides for models whose pack suggestion reads badly in the world.
+	-- Every pack model is a single mesh, so it can only ever be ONE flat colour —
+	-- and one flat colour in full Neon is a glowing blob. Ice, Basalt and Slate
+	-- carry real surface grain; a PointLight does the glowing instead.
+	Tint: Color3?,
+	Material: Enum.Material?,
 	Sink: number?, -- studs to bury, for things growing out of sand or rock
 	Glow: number?, -- PointLight range, for the ones that light the dark
 }
@@ -82,7 +88,7 @@ local AREA_THEMES: { AreaTheme } = {
 		Sand = Color3.fromRGB(232, 214, 165),
 		Water = Color3.fromRGB(120, 210, 230),
 		Spots = { Color3.fromRGB(255, 200, 60), Color3.fromRGB(120, 220, 255), Color3.fromRGB(120, 255, 160) },
-		Palms = 8,
+		Palms = 14,
 		Growth = "Reeds",
 		Shore = "Palm",
 		Buoy = "Ring",
@@ -92,15 +98,19 @@ local AREA_THEMES: { AreaTheme } = {
 			-- FLORIDA KEYS. Palms crowding the skyline behind the stations, sand
 			-- littered with driftwood, reeds standing out of the shallows either
 			-- side of the pier.
-			{ Name = "Palm Tree", Count = 16, Min = 20, Max = 30, Zone = "Backdrop" },
-			{ Name = "Palm Tree", Count = 7, Min = 18, Max = 26, Zone = "Shore" },
-			{ Name = "Beach Rock A", Count = 10, Min = 3.5, Max = 7, Zone = "Shore", Sink = 0.4 },
-			{ Name = "Beach Rock A", Count = 6, Min = 7, Max = 11, Zone = "Dockside", Sink = 0.5 },
-			{ Name = "Driftwood", Count = 10, Min = 2, Max = 3.5, Zone = "Shore" },
-			{ Name = "Reed Patch", Count = 16, Min = 6.5, Max = 9, Zone = "Dockside" },
-			{ Name = "Reed Patch", Count = 10, Min = 3, Max = 5, Zone = "Floor" },
+			-- No mesh palms: the pack's palm is ONE mesh, and one mesh is one
+			-- flat colour, so its trunk renders leaf-green. The hand-built palms
+			-- (theme.Palms) have brown trunks and win outright. No mesh buoys
+			-- either — the hand-built spot buoys already carry the water.
+			{ Name = "Beach Rock A", Count = 8, Min = 3.5, Max = 7, Zone = "Shore", Sink = 0.4, Tint = Color3.fromRGB(158, 142, 116), Material = Enum.Material.Slate },
+			{ Name = "Beach Rock A", Count = 4, Min = 7, Max = 10, Zone = "Dockside", Sink = 0.6, Tint = Color3.fromRGB(146, 132, 110), Material = Enum.Material.Slate },
+			{ Name = "Driftwood", Count = 8, Min = 2, Max = 3.5, Zone = "Shore" },
+			{ Name = "Reed Patch", Count = 12, Min = 6.5, Max = 8.5, Zone = "Dockside" },
+			{ Name = "Reed Patch", Count = 8, Min = 3, Max = 5, Zone = "Floor" },
 			{ Name = "Wood Dock Segment", Count = 6, Min = 1.6, Max = 2.2, Zone = "Dock" },
-			{ Name = "Ring Buoy", Count = 6, Min = 1.8, Max = 2.6, Zone = "Surface" },
+			-- Far floats. Out past the arc a flat-colour mesh reads fine; empty
+			-- water past fifty studs is what does not.
+			{ Name = "Ring Buoy", Count = 4, Min = 1.8, Max = 2.6, Zone = "Surface", Tint = Color3.fromRGB(214, 74, 60) },
 		},
 	},
 	{ -- 2 Kelp Forest: a cold northern cove. Kelp towers up THROUGH the surface
@@ -118,14 +128,14 @@ local AREA_THEMES: { AreaTheme } = {
 			-- CATALINA / NORTHERN CALIFORNIA. A cold pine cove, not a beach. The
 			-- kelp is the whole point of the area, so it is thickest right beside
 			-- the pier and sized to reach the surface and mat across it.
-			{ Name = "Pine Tree", Count = 20, Min = 24, Max = 36, Zone = "Backdrop" },
-			{ Name = "Pine Tree", Count = 8, Min = 20, Max = 30, Zone = "Shore" },
-			{ Name = "Cold Shore Boulder", Count = 10, Min = 4, Max = 8, Zone = "Shore", Sink = 0.6 },
+			{ Name = "Pine Tree", Count = 12, Min = 24, Max = 36, Zone = "Backdrop" },
+			{ Name = "Pine Tree", Count = 5, Min = 20, Max = 30, Zone = "Shore" },
+			{ Name = "Cold Shore Boulder", Count = 8, Min = 4, Max = 8, Zone = "Shore", Sink = 0.6 },
 			{ Name = "Cold Shore Boulder", Count = 8, Min = 10, Max = 18, Zone = "Headland", Sink = 1 },
-			{ Name = "Drift Log", Count = 8, Min = 2, Max = 3.5, Zone = "Shore" },
-			{ Name = "Tall Kelp Patch", Count = 20, Min = 7, Max = 10, Zone = "Dockside" },
-			{ Name = "Tall Kelp Patch", Count = 14, Min = 7, Max = 9.5, Zone = "Floor" },
-			{ Name = "Kelp Rock Cluster", Count = 10, Min = 6.5, Max = 9, Zone = "Dockside", Sink = 0.5 },
+			{ Name = "Drift Log", Count = 6, Min = 2, Max = 3.5, Zone = "Shore" },
+			{ Name = "Tall Kelp Patch", Count = 16, Min = 7, Max = 9.5, Zone = "Dockside" },
+			{ Name = "Tall Kelp Patch", Count = 12, Min = 7, Max = 9.5, Zone = "Floor" },
+			{ Name = "Kelp Rock Cluster", Count = 8, Min = 7, Max = 9, Zone = "Dockside", Sink = 0.5 },
 			{ Name = "Old Wood Dock", Count = 6, Min = 1.6, Max = 2.2, Zone = "Dock" },
 		},
 	},
@@ -145,12 +155,12 @@ local AREA_THEMES: { AreaTheme } = {
 			-- rather than as blue water with fish in it.
 			{ Name = "Reef Rock", Count = 10, Min = 10, Max = 20, Zone = "Headland", Sink = 1 },
 			{ Name = "Reef Rock", Count = 8, Min = 4, Max = 8, Zone = "Shore", Sink = 0.5 },
-			{ Name = "Coral Head", Count = 16, Min = 6.5, Max = 10, Zone = "Dockside" },
-			{ Name = "Coral Head", Count = 14, Min = 3, Max = 5, Zone = "Floor" },
-			{ Name = "Coral Fan", Count = 12, Min = 6.5, Max = 9, Zone = "Dockside" },
-			{ Name = "Coral Fan", Count = 10, Min = 2.5, Max = 4.5, Zone = "Floor" },
-			{ Name = "Sea Urchin", Count = 12, Min = 1.2, Max = 2, Zone = "Floor" },
-			{ Name = "Tiki Buoy", Count = 6, Min = 2.2, Max = 3, Zone = "Surface" },
+			{ Name = "Coral Head", Count = 12, Min = 6.5, Max = 9, Zone = "Dockside" },
+			{ Name = "Coral Head", Count = 12, Min = 3, Max = 5, Zone = "Floor" },
+			{ Name = "Coral Fan", Count = 9, Min = 6.5, Max = 8.5, Zone = "Dockside" },
+			{ Name = "Coral Fan", Count = 8, Min = 2.5, Max = 4.5, Zone = "Floor" },
+			{ Name = "Sea Urchin", Count = 10, Min = 1.2, Max = 2, Zone = "Floor" },
+			{ Name = "Tiki Buoy", Count = 4, Min = 2.2, Max = 3, Zone = "Surface", Tint = Color3.fromRGB(196, 130, 66) },
 			{ Name = "Sandstone Dock Segment", Count = 6, Min = 1.6, Max = 2.2, Zone = "Dock" },
 		},
 	},
@@ -172,10 +182,10 @@ local AREA_THEMES: { AreaTheme } = {
 			{ Name = "Trench Basalt Spires", Count = 6, Min = 8, Max = 14, Zone = "Dockside", Sink = 0.5 },
 			{ Name = "Trench Boulder", Count = 10, Min = 3.5, Max = 6, Zone = "Shore", Sink = 0.6 },
 			{ Name = "Trench Boulder", Count = 8, Min = 7, Max = 11, Zone = "Dockside", Sink = 0.6 },
-			{ Name = "Hydrothermal Vent Cluster", Count = 8, Min = 7, Max = 11, Zone = "Dockside", Glow = 20 },
-			{ Name = "Hydrothermal Vent Cluster", Count = 6, Min = 4, Max = 6, Zone = "Floor", Glow = 18 },
+			{ Name = "Hydrothermal Vent Cluster", Count = 6, Min = 6.5, Max = 9, Zone = "Dockside", Tint = Color3.fromRGB(64, 56, 60), Material = Enum.Material.Basalt, Glow = 14 },
+			{ Name = "Hydrothermal Vent Cluster", Count = 5, Min = 4, Max = 6, Zone = "Floor", Tint = Color3.fromRGB(58, 50, 54), Material = Enum.Material.Basalt, Glow = 12 },
 			{ Name = "Broken Metal Bridge", Count = 4, Min = 22, Max = 30, Zone = "Shore", Fit = "Span" },
-			{ Name = "Can Buoy", Count = 6, Min = 2, Max = 2.8, Zone = "Surface" },
+			{ Name = "Can Buoy", Count = 4, Min = 2, Max = 2.8, Zone = "Surface", Tint = Color3.fromRGB(190, 84, 58) },
 			{ Name = "Metal Dock Segment", Count = 6, Min = 1.6, Max = 2.2, Zone = "Dock" },
 		},
 	},
@@ -198,11 +208,11 @@ local AREA_THEMES: { AreaTheme } = {
 			{ Name = "Abyss Spires", Count = 6, Min = 8, Max = 14, Zone = "Dockside", Sink = 0.5 },
 			{ Name = "Whale Rib Bones", Count = 8, Min = 5, Max = 9, Zone = "Shore" },
 			{ Name = "Sea Creature Skull", Count = 6, Min = 3, Max = 5, Zone = "Shore" },
-			{ Name = "Biolum Mushroom Cluster", Count = 16, Min = 6.5, Max = 9, Zone = "Dockside", Glow = 16 },
-			{ Name = "Biolum Mushroom Cluster", Count = 12, Min = 1.8, Max = 3.2, Zone = "Floor", Glow = 14 },
-			{ Name = "Abyss Crystal Cluster", Count = 12, Min = 6.5, Max = 10, Zone = "Dockside", Glow = 18 },
-			{ Name = "Abyss Crystal Cluster", Count = 8, Min = 10, Max = 18, Zone = "Headland", Glow = 22 },
-			{ Name = "Lantern Buoy", Count = 6, Min = 2.2, Max = 3, Zone = "Surface", Glow = 20 },
+			{ Name = "Biolum Mushroom Cluster", Count = 12, Min = 6.5, Max = 8.5, Zone = "Dockside", Glow = 12 },
+			{ Name = "Biolum Mushroom Cluster", Count = 10, Min = 1.8, Max = 3.2, Zone = "Floor", Glow = 10 },
+			{ Name = "Abyss Crystal Cluster", Count = 8, Min = 6.5, Max = 9, Zone = "Dockside", Material = Enum.Material.Ice, Glow = 12 },
+			{ Name = "Abyss Crystal Cluster", Count = 6, Min = 9, Max = 15, Zone = "Headland", Material = Enum.Material.Ice, Glow = 14 },
+			{ Name = "Lantern Buoy", Count = 4, Min = 2.2, Max = 3, Zone = "Surface", Glow = 14 },
 		},
 	},
 }
@@ -265,11 +275,16 @@ local function setLighting()
 	atmosphere.Parent = Lighting
 end
 
-local function makePalm(position: Vector3, parent: Instance)
+-- `scale` exists because the beach needs two sizes of the same tree: shoreline
+-- palms at 1, and a back rank at 2-3x standing in for a treeline. The mesh palm
+-- that used to fake the treeline is one mesh in one flat colour — leaf-green
+-- trunk included — so the hand-built palm, scaled up, replaces it outright.
+local function makePalm(position: Vector3, parent: Instance, scale: number?)
+	local k = scale or 1
 	local trunk = part({
 		Name = "PalmTrunk",
-		Size = Vector3.new(1.4, 10, 1.4),
-		Position = position + Vector3.new(0, 5, 0),
+		Size = Vector3.new(1.4 * k, 10 * k, 1.4 * k),
+		Position = position + Vector3.new(0, 5 * k, 0),
 		Color = Color3.fromRGB(130, 95, 60),
 		Material = Enum.Material.Wood,
 	}, parent)
@@ -278,10 +293,10 @@ local function makePalm(position: Vector3, parent: Instance)
 		local angle = (i / 5) * math.pi * 2
 		local frond = part({
 			Name = "Frond" .. i,
-			Size = Vector3.new(6, 0.4, 1.8),
-			CFrame = CFrame.new(position + Vector3.new(0, 10, 0))
+			Size = Vector3.new(6 * k, 0.4 * k, 1.8 * k),
+			CFrame = CFrame.new(position + Vector3.new(0, 10 * k, 0))
 				* CFrame.Angles(0, angle, -0.35)
-				* CFrame.new(3, 0, 0),
+				* CFrame.new(3 * k, 0, 0),
 			Color = Color3.fromRGB(70, 170, 90),
 			Material = Enum.Material.Grass,
 		}, parent)
@@ -2170,6 +2185,8 @@ local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: In
 					-- turning each one is the cheapest way to stop eight copies
 					-- of a boulder from looking like eight copies of a boulder.
 					Yaw = rng:NextNumber(0, 360),
+					Tint = plan.Tint,
+					Material = plan.Material,
 					Sink = sink,
 					Glow = plan.Glow,
 				} :: WorldBuild.Placement,
@@ -3107,6 +3124,15 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Sp
 	end
 	for _ = 1, theme.Palms do
 		makePalm(Vector3.new(ox + rng:NextNumber(-110, 110), 0, oz + rng:NextNumber(40, 100)), parent)
+	end
+	-- The back rank: big palms deep on the sand, standing in for a treeline.
+	-- Height is the whole job here — a 10-stud palm 80 studs away is a shrub.
+	for _ = 1, math.ceil(theme.Palms * 0.8) do
+		makePalm(
+			Vector3.new(ox + rng:NextNumber(-115, 115), 0, oz + rng:NextNumber(64, 108)),
+			parent,
+			rng:NextNumber(2.0, 3.0)
+		)
 	end
 	scatterScenery(index, theme, ox, oz, parent)
 	scatterProps(theme, ox, oz, parent)

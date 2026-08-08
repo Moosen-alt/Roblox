@@ -151,11 +151,15 @@ def check_footprints(game: Path, rows: list[dict]) -> list[str]:
         plan_file = game / relative
         if not plan_file.exists():
             continue
+        # The tail is matched loosely and Fit searched within it, so a row that
+        # writes Tint or Material between Zone and Fit still measures as a Span
+        # row instead of silently falling back to height-sizing.
         pattern = (
             r'\{\s*Name = "([^"]+)", Count = \d+, Min = ([\d.]+), Max = ([\d.]+), '
-            r'Zone = "\w+"(, Fit = "Span")?'
+            r'Zone = "\w+"([^}]*)\}'
         )
-        for name, _, biggest, by_span in re.findall(pattern, plan_file.read_text()):
+        for name, _, biggest, tail in re.findall(pattern, plan_file.read_text()):
+            by_span = 'Fit = "Span"' in tail
             row = by_name.get(name)
             if row is None:
                 continue  # the name check above already reports this
