@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # to start the CI run that rebuilds and republishes; see below
 
 jobs:
   upload:
@@ -84,6 +85,7 @@ jobs:
       # manifest merge driver is registered first so the rebase resolves the
       # manifest by keeping ids rather than by picking a side.
       - name: Commit asset ids
+        id: commit
         run: |
           git add -- assets/mesh-source/asset_manifest.csv \
                      src/shared/Config/Meshes.luau \
@@ -101,7 +103,8 @@ jobs:
           branch="${GITHUB_REF_NAME}"
           for attempt in 1 2 3 4; do
             if git push origin "HEAD:${branch}"; then
-              echo "Pushed. The normal CI run will rebuild and republish the places."
+              echo "pushed=true" >>"$GITHUB_OUTPUT"
+              echo "Pushed."
               exit 0
             fi
             echo "push rejected (attempt ${attempt}); rebasing onto origin/${branch}"
@@ -114,3 +117,31 @@ jobs:
           done
           echo "::error::Could not push the asset ids after 4 attempts. They are in this run's log; do not re-run the upload blindly, it would create duplicate assets."
           exit 1
+
+      # A push made with GITHUB_TOKEN does NOT start a workflow run. GitHub
+      # blocks that so workflows cannot trigger each other in a loop, and there
+      # is no warning — the commit simply lands and nothing happens.
+      #
+      # That silently undid the point of the whole run once: 69 meshes uploaded,
+      # their ids committed, the config updated, and the place files never
+      # rebuilt — so the assets existed, the game referenced them, and the
+      # PUBLISHED game had none of it. The manifest said done and the thing
+      # players load said otherwise.
+      #
+      # An explicit workflow_dispatch is exempt from the rule, so ask for the
+      # rebuild rather than assuming it happens.
+      - name: Rebuild and republish the places
+        if: steps.commit.outputs.pushed == 'true'
+        run: |
+          code=$(curl -sS -o /tmp/dispatch.out -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/dispatches" \
+            -d "{\"ref\":\"${GITHUB_REF_NAME}\",\"inputs\":{\"publish\":\"true\"}}")
+          if [ "$code" = "204" ]; then
+            echo "CI dispatched; it will rebuild the places and publish them."
+          else
+            # Not fatal: the ids are safely committed, which is the irreplaceable
+            # part. Say plainly what is left to do rather than reporting success.
+            echo "::warning title=Republish not started::Asset ids are committed, but CI could not be dispatched (HTTP ${code}). Run the CI workflow manually to rebuild and publish. $(cat /tmp/dispatch.out)"
+          fi
