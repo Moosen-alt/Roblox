@@ -1,11 +1,21 @@
 --!strict
--- Loads every uploaded model into ReplicatedStorage, once, at server start.
+-- Loads every uploaded model into ReplicatedStorage, in the background, from
+-- server start.
 --
 -- These are Model assets (see Shared/MeshAssets for why that is not a choice),
 -- so `InsertService:LoadAsset` is the only way in. It is server-only, it yields,
 -- and it hits the network per asset — none of which can happen at draw time on a
--- client. So it happens here, before the map is built, and everything downstream
--- clones from the folder this leaves behind.
+-- client. So it starts here, and everything downstream clones from the folder
+-- this leaves behind.
+--
+-- NOTHING HERE MAY BLOCK THE CALLER. The first cut ran the whole batch before
+-- MapBuilder, on the theory that building the map first would bake in primitive
+-- fallbacks. What it actually did was hold the ground itself hostage: the map —
+-- floor, spawn, everything — waited on 138 network round trips, and a player
+-- joining a cold server fell through a world that did not exist yet. Falling
+-- forever is worse than any fallback. The map goes up immediately; everything
+-- that wants a mesh either defers on MeshAssets.OnReady or redraws when it
+-- fires.
 --
 -- FAILURE IS LOUD. The whole reason this module exists is that a broken asset
 -- pipeline looked identical to a working one for hours: every builder falls back
@@ -89,7 +99,11 @@ local function normalise(loaded: Model, key: string): Model?
 	return model
 end
 
-function AssetPreload.Run(): Folder
+-- Fire-and-forget. Creates the library folder NOW — synchronously, so OnReady
+-- consumers and clients have something to wait on — and fills it from worker
+-- threads. Returns immediately; Loaded flips on the folder when the batch is
+-- done, and that flip is the one signal everything mesh-shaped listens for.
+function AssetPreload.Start(): Folder
 	local holder = Instance.new("Folder")
 	holder.Name = MeshAssets.FOLDER
 	holder.Parent = ReplicatedStorage
@@ -104,12 +118,50 @@ function AssetPreload.Run(): Folder
 	local loaded, failed = 0, {}
 	local firstError: string? = nil
 	local active = 0
+	local announced = false
+
+	-- Loaded flips exactly once, whether the batch finishes or the watchdog
+	-- gives up waiting for it. Announcing twice would be harmless for the
+	-- attribute but would double every log line.
+	local function announce(timedOut: boolean)
+		if announced then
+			return
+		end
+		announced = true
+		if timedOut then
+			warn(
+				("[AssetPreload] Still loading after 120s; proceeding with %d/%d models. Stragglers keep filling the library."):format(
+					loaded,
+					#entries
+				)
+			)
+		end
+		holder:SetAttribute("Loaded", true)
+		print(("[AssetPreload] %d/%d models loaded"):format(loaded, #entries))
+		if #failed > 0 then
+			warn(
+				("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s"):format(
+					#failed,
+					firstError or "?"
+				)
+			)
+			if loaded == 0 then
+				-- Every single one failing is not bad luck, it is a permission
+				-- problem. LoadAsset can only reach assets the EXPERIENCE's owner
+				-- owns, so group-owned models in a personally-owned place fail
+				-- exactly like this, uniformly and silently.
+				warn(
+					"[AssetPreload] NOTHING loaded. LoadAsset can only fetch assets owned by the "
+						.. "experience's owner — check the experience is owned by the same group the "
+						.. "models were uploaded under, or re-upload them under the owning account."
+				)
+			end
+		end
+	end
 
 	-- The WHOLE entry sits inside pcall — LoadAsset, normalise, parenting — so
-	-- one malformed asset is one line in `failed`, never a dead worker. The
-	-- first cut protected only LoadAsset; anything throwing after it killed the
-	-- worker before its `active -= 1`, and the wait below then spun forever:
-	-- no map, no services, no error naming the cause.
+	-- one malformed asset is one line in `failed`, never a dead worker whose
+	-- missing `active -= 1` would leave Loaded unset forever.
 	local function handle(entry: Entry): boolean
 		local result = InsertService:LoadAsset(entry.Id)
 		local model = normalise(result, MeshAssets.Key(entry.Kind, entry.Name))
@@ -148,43 +200,19 @@ function AssetPreload.Run(): Folder
 		task.spawn(function()
 			pcall(worker)
 			active -= 1
+			if active == 0 then
+				announce(false)
+			end
 		end)
 	end
-	-- LoadAsset can stall as well as fail, and a hung Roblox call must not hold
-	-- the server at "no map yet" forever. Past the deadline the game starts
-	-- with what it has; stragglers still land in the folder and reach clients
-	-- through the same ready-redraw that covers a slow load.
-	local deadline = os.clock() + 120
-	while active > 0 and os.clock() < deadline do
-		task.wait(0.1)
-	end
-	if active > 0 then
-		warn(
-			("[AssetPreload] Still loading after 120s; starting with %d/%d models."):format(loaded, #entries)
-		)
-	end
-
-	holder:SetAttribute("Loaded", true)
-	print(("[AssetPreload] %d/%d models loaded"):format(loaded, #entries))
-	if #failed > 0 then
-		warn(
-			("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s"):format(
-				#failed,
-				firstError or "?"
-			)
-		)
-		if loaded == 0 then
-			-- Every single one failing is not bad luck, it is a permission
-			-- problem. LoadAsset can only reach assets the EXPERIENCE's owner
-			-- owns, so group-owned models in a personally-owned place fail
-			-- exactly like this, uniformly and silently.
-			warn(
-				"[AssetPreload] NOTHING loaded. LoadAsset can only fetch assets owned by the "
-					.. "experience's owner — check the experience is owned by the same group the "
-					.. "models were uploaded under, or re-upload them under the owning account."
-			)
+	-- A hung LoadAsset must not leave Loaded unset forever — every deferred
+	-- redraw in both games waits on that flip. Two minutes is far past any
+	-- healthy batch.
+	task.delay(120, function()
+		if not announced then
+			announce(true)
 		end
-	end
+	end)
 	return holder
 end
 

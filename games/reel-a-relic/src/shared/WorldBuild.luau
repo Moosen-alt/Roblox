@@ -95,9 +95,13 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 			if place.Transparency then
 				part.Transparency = place.Transparency
 			end
-			local textured = part:IsA("MeshPart") and part.TextureID ~= ""
+			-- Tint UNCONDITIONALLY, exactly as the material already is. The
+			-- pack generates a Material+Tint pair per model; applying the
+			-- material while a "textured" check skipped the tint is what
+			-- filled the cavern with fullbright white Neon blobs — colour
+			-- multiplies with a MeshPart's texture, so it is always safe.
 			local tint = place.Tint or def.Tint
-			if tint and not textured then
+			if tint then
 				part.Color = tint
 			end
 			local material = place.Material or def.Material

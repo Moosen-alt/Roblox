@@ -70,17 +70,16 @@ function MeshBuild.Build(
 	model.WorldPivot = CFrame.identity
 
 	-- Anchored/CanCollide/CanQuery were set once on the library template and
-	-- clone with it; only appearance is per-use. An untextured model gets tinted
-	-- to the crystal colour so auras still read; a textured one already carries
-	-- its own surface.
+	-- clone with it; only appearance is per-use. TINT UNCONDITIONALLY: Color
+	-- multiplies with a MeshPart's texture, and what this pack's uploads
+	-- actually arrive with renders plain grey-white — a "textured models carry
+	-- their own surface" exemption turned every reveal and card into a grey
+	-- rock. The palette colour is what makes a species read as that species.
 	local anchor: BasePart? = nil
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
 			anchor = anchor or part
-			local textured = part:IsA("MeshPart") and part.TextureID ~= ""
-			if not textured then
-				part.Color = color
-			end
+			part.Color = color
 		end
 	end
 

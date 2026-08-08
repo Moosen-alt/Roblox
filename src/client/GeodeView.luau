@@ -148,15 +148,21 @@ function GeodeView.Create(parent: Instance, position: UDim2, size: UDim2, tint: 
 	local halfB = buildHalf("GeodeHalfB", tint, 11)
 	halfB.Parent = world
 
-	-- Closed pose, taken from the pack rather than guessed: the two halves are
-	-- the SAME open-face mesh, B turned 180 degrees, meeting along Z. Its
-	-- asset_info gives a closed offset of 1.1532 against a 2.5627 depth — a
-	-- ratio, not a stud count, so it holds at whatever Scale the mesh ends up.
+	-- Closed pose, measured from the pack rather than guessed. The halves are a
+	-- COMPLEMENTARY pair, not one mesh reused: in the source OBJs the flat cut
+	-- plane — the densest band of coplanar vertices — sits on A's +Z face and
+	-- on B's -Z face. The camera is on -Z, so BOTH halves turn 180 about Y:
+	-- turned, A's cavity aims at the camera (it is the anchor the reveal keeps
+	-- facing you), B's cavity aims at A, and the two cut planes meet at the
+	-- seam. The pack's asset_info gives a closed offset of 1.1532 against a
+	-- 2.5627 depth — a ratio, not a stud count, so it holds at whatever Scale
+	-- the mesh ends up.
 	local _, halfExtents = halfA:GetBoundingBox()
 	local CLOSED_RATIO = 1.1532 / 2.5627
 	local gap = halfExtents.Z * CLOSED_RATIO
-	local restA = CFrame.new(0, 0, gap)
-	local restB = CFrame.new(0, 0, -gap) * CFrame.Angles(0, math.pi, 0)
+	local FACE_CAMERA = CFrame.Angles(0, math.pi, 0)
+	local restA = CFrame.new(0, 0, gap) * FACE_CAMERA
+	local restB = CFrame.new(0, 0, -gap) * FACE_CAMERA
 	halfA:PivotTo(restA)
 	halfB:PivotTo(restB)
 

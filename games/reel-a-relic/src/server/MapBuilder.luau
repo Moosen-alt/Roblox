@@ -12,6 +12,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Crystals = require(Shared.Config.Crystals)
 local FishShape = require(Shared.FishShape)
+local MeshAssets = require(Shared.MeshAssets)
 local WorldBuild = require(Shared.WorldBuild)
 
 local MapBuilder = {}
@@ -2080,6 +2081,12 @@ end
 -- Everything still keeps clear of the fishing arc (radius 24-50 about the spot
 -- centre) so decoration can never eat a cast.
 local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: Instance)
+	-- Placements are decided NOW; models are built when the mesh library lands.
+	-- The split matters twice over: the map no longer waits on the asset batch
+	-- (see AssetPreload — the ground must never wait on the network), and every
+	-- rng draw still happens in the same order at the same time, so the layout
+	-- stays identical to when this built inline.
+	local placements: { { Name: string, Place: WorldBuild.Placement } } = {}
 	for _, plan in theme.Props do
 		for i = 1, plan.Count do
 			local height = rng:NextNumber(plan.Min, plan.Max)
@@ -2116,22 +2123,30 @@ local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: In
 				at = Vector3.new(spot.X, SEA_FLOOR, spot.Z)
 			end
 
-			local model = WorldBuild.Build(plan.Name, {
-				Height = height,
-				Span = if plan.Fit == "Span" then height else nil,
-				Position = at,
-				-- Free rotation. These read the same from every side, so turning
-				-- each one is the cheapest way to stop eight copies of a boulder
-				-- from looking like eight copies of a boulder.
-				Yaw = rng:NextNumber(0, 360),
-				Sink = sink,
-				Glow = plan.Glow,
+			table.insert(placements, {
+				Name = plan.Name,
+				Place = {
+					Height = height,
+					Span = if plan.Fit == "Span" then height else nil,
+					Position = at,
+					-- Free rotation. These read the same from every side, so
+					-- turning each one is the cheapest way to stop eight copies
+					-- of a boulder from looking like eight copies of a boulder.
+					Yaw = rng:NextNumber(0, 360),
+					Sink = sink,
+					Glow = plan.Glow,
+				} :: WorldBuild.Placement,
 			})
+		end
+	end
+	MeshAssets.OnReady(function()
+		for _, entry in placements do
+			local model = WorldBuild.Build(entry.Name, entry.Place)
 			if model then
 				model.Parent = parent
 			end
 		end
-	end
+	end)
 end
 
 local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
@@ -2292,22 +2307,32 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 	end)
 	for slot, at in { Vector3.new(ox - 52, 15, oz - 62), Vector3.new(ox + 52, 15, oz - 62) } do
 		local star = headline[slot]
-		local trophy = FishShape.Build({
-			Name = if star then star.Name else nil,
-			Color = if star then star.Color else theme.Spots[1],
-			Scale = rng:NextNumber(2.6, 3.2),
-			Seed = math.floor(at.X * 7 + at.Z),
-			Glow = 12,
-			Sparkle = true,
-			Neon = index >= 4,
-		})
-		trophy.Name = "Landmark" .. index
-		trophy:PivotTo(CFrame.new(at))
-		trophy.Parent = parent
-		CollectionService:AddTag(trophy, "SpinCrystal")
-		trophy:SetAttribute("SpinSpeed", rng:NextNumber(0.12, 0.22))
-		trophy:SetAttribute("BobHeight", rng:NextNumber(1.4, 2.4))
-		trophy:SetAttribute("BobSpeed", rng:NextNumber(0.4, 0.7))
+		-- Draws hoisted out of the deferred build so the rng stream stays in
+		-- its original order; the build itself waits for the mesh library, so
+		-- a cold server gets the real species model instead of baking the
+		-- primitive silhouette in for the server's whole life.
+		local scale = rng:NextNumber(2.6, 3.2)
+		local spin = rng:NextNumber(0.12, 0.22)
+		local bobHeight = rng:NextNumber(1.4, 2.4)
+		local bobSpeed = rng:NextNumber(0.4, 0.7)
+		MeshAssets.OnReady(function()
+			local trophy = FishShape.Build({
+				Name = if star then star.Name else nil,
+				Color = if star then star.Color else theme.Spots[1],
+				Scale = scale,
+				Seed = math.floor(at.X * 7 + at.Z),
+				Glow = 12,
+				Sparkle = true,
+				Neon = index >= 4,
+			})
+			trophy.Name = "Landmark" .. index
+			trophy:PivotTo(CFrame.new(at))
+			trophy.Parent = parent
+			CollectionService:AddTag(trophy, "SpinCrystal")
+			trophy:SetAttribute("SpinSpeed", spin)
+			trophy:SetAttribute("BobHeight", bobHeight)
+			trophy:SetAttribute("BobSpeed", bobSpeed)
+		end)
 	end
 end
 
@@ -2933,23 +2958,31 @@ local function buildVista(theme: AreaTheme, name: string, layer: number, ox: num
 	end)
 	for i = 1, 2 do
 		local star = headline[i]
-		local trophy = FishShape.Build({
-			Name = if star then star.Name else nil,
-			Color = if star then star.Color else theme.Spots[math.min(i + 1, #theme.Spots)],
-			Scale = rng:NextNumber(5, 7),
-			Seed = math.floor(at.X) + i * 31,
-			Neon = true,
-		})
-		trophy.Name = "VistaFish"
-		trophy:PivotTo(
-			CFrame.new(at + Vector3.new(rng:NextNumber(-80, 80), rng:NextNumber(34, 70), rng:NextNumber(-40, 40)))
-				* CFrame.Angles(0, rng:NextNumber(0, 6), 0)
-		)
-		trophy.Parent = parent
-		CollectionService:AddTag(trophy, "SpinCrystal")
-		trophy:SetAttribute("SpinSpeed", rng:NextNumber(0.05, 0.1))
-		trophy:SetAttribute("BobHeight", rng:NextNumber(3, 6))
-		trophy:SetAttribute("BobSpeed", rng:NextNumber(0.2, 0.35))
+		-- Draws hoisted, build deferred — same deal as the dock landmarks: rng
+		-- order preserved, model built once the library can supply the species.
+		local scale = rng:NextNumber(5, 7)
+		local pose = CFrame.new(
+			at + Vector3.new(rng:NextNumber(-80, 80), rng:NextNumber(34, 70), rng:NextNumber(-40, 40))
+		) * CFrame.Angles(0, rng:NextNumber(0, 6), 0)
+		local spin = rng:NextNumber(0.05, 0.1)
+		local bobHeight = rng:NextNumber(3, 6)
+		local bobSpeed = rng:NextNumber(0.2, 0.35)
+		MeshAssets.OnReady(function()
+			local trophy = FishShape.Build({
+				Name = if star then star.Name else nil,
+				Color = if star then star.Color else theme.Spots[math.min(i + 1, #theme.Spots)],
+				Scale = scale,
+				Seed = math.floor(at.X) + i * 31,
+				Neon = true,
+			})
+			trophy.Name = "VistaFish"
+			trophy:PivotTo(pose)
+			trophy.Parent = parent
+			CollectionService:AddTag(trophy, "SpinCrystal")
+			trophy:SetAttribute("SpinSpeed", spin)
+			trophy:SetAttribute("BobHeight", bobHeight)
+			trophy:SetAttribute("BobSpeed", bobSpeed)
+		end)
 	end
 end
 
@@ -2994,10 +3027,14 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Sp
 	-- A shallow water-coloured slab under each area's spots. Terrain water is one
 	-- global colour, so this is what actually makes the Abyss look like the Abyss
 	-- and not like the Sunny Shallows with different fish in it.
+	-- WELL below the terrain water's surface, not touching it. The slab's top
+	-- used to sit at y = -0.2 — the exact plane the water surface renders on —
+	-- and two coplanar translucent surfaces z-fight: the whole bay flickered as
+	-- a patchwork of water-and-slab tiles, worst from above and at distance.
 	local tint = part({
 		Name = "WaterTint" .. index,
 		Size = Vector3.new(280, 0.4, 160),
-		Position = Vector3.new(ox, -0.4, oz - 70),
+		Position = Vector3.new(ox, -0.7, oz - 70),
 		Color = theme.Water,
 		Material = Enum.Material.SmoothPlastic,
 		Transparency = 0.45,

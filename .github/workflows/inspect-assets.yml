@@ -14,4 +14,7 @@ jobs:
       - name: What are these ids?
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+          # Same fallbacks as ci.yml's publish steps: universe ids are public.
+          GEODE_UNIVERSE_ID: ${{ secrets.GEODE_UNIVERSE_ID || '10631514772' }}
+          REEL_UNIVERSE_ID: ${{ secrets.REEL_UNIVERSE_ID || '10645988430' }}
         run: python3 tools/inspect-assets.py

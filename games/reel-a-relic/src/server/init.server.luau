@@ -30,11 +30,12 @@ local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
 
 Remotes.Init()
--- BEFORE the map. The uploaded art is Model assets, which only InsertService can
--- fetch and only on the server; everything that draws them clones from the
--- folder this leaves in ReplicatedStorage. Building the map first would bake in
--- the primitive fallbacks for good.
-AssetPreload.Run()
+-- The map goes up FIRST, the mesh library fills in the background. It used to
+-- be the other way round, and a player joining a cold server spawned over a
+-- world that had no floor yet — 138 LoadAsset round trips stood between them
+-- and the ground. Everything mesh-shaped redraws itself when the library's
+-- Loaded attribute flips, so nothing is baked wrong by building early.
+AssetPreload.Start()
 local map = MapBuilder.Build()
 
 local ctx: any = {

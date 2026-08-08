@@ -2981,17 +2981,16 @@ function MeshBuild.Build(
 	model.WorldPivot = CFrame.identity
 
 	-- Anchored/CanCollide/CanQuery were set once on the library template and
-	-- clone with it; only appearance is per-use. An untextured model gets tinted
-	-- to the species colour so auras still read; a textured one already carries
-	-- its own surface.
+	-- clone with it; only appearance is per-use. TINT UNCONDITIONALLY: Color
+	-- multiplies with a MeshPart's texture, and what this pack's uploads
+	-- actually arrive with renders plain grey-white — a "textured models carry
+	-- their own surface" exemption turned every reveal and card into a grey
+	-- rock. The palette colour is what makes a species read as that species.
 	local anchor: BasePart? = nil
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
 			anchor = anchor or part
-			local textured = part:IsA("MeshPart") and part.TextureID ~= ""
-			if not textured then
-				part.Color = color
-			end
+			part.Color = color
 		end
 	end
 
@@ -4028,9 +4027,13 @@ function WorldBuild.Build(name: string, place: Placement): Model?
 			if place.Transparency then
 				part.Transparency = place.Transparency
 			end
-			local textured = part:IsA("MeshPart") and part.TextureID ~= ""
+			-- Tint UNCONDITIONALLY, exactly as the material already is. The
+			-- pack generates a Material+Tint pair per model; applying the
+			-- material while a "textured" check skipped the tint is what
+			-- filled the cavern with fullbright white Neon blobs — colour
+			-- multiplies with a MeshPart's texture, so it is always safe.
 			local tint = place.Tint or def.Tint
-			if tint and not textured then
+			if tint then
 				part.Color = tint
 			end
 			local material = place.Material or def.Material
@@ -4098,11 +4101,12 @@ local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
 
 Remotes.Init()
--- BEFORE the map. The uploaded art is Model assets, which only InsertService can
--- fetch and only on the server; everything that draws them clones from the
--- folder this leaves in ReplicatedStorage. Building the map first would bake in
--- the primitive fallbacks for good.
-AssetPreload.Run()
+-- The map goes up FIRST, the mesh library fills in the background. It used to
+-- be the other way round, and a player joining a cold server spawned over a
+-- world that had no floor yet — 138 LoadAsset round trips stood between them
+-- and the ground. Everything mesh-shaped redraws itself when the library's
+-- Loaded attribute flips, so nothing is baked wrong by building early.
+AssetPreload.Start()
 local map = MapBuilder.Build()
 
 local ctx: any = {
@@ -4404,13 +4408,23 @@ return AreaService
         <Properties>
           <string name="Name">AssetPreload</string>
           <string name="Source"><![CDATA[--!strict
--- Loads every uploaded model into ReplicatedStorage, once, at server start.
+-- Loads every uploaded model into ReplicatedStorage, in the background, from
+-- server start.
 --
 -- These are Model assets (see Shared/MeshAssets for why that is not a choice),
 -- so `InsertService:LoadAsset` is the only way in. It is server-only, it yields,
 -- and it hits the network per asset — none of which can happen at draw time on a
--- client. So it happens here, before the map is built, and everything downstream
--- clones from the folder this leaves behind.
+-- client. So it starts here, and everything downstream clones from the folder
+-- this leaves behind.
+--
+-- NOTHING HERE MAY BLOCK THE CALLER. The first cut ran the whole batch before
+-- MapBuilder, on the theory that building the map first would bake in primitive
+-- fallbacks. What it actually did was hold the ground itself hostage: the map —
+-- floor, spawn, everything — waited on 138 network round trips, and a player
+-- joining a cold server fell through a world that did not exist yet. Falling
+-- forever is worse than any fallback. The map goes up immediately; everything
+-- that wants a mesh either defers on MeshAssets.OnReady or redraws when it
+-- fires.
 --
 -- FAILURE IS LOUD. The whole reason this module exists is that a broken asset
 -- pipeline looked identical to a working one for hours: every builder falls back
@@ -4494,7 +4508,11 @@ local function normalise(loaded: Model, key: string): Model?
 	return model
 end
 
-function AssetPreload.Run(): Folder
+-- Fire-and-forget. Creates the library folder NOW — synchronously, so OnReady
+-- consumers and clients have something to wait on — and fills it from worker
+-- threads. Returns immediately; Loaded flips on the folder when the batch is
+-- done, and that flip is the one signal everything mesh-shaped listens for.
+function AssetPreload.Start(): Folder
 	local holder = Instance.new("Folder")
 	holder.Name = MeshAssets.FOLDER
 	holder.Parent = ReplicatedStorage
@@ -4509,12 +4527,50 @@ function AssetPreload.Run(): Folder
 	local loaded, failed = 0, {}
 	local firstError: string? = nil
 	local active = 0
+	local announced = false
+
+	-- Loaded flips exactly once, whether the batch finishes or the watchdog
+	-- gives up waiting for it. Announcing twice would be harmless for the
+	-- attribute but would double every log line.
+	local function announce(timedOut: boolean)
+		if announced then
+			return
+		end
+		announced = true
+		if timedOut then
+			warn(
+				("[AssetPreload] Still loading after 120s; proceeding with %d/%d models. Stragglers keep filling the library."):format(
+					loaded,
+					#entries
+				)
+			)
+		end
+		holder:SetAttribute("Loaded", true)
+		print(("[AssetPreload] %d/%d models loaded"):format(loaded, #entries))
+		if #failed > 0 then
+			warn(
+				("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s"):format(
+					#failed,
+					firstError or "?"
+				)
+			)
+			if loaded == 0 then
+				-- Every single one failing is not bad luck, it is a permission
+				-- problem. LoadAsset can only reach assets the EXPERIENCE's owner
+				-- owns, so group-owned models in a personally-owned place fail
+				-- exactly like this, uniformly and silently.
+				warn(
+					"[AssetPreload] NOTHING loaded. LoadAsset can only fetch assets owned by the "
+						.. "experience's owner — check the experience is owned by the same group the "
+						.. "models were uploaded under, or re-upload them under the owning account."
+				)
+			end
+		end
+	end
 
 	-- The WHOLE entry sits inside pcall — LoadAsset, normalise, parenting — so
-	-- one malformed asset is one line in `failed`, never a dead worker. The
-	-- first cut protected only LoadAsset; anything throwing after it killed the
-	-- worker before its `active -= 1`, and the wait below then spun forever:
-	-- no map, no services, no error naming the cause.
+	-- one malformed asset is one line in `failed`, never a dead worker whose
+	-- missing `active -= 1` would leave Loaded unset forever.
 	local function handle(entry: Entry): boolean
 		local result = InsertService:LoadAsset(entry.Id)
 		local model = normalise(result, MeshAssets.Key(entry.Kind, entry.Name))
@@ -4553,43 +4609,19 @@ function AssetPreload.Run(): Folder
 		task.spawn(function()
 			pcall(worker)
 			active -= 1
+			if active == 0 then
+				announce(false)
+			end
 		end)
 	end
-	-- LoadAsset can stall as well as fail, and a hung Roblox call must not hold
-	-- the server at "no map yet" forever. Past the deadline the game starts
-	-- with what it has; stragglers still land in the folder and reach clients
-	-- through the same ready-redraw that covers a slow load.
-	local deadline = os.clock() + 120
-	while active > 0 and os.clock() < deadline do
-		task.wait(0.1)
-	end
-	if active > 0 then
-		warn(
-			("[AssetPreload] Still loading after 120s; starting with %d/%d models."):format(loaded, #entries)
-		)
-	end
-
-	holder:SetAttribute("Loaded", true)
-	print(("[AssetPreload] %d/%d models loaded"):format(loaded, #entries))
-	if #failed > 0 then
-		warn(
-			("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s"):format(
-				#failed,
-				firstError or "?"
-			)
-		)
-		if loaded == 0 then
-			-- Every single one failing is not bad luck, it is a permission
-			-- problem. LoadAsset can only reach assets the EXPERIENCE's owner
-			-- owns, so group-owned models in a personally-owned place fail
-			-- exactly like this, uniformly and silently.
-			warn(
-				"[AssetPreload] NOTHING loaded. LoadAsset can only fetch assets owned by the "
-					.. "experience's owner — check the experience is owned by the same group the "
-					.. "models were uploaded under, or re-upload them under the owning account."
-			)
+	-- A hung LoadAsset must not leave Loaded unset forever — every deferred
+	-- redraw in both games waits on that flip. Two minutes is far past any
+	-- healthy batch.
+	task.delay(120, function()
+		if not announced then
+			announce(true)
 		end
-	end
+	end)
 	return holder
 end
 
@@ -6017,6 +6049,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Crystals = require(Shared.Config.Crystals)
 local FishShape = require(Shared.FishShape)
+local MeshAssets = require(Shared.MeshAssets)
 local WorldBuild = require(Shared.WorldBuild)
 
 local MapBuilder = {}
@@ -8085,6 +8118,12 @@ end
 -- Everything still keeps clear of the fishing arc (radius 24-50 about the spot
 -- centre) so decoration can never eat a cast.
 local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: Instance)
+	-- Placements are decided NOW; models are built when the mesh library lands.
+	-- The split matters twice over: the map no longer waits on the asset batch
+	-- (see AssetPreload — the ground must never wait on the network), and every
+	-- rng draw still happens in the same order at the same time, so the layout
+	-- stays identical to when this built inline.
+	local placements: { { Name: string, Place: WorldBuild.Placement } } = {}
 	for _, plan in theme.Props do
 		for i = 1, plan.Count do
 			local height = rng:NextNumber(plan.Min, plan.Max)
@@ -8121,22 +8160,30 @@ local function scatterProps(theme: AreaTheme, ox: number, oz: number, parent: In
 				at = Vector3.new(spot.X, SEA_FLOOR, spot.Z)
 			end
 
-			local model = WorldBuild.Build(plan.Name, {
-				Height = height,
-				Span = if plan.Fit == "Span" then height else nil,
-				Position = at,
-				-- Free rotation. These read the same from every side, so turning
-				-- each one is the cheapest way to stop eight copies of a boulder
-				-- from looking like eight copies of a boulder.
-				Yaw = rng:NextNumber(0, 360),
-				Sink = sink,
-				Glow = plan.Glow,
+			table.insert(placements, {
+				Name = plan.Name,
+				Place = {
+					Height = height,
+					Span = if plan.Fit == "Span" then height else nil,
+					Position = at,
+					-- Free rotation. These read the same from every side, so
+					-- turning each one is the cheapest way to stop eight copies
+					-- of a boulder from looking like eight copies of a boulder.
+					Yaw = rng:NextNumber(0, 360),
+					Sink = sink,
+					Glow = plan.Glow,
+				} :: WorldBuild.Placement,
 			})
+		end
+	end
+	MeshAssets.OnReady(function()
+		for _, entry in placements do
+			local model = WorldBuild.Build(entry.Name, entry.Place)
 			if model then
 				model.Parent = parent
 			end
 		end
-	end
+	end)
 end
 
 local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: number, parent: Instance)
@@ -8297,22 +8344,32 @@ local function scatterScenery(index: number, theme: AreaTheme, ox: number, oz: n
 	end)
 	for slot, at in { Vector3.new(ox - 52, 15, oz - 62), Vector3.new(ox + 52, 15, oz - 62) } do
 		local star = headline[slot]
-		local trophy = FishShape.Build({
-			Name = if star then star.Name else nil,
-			Color = if star then star.Color else theme.Spots[1],
-			Scale = rng:NextNumber(2.6, 3.2),
-			Seed = math.floor(at.X * 7 + at.Z),
-			Glow = 12,
-			Sparkle = true,
-			Neon = index >= 4,
-		})
-		trophy.Name = "Landmark" .. index
-		trophy:PivotTo(CFrame.new(at))
-		trophy.Parent = parent
-		CollectionService:AddTag(trophy, "SpinCrystal")
-		trophy:SetAttribute("SpinSpeed", rng:NextNumber(0.12, 0.22))
-		trophy:SetAttribute("BobHeight", rng:NextNumber(1.4, 2.4))
-		trophy:SetAttribute("BobSpeed", rng:NextNumber(0.4, 0.7))
+		-- Draws hoisted out of the deferred build so the rng stream stays in
+		-- its original order; the build itself waits for the mesh library, so
+		-- a cold server gets the real species model instead of baking the
+		-- primitive silhouette in for the server's whole life.
+		local scale = rng:NextNumber(2.6, 3.2)
+		local spin = rng:NextNumber(0.12, 0.22)
+		local bobHeight = rng:NextNumber(1.4, 2.4)
+		local bobSpeed = rng:NextNumber(0.4, 0.7)
+		MeshAssets.OnReady(function()
+			local trophy = FishShape.Build({
+				Name = if star then star.Name else nil,
+				Color = if star then star.Color else theme.Spots[1],
+				Scale = scale,
+				Seed = math.floor(at.X * 7 + at.Z),
+				Glow = 12,
+				Sparkle = true,
+				Neon = index >= 4,
+			})
+			trophy.Name = "Landmark" .. index
+			trophy:PivotTo(CFrame.new(at))
+			trophy.Parent = parent
+			CollectionService:AddTag(trophy, "SpinCrystal")
+			trophy:SetAttribute("SpinSpeed", spin)
+			trophy:SetAttribute("BobHeight", bobHeight)
+			trophy:SetAttribute("BobSpeed", bobSpeed)
+		end)
 	end
 end
 
@@ -8938,23 +8995,31 @@ local function buildVista(theme: AreaTheme, name: string, layer: number, ox: num
 	end)
 	for i = 1, 2 do
 		local star = headline[i]
-		local trophy = FishShape.Build({
-			Name = if star then star.Name else nil,
-			Color = if star then star.Color else theme.Spots[math.min(i + 1, #theme.Spots)],
-			Scale = rng:NextNumber(5, 7),
-			Seed = math.floor(at.X) + i * 31,
-			Neon = true,
-		})
-		trophy.Name = "VistaFish"
-		trophy:PivotTo(
-			CFrame.new(at + Vector3.new(rng:NextNumber(-80, 80), rng:NextNumber(34, 70), rng:NextNumber(-40, 40)))
-				* CFrame.Angles(0, rng:NextNumber(0, 6), 0)
-		)
-		trophy.Parent = parent
-		CollectionService:AddTag(trophy, "SpinCrystal")
-		trophy:SetAttribute("SpinSpeed", rng:NextNumber(0.05, 0.1))
-		trophy:SetAttribute("BobHeight", rng:NextNumber(3, 6))
-		trophy:SetAttribute("BobSpeed", rng:NextNumber(0.2, 0.35))
+		-- Draws hoisted, build deferred — same deal as the dock landmarks: rng
+		-- order preserved, model built once the library can supply the species.
+		local scale = rng:NextNumber(5, 7)
+		local pose = CFrame.new(
+			at + Vector3.new(rng:NextNumber(-80, 80), rng:NextNumber(34, 70), rng:NextNumber(-40, 40))
+		) * CFrame.Angles(0, rng:NextNumber(0, 6), 0)
+		local spin = rng:NextNumber(0.05, 0.1)
+		local bobHeight = rng:NextNumber(3, 6)
+		local bobSpeed = rng:NextNumber(0.2, 0.35)
+		MeshAssets.OnReady(function()
+			local trophy = FishShape.Build({
+				Name = if star then star.Name else nil,
+				Color = if star then star.Color else theme.Spots[math.min(i + 1, #theme.Spots)],
+				Scale = scale,
+				Seed = math.floor(at.X) + i * 31,
+				Neon = true,
+			})
+			trophy.Name = "VistaFish"
+			trophy:PivotTo(pose)
+			trophy.Parent = parent
+			CollectionService:AddTag(trophy, "SpinCrystal")
+			trophy:SetAttribute("SpinSpeed", spin)
+			trophy:SetAttribute("BobHeight", bobHeight)
+			trophy:SetAttribute("BobSpeed", bobSpeed)
+		end)
 	end
 end
 
@@ -8999,10 +9064,14 @@ local function buildArea(index: number, origin: Vector3, parent: Instance): { Sp
 	-- A shallow water-coloured slab under each area's spots. Terrain water is one
 	-- global colour, so this is what actually makes the Abyss look like the Abyss
 	-- and not like the Sunny Shallows with different fish in it.
+	-- WELL below the terrain water's surface, not touching it. The slab's top
+	-- used to sit at y = -0.2 — the exact plane the water surface renders on —
+	-- and two coplanar translucent surfaces z-fight: the whole bay flickered as
+	-- a patchwork of water-and-slab tiles, worst from above and at distance.
 	local tint = part({
 		Name = "WaterTint" .. index,
 		Size = Vector3.new(280, 0.4, 160),
-		Position = Vector3.new(ox, -0.4, oz - 70),
+		Position = Vector3.new(ox, -0.7, oz - 70),
 		Color = theme.Water,
 		Material = Enum.Material.SmoothPlastic,
 		Transparency = 0.45,
