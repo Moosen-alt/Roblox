@@ -1537,7 +1537,10 @@ function FishShape.Build(options: Options): Model
 	-- through the list. See Config/Meshes.
 	local override = Meshes.ForFish(options.Name)
 	if override then
-		return MeshBuild.Build(override, options.Name or "Fish", color, scale, options.Glow)
+		local built = MeshBuild.Build(override, options.Name or "Fish", color, scale, options.Glow, "Fish")
+		if built then
+			return built
+		end
 	end
 
 	local ctx: Ctx = {

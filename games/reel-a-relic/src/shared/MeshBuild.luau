@@ -9,6 +9,7 @@
 -- ViewportFrame — which is where most of these get drawn.
 
 local Meshes = require(script.Parent.Config.Meshes)
+local MeshAssets = require(script.Parent.MeshAssets)
 
 local MeshBuild = {}
 
@@ -18,55 +19,74 @@ local MeshBuild = {}
 -- trial and error against a different reference.
 local BASE_STUDS = 3
 
-function MeshBuild.Build(def: Meshes.MeshDef, name: string, color: Color3, scale: number, glow: number?): Model
-	local model = Instance.new("Model")
+-- KIND is needed now that models are cloned out of the preloaded library rather
+-- than addressed by id: the library is keyed by (kind, name) so two different
+-- things may share a name. Defaults to Crystal, which is what every existing
+-- caller in this game meant.
+function MeshBuild.Build(
+	def: Meshes.MeshDef,
+	name: string,
+	color: Color3,
+	scale: number,
+	glow: number?,
+	kind: string?
+): Model?
+	local model = MeshAssets.Clone(kind or "Crystal", name)
+	-- Not loaded: the caller falls back to its primitive builder, which is the
+	-- behaviour this whole seam was designed around.
+	if not model then
+		return nil
+	end
 	model.Name = name
 
-	local part = Instance.new("Part")
-	part.Name = "Body"
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false -- a cast must never land on a decoration
-	part.CanTouch = false
-	part.Massless = true
-	part.Size = Vector3.new(1, 1, 1)
-	part.Transparency = 0
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	-- A textured mesh supplies its own colour; an untextured one gets tinted to
-	-- the species colour so auras still read.
-	part.Color = color
-	part.Material = Enum.Material.SmoothPlastic
+	-- Real MeshParts, so the bounding box is the real thing and the model can be
+	-- sized against it. This is the part SpecialMesh could never do: its part
+	-- stayed 1x1x1 no matter how large the mesh drew.
+	local _, size = model:GetBoundingBox()
+	local longest = math.max(size.X, size.Y, size.Z)
+	if longest > 0 then
+		model:ScaleTo((BASE_STUDS * scale * (def.Scale or 1)) / longest)
+	end
 
 	local rotation = def.Rotation or Vector3.zero
-	part.CFrame = CFrame.new(def.Offset or Vector3.zero)
-		* CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z))
+	local box = model:GetBoundingBox()
+	model:PivotTo(
+		CFrame.new((def.Offset or Vector3.zero) - box.Position)
+			* CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z))
+	)
 
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.FileMesh
-	mesh.MeshId = "rbxassetid://" .. def.Mesh
-	if def.Texture and def.Texture > 0 then
-		mesh.TextureId = "rbxassetid://" .. def.Texture
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false -- a cast must never land on a decoration
+			part.CanTouch = false
+			part.Massless = true
+			-- An untextured model gets tinted to the species colour so auras
+			-- still read; a textured one already carries its own surface.
+			local textured = false
+			if part:IsA("MeshPart") then
+				textured = part.TextureID ~= ""
+			end
+			if not textured then
+				part.Color = color
+			end
+		end
 	end
-	local size = BASE_STUDS * scale * (def.Scale or 1)
-	mesh.Scale = Vector3.new(size, size, size)
-	mesh.Parent = part
-	part.Parent = model
 
-	if glow and glow > 0 then
+	if glow and glow > 0 and model.PrimaryPart then
 		local light = Instance.new("PointLight")
 		light.Color = color
 		light.Range = glow
 		light.Brightness = 0.7
 		light.Shadows = false
-		light.Parent = part
+		light.Parent = model.PrimaryPart
 	end
 
-	model.PrimaryPart = part
 	-- Centroid pivot, matching the primitive builders: callers PivotTo these and
 	-- expect the middle of the thing to land where they asked.
-	local box = model:GetBoundingBox()
-	model.WorldPivot = CFrame.new(box.Position)
+	local final = model:GetBoundingBox()
+	model.WorldPivot = CFrame.new(final.Position)
 	return model
 end
 

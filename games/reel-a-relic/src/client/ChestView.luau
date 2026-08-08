@@ -112,7 +112,10 @@ end
 local function build(part: string, color: Color3, fallback: () -> Model): Model
 	local override = Meshes.ForProp(part)
 	if override then
-		return MeshBuild.Build(override, part, color, 1, nil)
+		local built = MeshBuild.Build(override, part, color, 1, nil, "Prop")
+		if built then
+			return built
+		end
 	end
 	return fallback()
 end

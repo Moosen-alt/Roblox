@@ -25,6 +25,7 @@
 -- pack.
 
 local Meshes = require(script.Parent.Config.Meshes)
+local MeshAssets = require(script.Parent.MeshAssets)
 
 local WorldBuild = {}
 
@@ -49,79 +50,87 @@ export type Placement = {
 
 function WorldBuild.Build(name: string, place: Placement): Model?
 	local def = Meshes.ForWorld(name)
-	-- No entry means the mesh is not uploaded yet — the map is expected to look
-	-- complete without it, so this is a normal return and not a warning.
-	if not def or not def.Size or def.Size.Y <= 0 then
+	-- No entry, or the model is not in the preloaded library — still in
+	-- moderation, or not loadable by this experience. The map is expected to
+	-- look complete without it, so this is a normal return, not a warning.
+	if not def then
 		return nil
 	end
-	local size = def.Size :: Vector3
-	local middle = def.Middle or Vector3.zero
-	local floor = def.Floor or -size.Y * 0.5
-
-	local model = Instance.new("Model")
+	local model = MeshAssets.Clone("World", name)
+	if not model then
+		return nil
+	end
 	model.Name = name
 
-	local k = if place.Span
-		then (place.Span / math.max(size.X, size.Z, 0.001)) * (def.Scale or 1)
-		else (place.Height / size.Y) * (def.Scale or 1)
-
-	local part = Instance.new("Part")
-	part.Name = "Body"
-	part.Anchored = true
-	-- Decoration never blocks anything. The procedural geometry underneath is
-	-- what players stand on and what casts land on; these are laid over the top,
-	-- so a mesh that overhangs a dock must not become an invisible wall.
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.Massless = true
-	part.CastShadow = false
-	-- Sized to what it actually draws, even though the mesh ignores it. Roblox
-	-- culls and streams by part size, so a thirty-stud arch on a one-stud part
-	-- pops out of existence when you look slightly away from it.
-	part.Size = Vector3.new(
-		math.max(size.X * k, 0.05),
-		math.max(size.Y * k, 0.05),
-		math.max(size.Z * k, 0.05)
-	)
-	part.Color = place.Tint or def.Tint or Color3.fromRGB(160, 160, 160)
-	part.Material = place.Material or def.Material or Enum.Material.SmoothPlastic
-	part.Transparency = place.Transparency or 0
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-
-	local rotation = def.Rotation or Vector3.zero
-	-- Yaw only, by design. These models are authored upright, and the grounding
-	-- arithmetic above is vertical — tipping one on its X or Z axis would move
-	-- its lowest point somewhere this no longer knows about. Fix a wrong-way-up
-	-- model in the source file, not here.
-	part.CFrame = CFrame.new(place.Position + Vector3.new(0, (middle.Y - floor) * k - (place.Sink or 0), 0))
-		* CFrame.Angles(0, math.rad((place.Yaw or 0) + rotation.Y), 0)
-
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.FileMesh
-	mesh.MeshId = "rbxassetid://" .. def.Mesh
-	if def.Texture and def.Texture > 0 then
-		mesh.TextureId = "rbxassetid://" .. def.Texture
+	-- Real MeshParts, so the extents are measurable at runtime. The generated
+	-- Size/Floor from the source OBJ stay as a fallback for anything the library
+	-- hands back without a usable box.
+	local _, size = model:GetBoundingBox()
+	if size.Y <= 0 then
+		size = def.Size or Vector3.one
 	end
-	mesh.Scale = Vector3.new(k, k, k)
-	-- Recentre a model whose author did not centre it, so Position means the
-	-- middle of the thing rather than the middle of its exporter's idea of one.
-	mesh.Offset = middle * -k
-	mesh.Parent = part
 
-	if place.Glow and place.Glow > 0 then
+	local k = if place.Span
+		then place.Span / math.max(size.X, size.Z, 0.001)
+		else place.Height / math.max(size.Y, 0.001)
+	k *= (def.Scale or 1)
+	model:ScaleTo(k)
+
+	-- Sit it ON the ground. Measured from the scaled model rather than assumed,
+	-- which is the whole point of having real parts: the lowest vertex goes
+	-- exactly on Position.Y, whether the model was authored grounded, centred,
+	-- or below its own origin.
+	local box, extents = model:GetBoundingBox()
+	local rotation = def.Rotation or Vector3.zero
+	local bottom = box.Position.Y - extents.Y * 0.5
+	model:PivotTo(
+		CFrame.new(
+			place.Position.X - box.Position.X,
+			place.Position.Y - bottom - (place.Sink or 0),
+			place.Position.Z - box.Position.Z
+		)
+			* box.Rotation
+			* CFrame.Angles(0, math.rad((place.Yaw or 0) + rotation.Y), 0)
+	)
+
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+			-- Decoration never blocks anything. The procedural geometry beneath
+			-- is what players stand on and what casts land on; these are laid
+			-- over the top, so a mesh overhanging a dock must not become a wall.
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+			part.Massless = true
+			part.CastShadow = false
+			if place.Transparency then
+				part.Transparency = place.Transparency
+			end
+			local textured = false
+			if part:IsA("MeshPart") then
+				textured = part.TextureID ~= ""
+			end
+			local tint = place.Tint or def.Tint
+			if tint and not textured then
+				part.Color = tint
+			end
+			local material = place.Material or def.Material
+			if material then
+				part.Material = material
+			end
+		end
+	end
+
+	if place.Glow and place.Glow > 0 and model.PrimaryPart then
 		local light = Instance.new("PointLight")
-		light.Color = part.Color
+		light.Color = model.PrimaryPart.Color
 		light.Range = place.Glow
 		light.Brightness = 0.6
 		light.Shadows = false
-		light.Parent = part
+		light.Parent = model.PrimaryPart
 	end
 
-	part.Parent = model
-	model.PrimaryPart = part
-	model.WorldPivot = part.CFrame
 	return model
 end
 

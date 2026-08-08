@@ -2673,7 +2673,10 @@ function FishShape.Build(options: Options): Model
 	-- through the list. See Config/Meshes.
 	local override = Meshes.ForFish(options.Name)
 	if override then
-		return MeshBuild.Build(override, options.Name or "Fish", color, scale, options.Glow)
+		local built = MeshBuild.Build(override, options.Name or "Fish", color, scale, options.Glow, "Fish")
+		if built then
+			return built
+		end
 	end
 
 	local ctx: Ctx = {
@@ -2815,6 +2818,98 @@ return Format
       </Item>
       <Item class="ModuleScript" referent="11">
         <Properties>
+          <string name="Name">MeshAssets</string>
+          <string name="Source"><![CDATA[--!strict
+-- The uploaded models, loaded once and cloned from ReplicatedStorage.
+--
+-- WHY NOT SpecialMesh.MeshId, WHICH IS WHAT EVERY BUILDER USED TO DO.
+--
+-- Open Cloud has no "Mesh" asset type. Uploading a 3D file — OBJ, FBX, anything
+-- — always produces a **Model**: a container holding MeshParts, with its own
+-- asset id. `SpecialMesh.MeshId` needs a *mesh* id, and the two are not
+-- interchangeable. Point it at a Model id and it renders nothing at all.
+--
+-- That was the state of this project for a while and it was invisible from the
+-- outside. The uploads succeeded, the ids came back, moderation approved them,
+-- the manifest filled in, the generated config referenced them, CI went green
+-- and the published places contained every id — and both games quietly drew
+-- primitives, because every builder here falls back to a primitive when the
+-- mesh is unavailable. Every check ran upstream of the one thing that mattered.
+--
+-- A Model asset can only be brought in with `InsertService:LoadAsset`, which is
+-- server-only and yields. Most of what needs these is on the client — viewport
+-- previews, the reveal, the cavern dressing — so loading on demand is not an
+-- option. Instead the server loads each asset ONCE into a folder under
+-- ReplicatedStorage, and everything afterwards clones from that folder: server,
+-- client, and inside a ViewportFrame, with no yielding and no per-use cost.
+--
+-- Absent entry = fall back to the primitive, exactly as before. A model still in
+-- moderation, or one the game has no permission to load, must never take the
+-- game down with it.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local MeshAssets = {}
+
+MeshAssets.FOLDER = "MeshAssets"
+
+-- Kind and name, flattened, because "Prop/ChestBase" and "World/ChestBase" are
+-- allowed to be different things.
+function MeshAssets.Key(kind: string, name: string): string
+	return kind .. "/" .. name
+end
+
+local cached: Folder? = nil
+
+local function folder(): Folder?
+	if cached and cached.Parent then
+		return cached
+	end
+	cached = ReplicatedStorage:FindFirstChild(MeshAssets.FOLDER) :: Folder?
+	return cached
+end
+
+-- A fresh copy of the loaded model, or nil if it is not there.
+--
+-- Never returns the stored original: callers parent what they get into the
+-- world, and handing out the template would empty the library on first use.
+function MeshAssets.Clone(kind: string, name: string): Model?
+	local holder = folder()
+	if not holder then
+		return nil
+	end
+	local template = holder:FindFirstChild(MeshAssets.Key(kind, name))
+	if not template or not template:IsA("Model") then
+		return nil
+	end
+	return template:Clone()
+end
+
+function MeshAssets.Has(kind: string, name: string): boolean
+	local holder = folder()
+	return holder ~= nil and holder:FindFirstChild(MeshAssets.Key(kind, name)) ~= nil
+end
+
+-- Clients need to know when the library exists before they draw anything from
+-- it. The server sets Loaded once, after the whole batch has been attempted.
+function MeshAssets.WaitForLibrary(timeout: number): Folder?
+	local holder = ReplicatedStorage:WaitForChild(MeshAssets.FOLDER, timeout) :: Folder?
+	if not holder then
+		return nil
+	end
+	local deadline = os.clock() + timeout
+	while not holder:GetAttribute("Loaded") and os.clock() < deadline do
+		task.wait(0.1)
+	end
+	return holder
+end
+
+return MeshAssets
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="12">
+        <Properties>
           <string name="Name">MeshBuild</string>
           <string name="Source"><![CDATA[--!strict
 -- Builds a collectible from an uploaded mesh, in the same shape the primitive
@@ -2827,6 +2922,7 @@ return Format
 -- ViewportFrame — which is where most of these get drawn.
 
 local Meshes = require(script.Parent.Config.Meshes)
+local MeshAssets = require(script.Parent.MeshAssets)
 
 local MeshBuild = {}
 
@@ -2836,55 +2932,74 @@ local MeshBuild = {}
 -- trial and error against a different reference.
 local BASE_STUDS = 3
 
-function MeshBuild.Build(def: Meshes.MeshDef, name: string, color: Color3, scale: number, glow: number?): Model
-	local model = Instance.new("Model")
+-- KIND is needed now that models are cloned out of the preloaded library rather
+-- than addressed by id: the library is keyed by (kind, name) so two different
+-- things may share a name. Defaults to Crystal, which is what every existing
+-- caller in this game meant.
+function MeshBuild.Build(
+	def: Meshes.MeshDef,
+	name: string,
+	color: Color3,
+	scale: number,
+	glow: number?,
+	kind: string?
+): Model?
+	local model = MeshAssets.Clone(kind or "Crystal", name)
+	-- Not loaded: the caller falls back to its primitive builder, which is the
+	-- behaviour this whole seam was designed around.
+	if not model then
+		return nil
+	end
 	model.Name = name
 
-	local part = Instance.new("Part")
-	part.Name = "Body"
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false -- a cast must never land on a decoration
-	part.CanTouch = false
-	part.Massless = true
-	part.Size = Vector3.new(1, 1, 1)
-	part.Transparency = 0
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	-- A textured mesh supplies its own colour; an untextured one gets tinted to
-	-- the species colour so auras still read.
-	part.Color = color
-	part.Material = Enum.Material.SmoothPlastic
+	-- Real MeshParts, so the bounding box is the real thing and the model can be
+	-- sized against it. This is the part SpecialMesh could never do: its part
+	-- stayed 1x1x1 no matter how large the mesh drew.
+	local _, size = model:GetBoundingBox()
+	local longest = math.max(size.X, size.Y, size.Z)
+	if longest > 0 then
+		model:ScaleTo((BASE_STUDS * scale * (def.Scale or 1)) / longest)
+	end
 
 	local rotation = def.Rotation or Vector3.zero
-	part.CFrame = CFrame.new(def.Offset or Vector3.zero)
-		* CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z))
+	local box = model:GetBoundingBox()
+	model:PivotTo(
+		CFrame.new((def.Offset or Vector3.zero) - box.Position)
+			* CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z))
+	)
 
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.FileMesh
-	mesh.MeshId = "rbxassetid://" .. def.Mesh
-	if def.Texture and def.Texture > 0 then
-		mesh.TextureId = "rbxassetid://" .. def.Texture
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false -- a cast must never land on a decoration
+			part.CanTouch = false
+			part.Massless = true
+			-- An untextured model gets tinted to the species colour so auras
+			-- still read; a textured one already carries its own surface.
+			local textured = false
+			if part:IsA("MeshPart") then
+				textured = part.TextureID ~= ""
+			end
+			if not textured then
+				part.Color = color
+			end
+		end
 	end
-	local size = BASE_STUDS * scale * (def.Scale or 1)
-	mesh.Scale = Vector3.new(size, size, size)
-	mesh.Parent = part
-	part.Parent = model
 
-	if glow and glow > 0 then
+	if glow and glow > 0 and model.PrimaryPart then
 		local light = Instance.new("PointLight")
 		light.Color = color
 		light.Range = glow
 		light.Brightness = 0.7
 		light.Shadows = false
-		light.Parent = part
+		light.Parent = model.PrimaryPart
 	end
 
-	model.PrimaryPart = part
 	-- Centroid pivot, matching the primitive builders: callers PivotTo these and
 	-- expect the middle of the thing to land where they asked.
-	local box = model:GetBoundingBox()
-	model.WorldPivot = CFrame.new(box.Position)
+	local final = model:GetBoundingBox()
+	model.WorldPivot = CFrame.new(final.Position)
 	return model
 end
 
@@ -2892,7 +3007,7 @@ return MeshBuild
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">RarityMath</string>
           <string name="Source"><![CDATA[--!strict
@@ -3058,7 +3173,7 @@ return RarityMath
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">RelicShape</string>
           <string name="Source"><![CDATA[--!strict
@@ -3322,7 +3437,10 @@ function RelicShape.Build(options: Options): Model
 	-- See Config/Meshes.
 	local override = Meshes.ForRelic(options.Name)
 	if override then
-		return MeshBuild.Build(override, options.Name, options.Color, options.Scale or 1, options.Glow)
+		local built = MeshBuild.Build(override, options.Name, options.Color, options.Scale or 1, options.Glow, "Relic")
+		if built then
+			return built
+		end
 	end
 
 	local model = Instance.new("Model")
@@ -3696,7 +3814,7 @@ return RelicShape
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--!strict
@@ -3806,7 +3924,7 @@ return Remotes
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">WorldBuild</string>
           <string name="Source"><![CDATA[--!strict
@@ -3836,6 +3954,7 @@ return Remotes
 -- pack.
 
 local Meshes = require(script.Parent.Config.Meshes)
+local MeshAssets = require(script.Parent.MeshAssets)
 
 local WorldBuild = {}
 
@@ -3860,79 +3979,87 @@ export type Placement = {
 
 function WorldBuild.Build(name: string, place: Placement): Model?
 	local def = Meshes.ForWorld(name)
-	-- No entry means the mesh is not uploaded yet — the map is expected to look
-	-- complete without it, so this is a normal return and not a warning.
-	if not def or not def.Size or def.Size.Y <= 0 then
+	-- No entry, or the model is not in the preloaded library — still in
+	-- moderation, or not loadable by this experience. The map is expected to
+	-- look complete without it, so this is a normal return, not a warning.
+	if not def then
 		return nil
 	end
-	local size = def.Size :: Vector3
-	local middle = def.Middle or Vector3.zero
-	local floor = def.Floor or -size.Y * 0.5
-
-	local model = Instance.new("Model")
+	local model = MeshAssets.Clone("World", name)
+	if not model then
+		return nil
+	end
 	model.Name = name
 
-	local k = if place.Span
-		then (place.Span / math.max(size.X, size.Z, 0.001)) * (def.Scale or 1)
-		else (place.Height / size.Y) * (def.Scale or 1)
-
-	local part = Instance.new("Part")
-	part.Name = "Body"
-	part.Anchored = true
-	-- Decoration never blocks anything. The procedural geometry underneath is
-	-- what players stand on and what casts land on; these are laid over the top,
-	-- so a mesh that overhangs a dock must not become an invisible wall.
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.Massless = true
-	part.CastShadow = false
-	-- Sized to what it actually draws, even though the mesh ignores it. Roblox
-	-- culls and streams by part size, so a thirty-stud arch on a one-stud part
-	-- pops out of existence when you look slightly away from it.
-	part.Size = Vector3.new(
-		math.max(size.X * k, 0.05),
-		math.max(size.Y * k, 0.05),
-		math.max(size.Z * k, 0.05)
-	)
-	part.Color = place.Tint or def.Tint or Color3.fromRGB(160, 160, 160)
-	part.Material = place.Material or def.Material or Enum.Material.SmoothPlastic
-	part.Transparency = place.Transparency or 0
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-
-	local rotation = def.Rotation or Vector3.zero
-	-- Yaw only, by design. These models are authored upright, and the grounding
-	-- arithmetic above is vertical — tipping one on its X or Z axis would move
-	-- its lowest point somewhere this no longer knows about. Fix a wrong-way-up
-	-- model in the source file, not here.
-	part.CFrame = CFrame.new(place.Position + Vector3.new(0, (middle.Y - floor) * k - (place.Sink or 0), 0))
-		* CFrame.Angles(0, math.rad((place.Yaw or 0) + rotation.Y), 0)
-
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.FileMesh
-	mesh.MeshId = "rbxassetid://" .. def.Mesh
-	if def.Texture and def.Texture > 0 then
-		mesh.TextureId = "rbxassetid://" .. def.Texture
+	-- Real MeshParts, so the extents are measurable at runtime. The generated
+	-- Size/Floor from the source OBJ stay as a fallback for anything the library
+	-- hands back without a usable box.
+	local _, size = model:GetBoundingBox()
+	if size.Y <= 0 then
+		size = def.Size or Vector3.one
 	end
-	mesh.Scale = Vector3.new(k, k, k)
-	-- Recentre a model whose author did not centre it, so Position means the
-	-- middle of the thing rather than the middle of its exporter's idea of one.
-	mesh.Offset = middle * -k
-	mesh.Parent = part
 
-	if place.Glow and place.Glow > 0 then
+	local k = if place.Span
+		then place.Span / math.max(size.X, size.Z, 0.001)
+		else place.Height / math.max(size.Y, 0.001)
+	k *= (def.Scale or 1)
+	model:ScaleTo(k)
+
+	-- Sit it ON the ground. Measured from the scaled model rather than assumed,
+	-- which is the whole point of having real parts: the lowest vertex goes
+	-- exactly on Position.Y, whether the model was authored grounded, centred,
+	-- or below its own origin.
+	local box, extents = model:GetBoundingBox()
+	local rotation = def.Rotation or Vector3.zero
+	local bottom = box.Position.Y - extents.Y * 0.5
+	model:PivotTo(
+		CFrame.new(
+			place.Position.X - box.Position.X,
+			place.Position.Y - bottom - (place.Sink or 0),
+			place.Position.Z - box.Position.Z
+		)
+			* box.Rotation
+			* CFrame.Angles(0, math.rad((place.Yaw or 0) + rotation.Y), 0)
+	)
+
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+			-- Decoration never blocks anything. The procedural geometry beneath
+			-- is what players stand on and what casts land on; these are laid
+			-- over the top, so a mesh overhanging a dock must not become a wall.
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+			part.Massless = true
+			part.CastShadow = false
+			if place.Transparency then
+				part.Transparency = place.Transparency
+			end
+			local textured = false
+			if part:IsA("MeshPart") then
+				textured = part.TextureID ~= ""
+			end
+			local tint = place.Tint or def.Tint
+			if tint and not textured then
+				part.Color = tint
+			end
+			local material = place.Material or def.Material
+			if material then
+				part.Material = material
+			end
+		end
+	end
+
+	if place.Glow and place.Glow > 0 and model.PrimaryPart then
 		local light = Instance.new("PointLight")
-		light.Color = part.Color
+		light.Color = model.PrimaryPart.Color
 		light.Range = place.Glow
 		light.Brightness = 0.6
 		light.Shadows = false
-		light.Parent = part
+		light.Parent = model.PrimaryPart
 	end
 
-	part.Parent = model
-	model.PrimaryPart = part
-	model.WorldPivot = part.CFrame
 	return model
 end
 
@@ -3942,11 +4069,11 @@ return WorldBuild
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="16">
+  <Item class="ServerScriptService" referent="17">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="17">
+    <Item class="Script" referent="18">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -3959,6 +4086,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Remotes = require(Shared.Remotes)
 
 local AnalyticsService = require(script.AnalyticsService)
+local AssetPreload = require(script.AssetPreload)
 local AreaService = require(script.AreaService)
 local AutoCastService = require(script.AutoCastService)
 local CodeService = require(script.CodeService)
@@ -3981,6 +4109,11 @@ local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
 
 Remotes.Init()
+-- BEFORE the map. The uploaded art is Model assets, which only InsertService can
+-- fetch and only on the server; everything that draws them clones from the
+-- folder this leaves in ReplicatedStorage. Building the map first would bake in
+-- the primitive fallbacks for good.
+AssetPreload.Run()
 local map = MapBuilder.Build()
 
 local ctx: any = {
@@ -4048,7 +4181,7 @@ DataService.Init(ctx)
 print("[ReelARelic] Server ready.")
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">AnalyticsService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4101,7 +4234,7 @@ return AnalyticsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">AreaService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4278,7 +4411,171 @@ return AreaService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
+        <Properties>
+          <string name="Name">AssetPreload</string>
+          <string name="Source"><![CDATA[--!strict
+-- Loads every uploaded model into ReplicatedStorage, once, at server start.
+--
+-- These are Model assets (see Shared/MeshAssets for why that is not a choice),
+-- so `InsertService:LoadAsset` is the only way in. It is server-only, it yields,
+-- and it hits the network per asset — none of which can happen at draw time on a
+-- client. So it happens here, before the map is built, and everything downstream
+-- clones from the folder this leaves behind.
+--
+-- FAILURE IS LOUD. The whole reason this module exists is that a broken asset
+-- pipeline looked identical to a working one for hours: every builder falls back
+-- to a primitive, so the game keeps running and looking finished. If loading
+-- fails now, the fallbacks still work — but the log says so plainly, with the
+-- most likely cause, instead of leaving it to be discovered by eye.
+
+local InsertService = game:GetService("InsertService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local MeshAssets = require(Shared.MeshAssets)
+local Meshes = require(Shared.Config.Meshes)
+
+local AssetPreload = {}
+
+-- LoadAsset is a network round trip each. Serial would take minutes for a
+-- hundred-plus assets; unbounded would have Roblox throttle us and fail some.
+local CONCURRENCY = 8
+
+type Entry = { Kind: string, Name: string, Id: number }
+
+local function collect(): { Entry }
+	local entries: { Entry } = {}
+	local tables: { [string]: { [string]: Meshes.MeshDef } } = {
+		Fish = Meshes.Fish,
+		Relic = Meshes.Relic,
+		Prop = Meshes.Prop,
+		World = Meshes.World,
+	}
+	for kind, group in tables do
+		for name, def in group do
+			if def.Mesh and def.Mesh > 0 then
+				table.insert(entries, { Kind = kind, Name = name, Id = def.Mesh })
+			end
+		end
+	end
+	return entries
+end
+
+-- What comes back from LoadAsset is a container holding the imported thing,
+-- which may be a lone MeshPart or a Model of several. Normalise it to a Model so
+-- callers have one shape to deal with, and strip anything that could act on the
+-- world — decoration must never collide, block a raycast, or run a script.
+local function normalise(loaded: Model, key: string): Model?
+	local model = Instance.new("Model")
+	model.Name = key
+	for _, child in loaded:GetChildren() do
+		child.Parent = model
+	end
+	local parts = {}
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = true
+			descendant.CanCollide = false
+			descendant.CanQuery = false
+			descendant.CanTouch = false
+			descendant.Massless = true
+			table.insert(parts, descendant)
+		elseif descendant:IsA("Script") or descendant:IsA("LocalScript") then
+			descendant:Destroy()
+		end
+	end
+	if #parts == 0 then
+		model:Destroy()
+		return nil
+	end
+	if not model.PrimaryPart then
+		model.PrimaryPart = parts[1]
+	end
+	return model
+end
+
+function AssetPreload.Run(): Folder
+	local holder = Instance.new("Folder")
+	holder.Name = MeshAssets.FOLDER
+	holder.Parent = ReplicatedStorage
+
+	local entries = collect()
+	if #entries == 0 then
+		holder:SetAttribute("Loaded", true)
+		return holder
+	end
+
+	local next_ = 1
+	local loaded, failed = 0, {}
+	local firstError: string? = nil
+	local active = 0
+
+	local function worker()
+		while true do
+			local index = next_
+			next_ += 1
+			local entry = entries[index]
+			if not entry then
+				break
+			end
+			local ok, result = pcall(function()
+				return InsertService:LoadAsset(entry.Id)
+			end)
+			if ok and typeof(result) == "Instance" then
+				local model = normalise(result :: Model, MeshAssets.Key(entry.Kind, entry.Name))
+				;(result :: Instance):Destroy()
+				if model then
+					model.Parent = holder
+					loaded += 1
+				else
+					table.insert(failed, entry.Name .. " (no parts)")
+				end
+			else
+				table.insert(failed, entry.Name)
+				if not firstError then
+					firstError = tostring(result)
+				end
+			end
+		end
+		active -= 1
+	end
+
+	for _ = 1, math.min(CONCURRENCY, #entries) do
+		active += 1
+		task.spawn(worker)
+	end
+	while active > 0 do
+		task.wait(0.1)
+	end
+
+	holder:SetAttribute("Loaded", true)
+	print(("[AssetPreload] %d/%d models loaded"):format(loaded, #entries))
+	if #failed > 0 then
+		warn(
+			("[AssetPreload] %d model(s) failed to load; those fall back to primitives. First error: %s")
+				:format(#failed, firstError or "?")
+		)
+		if loaded == 0 then
+			-- Every single one failing is not bad luck, it is a permission
+			-- problem. LoadAsset can only reach assets the EXPERIENCE's owner
+			-- owns, so group-owned models in a personally-owned place fail
+			-- exactly like this, uniformly and silently.
+			warn(
+				"[AssetPreload] NOTHING loaded. LoadAsset can only fetch assets owned by the "
+					.. "experience's owner — check the experience is owned by the same group the "
+					.. "models were uploaded under, or re-upload them under the owning account."
+			)
+		end
+	end
+	return holder
+end
+
+return AssetPreload
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">AutoCastService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4369,7 +4666,7 @@ return AutoCastService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">CodeService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4476,7 +4773,7 @@ return CodeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">CrackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -4907,7 +5204,7 @@ return CrackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[--!strict
@@ -5271,7 +5568,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">EventService</string>
           <string name="Source"><![CDATA[--!strict
@@ -5341,7 +5638,7 @@ return EventService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">FilmMode</string>
           <string name="Source"><![CDATA[--!strict
@@ -5491,7 +5788,7 @@ return FilmMode
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">FlexAura</string>
           <string name="Source"><![CDATA[--!strict
@@ -5555,7 +5852,7 @@ return FlexAura
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">Leaderboards</string>
           <string name="Source"><![CDATA[--!strict
@@ -5681,7 +5978,7 @@ return Leaderboards
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -8947,7 +9244,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">MiningService</string>
           <string name="Source"><![CDATA[--!strict
@@ -9481,7 +9778,7 @@ return MiningService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">MonetizationService</string>
           <string name="Source"><![CDATA[--!strict
@@ -9668,11 +9965,11 @@ return MonetizationService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="31">
+      <Item class="Folder" referent="33">
         <Properties>
           <string name="Name">Packages</string>
         </Properties>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">ProfileStore</string>
             <string name="Source">--[[
@@ -11921,7 +12218,7 @@ return ProfileStore</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">PolicyGuard</string>
           <string name="Source"><![CDATA[--!strict
@@ -11973,7 +12270,7 @@ return PolicyGuard
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">QuestService</string>
           <string name="Source"><![CDATA[--!strict
@@ -12197,7 +12494,7 @@ return QuestService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">RackService</string>
           <string name="Source"><![CDATA[--!strict
@@ -12372,7 +12669,7 @@ return RackService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="38">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[--!strict
@@ -12458,7 +12755,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="37">
+      <Item class="ModuleScript" referent="39">
         <Properties>
           <string name="Name">RodVisual</string>
           <string name="Source"><![CDATA[--!strict
@@ -12969,7 +13266,7 @@ return RodVisual
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="38">
+      <Item class="ModuleScript" referent="40">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[--!strict
@@ -13215,7 +13512,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="39">
+      <Item class="ModuleScript" referent="41">
         <Properties>
           <string name="Name">Spotlight</string>
           <string name="Source"><![CDATA[--!strict
@@ -13280,7 +13577,7 @@ return Spotlight
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="40">
+      <Item class="ModuleScript" referent="42">
         <Properties>
           <string name="Name">StreakService</string>
           <string name="Source"><![CDATA[--!strict
@@ -13375,7 +13672,7 @@ return StreakService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="41">
+      <Item class="ModuleScript" referent="43">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[--!strict
@@ -13450,16 +13747,16 @@ return UpgradeService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="42">
+  <Item class="StarterPlayer" referent="44">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterWalkSpeed">20</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="43">
+    <Item class="StarterPlayerScripts" referent="45">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="44">
+      <Item class="LocalScript" referent="46">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -13554,7 +13851,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt)
 end)
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">AquariumView</string>
             <string name="Source"><![CDATA[--!strict
@@ -13813,7 +14110,7 @@ return AquariumView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">ChestView</string>
             <string name="Source"><![CDATA[--!strict
@@ -13930,7 +14227,10 @@ end
 local function build(part: string, color: Color3, fallback: () -> Model): Model
 	local override = Meshes.ForProp(part)
 	if override then
-		return MeshBuild.Build(override, part, color, 1, nil)
+		local built = MeshBuild.Build(override, part, color, 1, nil, "Prop")
+		if built then
+			return built
+		end
 	end
 	return fallback()
 end
@@ -14037,7 +14337,7 @@ return ChestView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">FlexAura</string>
             <string name="Source"><![CDATA[--!strict
@@ -14181,7 +14481,7 @@ return FlexAura
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">GemView</string>
             <string name="Source"><![CDATA[--!strict
@@ -14331,7 +14631,7 @@ return GemView
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -14766,7 +15066,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">MiningInput</string>
             <string name="Source"><![CDATA[--!strict
@@ -14949,7 +15249,7 @@ return MiningInput
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">ObjectiveBanner</string>
             <string name="Source"><![CDATA[--!strict
@@ -15043,7 +15343,7 @@ return ObjectiveBanner
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">Purchase</string>
             <string name="Source"><![CDATA[--!strict
@@ -15082,7 +15382,7 @@ return Purchase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">RebirthFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -15271,7 +15571,7 @@ return RebirthFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">ReelMinigame</string>
             <string name="Source"><![CDATA[--!strict
@@ -15565,7 +15865,7 @@ return ReelMinigame
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">RevealFx</string>
             <string name="Source"><![CDATA[--!strict
@@ -16119,7 +16419,7 @@ return RevealFx
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="58">
           <Properties>
             <string name="Name">ScreenManager</string>
             <string name="Source"><![CDATA[--!strict
@@ -16176,11 +16476,11 @@ return ScreenManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="57">
+        <Item class="Folder" referent="59">
           <Properties>
             <string name="Name">Screens</string>
           </Properties>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">CodesScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -16306,7 +16606,7 @@ return CodesScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">CrackScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -16946,7 +17246,7 @@ return CrackScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">DockScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17097,7 +17397,7 @@ return DockScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">IndexScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17249,7 +17549,7 @@ return IndexScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">QuestsScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17417,7 +17717,7 @@ return QuestsScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">RacksScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17709,7 +18009,7 @@ return RacksScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">RebirthScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -17807,7 +18107,7 @@ return RebirthScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">ShopScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -18079,7 +18379,7 @@ return ShopScreen
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">StoreScreen</string>
               <string name="Source"><![CDATA[--!strict
@@ -18261,7 +18561,7 @@ return StoreScreen
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="67">
+        <Item class="ModuleScript" referent="69">
           <Properties>
             <string name="Name">State</string>
             <string name="Source"><![CDATA[--!strict
@@ -18308,7 +18608,7 @@ return State
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="68">
+        <Item class="ModuleScript" referent="70">
           <Properties>
             <string name="Name">Toasts</string>
             <string name="Source"><![CDATA[--!strict
@@ -18660,7 +18960,7 @@ return Toasts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="69">
+        <Item class="ModuleScript" referent="71">
           <Properties>
             <string name="Name">UiKit</string>
             <string name="Source"><![CDATA[--!strict
@@ -18820,7 +19120,7 @@ return UiKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="70">
+        <Item class="ModuleScript" referent="72">
           <Properties>
             <string name="Name">WorldFx</string>
             <string name="Source"><![CDATA[--!strict

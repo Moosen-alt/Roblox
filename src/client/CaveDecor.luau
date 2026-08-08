@@ -24,6 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local WorldBuild = require(Shared.WorldBuild)
+local MeshAssets = require(Shared.MeshAssets)
 local State = require(script.Parent.State)
 
 local CaveDecor = {}
@@ -244,6 +245,17 @@ function CaveDecor.Init()
 
 	State.Changed:Connect(apply)
 	apply()
+
+	-- The models come from the server's preload, so at join there is a window
+	-- where every Build would return nil and the cavern would stay bare for the
+	-- session. Wait for the library, then redraw once — clearing `shown` is what
+	-- makes the next apply actually rebuild rather than early-out.
+	task.spawn(function()
+		if MeshAssets.WaitForLibrary(45) then
+			shown = -1
+			apply()
+		end
+	end)
 end
 
 return CaveDecor

@@ -116,7 +116,10 @@ end
 local function buildHalf(prop: string, tint: Color3, seed: number): Model
 	local override = Meshes.ForProp(prop)
 	if override then
-		return MeshBuild.Build(override, prop, tint, 1, nil)
+		local built = MeshBuild.Build(override, prop, tint, 1, nil, "Prop")
+		if built then
+			return built
+		end
 	end
 	return primitiveHalf(tint, seed)
 end

@@ -7,6 +7,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Remotes = require(Shared.Remotes)
 
 local AnalyticsService = require(script.AnalyticsService)
+local AssetPreload = require(script.AssetPreload)
 local AutoMineService = require(script.AutoMineService)
 local CrackService = require(script.CrackService)
 local DataService = require(script.DataService)
@@ -26,6 +27,11 @@ local StreakService = require(script.StreakService)
 local UpgradeService = require(script.UpgradeService)
 
 Remotes.Init()
+-- BEFORE the map. The uploaded art is Model assets, which only InsertService can
+-- fetch and only on the server; everything that draws them clones from the
+-- folder this leaves in ReplicatedStorage. Building the map first would bake in
+-- the primitive fallbacks for good.
+AssetPreload.Run()
 local map = MapBuilder.Build()
 
 local ctx: any = {

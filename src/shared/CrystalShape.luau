@@ -101,7 +101,10 @@ function CrystalShape.Build(options: Options): Model
 	-- all-or-nothing, so a partly-uploaded set is a valid state to ship in.
 	local override = Meshes.ForCrystal(options.Name)
 	if override then
-		return MeshBuild.Build(override, options.Name or "Crystal", options.Color, options.Scale or 1, options.Glow)
+		local built = MeshBuild.Build(override, options.Name or "Crystal", options.Color, options.Scale or 1, options.Glow, "Crystal")
+		if built then
+			return built
+		end
 	end
 
 	local model = Instance.new("Model")

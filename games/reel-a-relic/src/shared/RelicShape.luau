@@ -259,7 +259,10 @@ function RelicShape.Build(options: Options): Model
 	-- See Config/Meshes.
 	local override = Meshes.ForRelic(options.Name)
 	if override then
-		return MeshBuild.Build(override, options.Name, options.Color, options.Scale or 1, options.Glow)
+		local built = MeshBuild.Build(override, options.Name, options.Color, options.Scale or 1, options.Glow, "Relic")
+		if built then
+			return built
+		end
 	end
 
 	local model = Instance.new("Model")
