@@ -8347,6 +8347,29 @@ local function buildHalf(prop: string, tint: Color3, seed: number): Model
 	if override then
 		local built = MeshBuild.Build(override, prop, tint, 1, nil, "Prop")
 		if built then
+			-- TWO-TONE, because this model genuinely has two parts — the only
+			-- one in either pack that does. The cloud diagnostic showed the
+			-- halves import as a rocky shell ("Geode_Half_A"/"_B", the mesh
+			-- that spans the half's full depth) plus a separate inner cut face
+			-- ("...2SG1", dense geometry hugging the split plane) — verified
+			-- against the source OBJ's material groups, not guessed from names
+			-- alone. MeshBuild tints both the crystal colour, which wastes the
+			-- split: a geode is dull rock until it opens, and the reveal IS the
+			-- contrast. Shell goes back to rock; only the lining keeps the
+			-- pull's colour. Neon on purpose — a ViewportFrame ignores light
+			-- objects, so self-lit is the only lit, and the glowing interior is
+			-- the one place Neon has always been the right material.
+			for _, part in built:GetDescendants() do
+				if part:IsA("BasePart") then
+					if part.Name:sub(1, 10) == "Geode_Half" then
+						part.Color = SHELL
+						part.Material = Enum.Material.Slate
+					else
+						part.Color = tint
+						part.Material = Enum.Material.Neon
+					end
+				end
+			end
 			return built
 		end
 	end
