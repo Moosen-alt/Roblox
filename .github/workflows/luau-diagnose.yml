@@ -17,6 +17,11 @@ on:
         type: choice
         options: [both, geode, reel]
         default: both
+      script:
+        description: "Which diagnostic to run"
+        type: choice
+        options: [diagnose-library, audit-world]
+        default: diagnose-library
 
 jobs:
   diagnose:
@@ -32,7 +37,7 @@ jobs:
           python3 tools/luau-exec.py \
             --universe "${{ secrets.GEODE_UNIVERSE_ID || '10631514772' }}" \
             --place "${{ secrets.GEODE_PLACE_ID || '87385359444928' }}" \
-            --script tools/diagnose-library.luau
+            --script "tools/${{ inputs.script || 'diagnose-library' }}.luau"
       - name: Reel a Relic
         if: (inputs.game == 'both' || inputs.game == 'reel') && !cancelled()
         env:
@@ -41,4 +46,4 @@ jobs:
           python3 tools/luau-exec.py \
             --universe "${{ secrets.REEL_UNIVERSE_ID || '10645988430' }}" \
             --place "${{ secrets.REEL_PLACE_ID || '84472237297273' }}" \
-            --script tools/diagnose-library.luau
+            --script "tools/${{ inputs.script || 'diagnose-library' }}.luau"
