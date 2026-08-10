@@ -16,6 +16,14 @@ Needs ROBLOX_API_KEY with the "Luau Execution" API system enabled for the
 experience. If the key lacks it, the POST comes back 401/403 — that is a
 one-toggle fix in Creator Hub, and this prints exactly that instead of a stack
 trace. Runs from CI; this container cannot reach Roblox.
+
+A MISSING SCOPE IS NOT A FAILURE. This is an opt-in diagnostic; nobody has
+promised the key can run Luau. Exiting non-zero for it turns a permission the
+owner has simply not granted into a red run and an "All jobs have failed" email,
+which is noise about their own configuration choice. Same call the publish
+script already makes for an unauthorised universe: warn, say exactly what to
+toggle, exit clean. Anything that genuinely broke — a task that errored, logs
+that would not fetch — still fails loudly.
 """
 import argparse
 import json
@@ -64,19 +72,29 @@ def main() -> int:
             time.sleep(2 ** attempt)
         raise SystemExit(f"{method} {url.rsplit('/cloud/', 1)[-1]} kept failing: {last}")
 
-    response = call("POST",
-
+    response = call(
+        "POST",
         f"{API}/universes/{args.universe}/places/{args.place}/luau-execution-session-tasks",
         json={"script": source},
     )
     if response.status_code in (401, 403):
-        print(
-            f"HTTP {response.status_code}: the API key cannot run Luau in universe {args.universe}.\n"
-            f"Fix: Creator Hub -> Open Cloud -> API Keys -> edit the key -> add the\n"
-            f"'Luau Execution' API system with this experience, permission read+write.\n"
-            f"Body: {response.text[:300]}"
+        message = (
+            f"Luau Execution is not enabled for universe {args.universe}, so this "
+            f"diagnostic was skipped. To enable it: Creator Hub -> Open Cloud -> API Keys "
+            f"-> edit the key -> add the 'Luau Execution' API system with this experience, "
+            f"permission read and write."
         )
-        return 2
+        print(f"HTTP {response.status_code}: {message}")
+        print(f"Body: {response.text[:300]}")
+        # Warning, not error: a permission the owner has not granted is a
+        # configuration state, and a red run for it is noise about their own
+        # choice rather than news about the code.
+        print(f"::warning title=Luau diagnostic skipped::{message}")
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary:
+            with open(summary, "a", encoding="utf-8") as handle:
+                handle.write(f"⚠️ **Luau diagnostic skipped** — {message}\n")
+        return 0
     if response.status_code >= 300:
         print(f"create failed: HTTP {response.status_code}: {response.text[:500]}")
         return 1
