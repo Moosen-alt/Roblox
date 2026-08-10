@@ -25,7 +25,7 @@ RevealFx.SplitVertical = false
 -- A flag rather than a rewrite: the 2D path below is tuned and carries real bug
 -- history in its comments (Roblox drops clipping on any rotated subtree), so it
 -- stays intact. Set this false to fall straight back to it.
-RevealFx.Use3DGeode = true
+RevealFx.Use3DGeode = false
 
 local TICK_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 local THUD_SOUND = "rbxasset://sounds/snap.mp3"

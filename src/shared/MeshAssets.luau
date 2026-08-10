@@ -40,7 +40,7 @@ MeshAssets.FOLDER = "MeshAssets"
 -- seen in isolation before it was live. Turn this back on deliberately: one
 -- kind at a time, looked at in Studio or a test server first, not by pushing
 -- and hoping.
-MeshAssets.ENABLED = true
+MeshAssets.ENABLED = false
 
 -- Kind and name, flattened, because "Prop/ChestBase" and "World/ChestBase" are
 -- allowed to be different things.

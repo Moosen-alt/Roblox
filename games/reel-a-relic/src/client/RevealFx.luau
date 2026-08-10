@@ -30,7 +30,7 @@ RevealFx.ShellStyle = "Chest"
 -- A flag rather than a rewrite: the 2D path below is tuned and carries real bug
 -- history in its comments (Roblox drops clipping on any rotated subtree), so it
 -- stays intact and working. Set this false to fall straight back to it.
-RevealFx.Use3DChest = true
+RevealFx.Use3DChest = false
 RevealFx.ChestWood = Color3.fromRGB(122, 80, 44)
 RevealFx.ChestDarkWood = Color3.fromRGB(88, 56, 30)
 RevealFx.ChestBand = Color3.fromRGB(230, 178, 62)
