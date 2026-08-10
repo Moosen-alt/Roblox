@@ -29,21 +29,28 @@ local ok, err = pcall(function()
 	local MeshAssets = require(Shared.MeshAssets)
 	local Meshes = require(Shared.Config.Meshes)
 
-	-- The boot sequence, exactly as init.server.luau runs it. Game scripts do
-	-- not execute in a Luau task, so nothing has run yet and doing it here is
-	-- not a double-build.
-	local AssetPreload = require(server.AssetPreload)
-	local Remotes = require(Shared.Remotes)
-	pcall(function()
-		Remotes.Init()
-	end)
-	AssetPreload.Start()
-	step("AssetPreload started; ENABLED = " .. tostring(MeshAssets.ENABLED))
-
-	local MapBuilder = require(server.MapBuilder)
-	local buildStarted = os.clock()
-	MapBuilder.Build()
-	step(("MapBuilder.Build returned in %.1fs"):format(os.clock() - buildStarted))
+	-- FIRST RUN'S LESSON: game scripts DO execute in a Luau task — the server
+	-- boots exactly as it does for a player, so by the time this script runs
+	-- the world is usually already built. Running the boot sequence again on
+	-- top of that produced a perfect 2x of every count, identical positions and
+	-- all, because the map rng is deterministic. So: only boot what the game
+	-- demonstrably has not booted, and otherwise audit what is already there —
+	-- which is the more honest measurement anyway, being the game's own work
+	-- rather than this script's.
+	if not Workspace:FindFirstChild("GeneratedMap") and not ReplicatedStorage:FindFirstChild(MeshAssets.FOLDER) then
+		local AssetPreload = require(server.AssetPreload)
+		local Remotes = require(Shared.Remotes)
+		pcall(function()
+			Remotes.Init()
+		end)
+		AssetPreload.Start()
+		local MapBuilder = require(server.MapBuilder)
+		MapBuilder.Build()
+		step("game had not booted; ran the boot sequence here")
+	else
+		step("auditing the world the game itself built")
+	end
+	step("ENABLED = " .. tostring(MeshAssets.ENABLED))
 
 	-- Wait for the library the way clients do, then give the deferred OnReady
 	-- builds a moment to actually parent their models.
